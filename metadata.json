@@ -1,0 +1,5 @@
+{
+  "name": "StudyMatrix Kanban",
+  "description": "A 2D matrix Kanban board for study planning. Organize tasks by Subject (rows) and Status (columns). Features AI-assisted planning.",
+  "requestFramePermissions": []
+}
