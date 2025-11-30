@@ -1,6 +1,6 @@
 import React from 'react';
-import { Task, TaskStatus, PRIORITY_COLORS, PRIORITY_LABELS } from '../types';
-import { Clock, CheckCircle2, PlayCircle, AlertCircle, Calendar, Flag } from 'lucide-react';
+import { Task, TaskStatus } from '../types';
+import { Clock, CheckCircle2, PlayCircle, AlertCircle, Calendar } from 'lucide-react';
 
 interface TaskCardProps {
   task: Task;
@@ -52,14 +52,6 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, onDragStart }) => {
       </div>
       
       <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-2">
-        {/* Priority Badge */}
-        {task.priority && (
-            <div className={`px-1.5 py-0.5 rounded border flex items-center gap-1 ${PRIORITY_COLORS[task.priority]}`}>
-                <Flag size={10} />
-                <span>{PRIORITY_LABELS[task.priority]}</span>
-            </div>
-        )}
-
         {/* Deadline */}
         {task.deadline && (
             <div className="flex items-center gap-1 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
