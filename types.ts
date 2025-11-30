@@ -65,3 +65,38 @@ export const PRIORITY_COLORS: Record<Priority, string> = {
   Medium: 'bg-orange-100 text-orange-700 border-orange-200',
   Low: 'bg-slate-100 text-slate-600 border-slate-200',
 };
+
+// Define allowed transitions based on the PlantUML diagram
+export const ALLOWED_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
+  [TaskStatus.TOMORROW_PLUS]: [TaskStatus.TODAY, TaskStatus.WONT_DO],
+  [TaskStatus.TODAY]: [TaskStatus.TOMORROW_PLUS, TaskStatus.STUDYING, TaskStatus.WONT_DO],
+  [TaskStatus.STUDYING]: [TaskStatus.TODAY, TaskStatus.HOLD, TaskStatus.DONE, TaskStatus.WONT_DO],
+  [TaskStatus.HOLD]: [TaskStatus.STUDYING, TaskStatus.DONE, TaskStatus.WONT_DO],
+  [TaskStatus.DONE]: [TaskStatus.TODAY],
+  [TaskStatus.WONT_DO]: [TaskStatus.TODAY],
+};
+
+export const isTransitionAllowed = (current: TaskStatus, next: TaskStatus): boolean => {
+  if (current === next) return true;
+  const allowed = ALLOWED_TRANSITIONS[current];
+  return allowed ? allowed.includes(next) : false;
+};
+
+// Comprehensive check including cross-subject rules
+export const canMoveTask = (task: Task, targetSubjectId: string, targetStatus: TaskStatus): boolean => {
+  const isSameSubject = task.subjectId === targetSubjectId;
+
+  if (isSameSubject) {
+    // Same Subject Rule: Follow ALLOWED_TRANSITIONS
+    if (task.status === targetStatus) return true;
+    return ALLOWED_TRANSITIONS[task.status]?.includes(targetStatus) || false;
+  } else {
+    // Different Subject Rule:
+    // Only 'TOMORROW_PLUS' -> 'TOMORROW_PLUS' or 'TODAY' -> 'TODAY'
+    if (task.status !== targetStatus) return false;
+    return (
+      task.status === TaskStatus.TOMORROW_PLUS ||
+      task.status === TaskStatus.TODAY
+    );
+  }
+};

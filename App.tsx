@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Task, Subject, TaskStatus, STATUS_LABELS, STATUS_COLORS, Reminder } from './types';
+import { Task, Subject, TaskStatus, STATUS_LABELS, STATUS_COLORS, Reminder, canMoveTask } from './types';
 import TaskCard from './components/TaskCard';
 import TaskModal from './components/TaskModal';
 import SubjectManager from './components/SubjectManager';
@@ -34,6 +34,9 @@ const App: React.FC = () => {
   const [isSubjectManagerOpen, setIsSubjectManagerOpen] = useState(false);
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
   const [isReminderOpen, setIsReminderOpen] = useState(false);
+
+  // Drag State
+  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
 
   // --- Persistence ---
   useEffect(() => {
@@ -105,7 +108,6 @@ const App: React.FC = () => {
         ...taskData,
         id: crypto.randomUUID(),
         createdAt: Date.now(),
-        // Ensure required fields are set for new tasks if interface changed (though modal handles it)
         priority: taskData.priority || 'Medium',
       } as Task;
       setTasks(prev => [...prev, newTask]);
@@ -118,8 +120,13 @@ const App: React.FC = () => {
 
   // --- Drag and Drop Logic ---
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    setDraggingTaskId(taskId);
     e.dataTransfer.setData("taskId", taskId);
     e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragEnd = () => {
+    setDraggingTaskId(null);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -132,12 +139,22 @@ const App: React.FC = () => {
     const taskId = e.dataTransfer.getData("taskId");
     if (!taskId) return;
 
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    if (!canMoveTask(task, subjectId, status)) {
+        alert("この移動は許可されていません。\n\n・同一教科内: ルールに従った遷移のみ可能\n・異なる教科間: 「明日以降」「今日やる」同士のみ移動可能");
+        return;
+    }
+
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
         return { ...t, subjectId, status };
       }
       return t;
     }));
+    
+    setDraggingTaskId(null);
   };
 
   const statuses = Object.values(TaskStatus);
@@ -219,15 +236,34 @@ const App: React.FC = () => {
               {statuses.map(status => {
                 const cellTasks = tasks.filter(t => t.subjectId === subject.id && t.status === status);
                 
+                // --- Visual Feedback Logic ---
+                const isDragging = draggingTaskId !== null;
+                const activeTask = draggingTaskId ? tasks.find(t => t.id === draggingTaskId) : null;
+                const droppable = activeTask ? canMoveTask(activeTask, subject.id, status) : false;
+
+                let cellClasses = `p-3 transition-all duration-200 relative min-h-[120px] flex flex-col gap-3 `;
+
+                if (isDragging) {
+                    if (droppable) {
+                        // Modern Valid Drop Zone: Dashed border, subtle indigo tint, rounded
+                        cellClasses += `bg-indigo-50/60 border-2 border-dashed border-indigo-400/50 rounded-xl m-1 `;
+                    } else {
+                        // Invalid Drop Zone: Faded, grayscale
+                        cellClasses += `bg-slate-100/50 opacity-30 border-b border-r border-slate-200 grayscale `;
+                    }
+                } else {
+                    // Normal State
+                    cellClasses += `border-b border-r border-slate-200 bg-slate-50/30 hover:bg-slate-100/50 `;
+                }
+
                 return (
                   <div
                     key={`${subject.id}-${status}`}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(e, subject.id, status)}
-                    className={`border-b border-r border-slate-200 p-3 transition-colors hover:bg-white/50 ${STATUS_COLORS[status].split(' ')[0].replace('bg-', 'bg-opacity-20 ')}`}
+                    className={cellClasses}
                   >
-                    <div className="h-full space-y-3 min-h-[100px]">
-                      {cellTasks.map(task => (
+                    {cellTasks.map(task => (
                         <TaskCard
                           key={task.id}
                           task={task}
@@ -235,20 +271,21 @@ const App: React.FC = () => {
                           onDragStart={handleDragStart}
                         />
                       ))}
-                      {cellTasks.length === 0 && (
-                        <div className="h-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                      
+                      {/* Add Button (only show if not dragging and is TOMORROW_PLUS) */}
+                      {!isDragging && status === TaskStatus.TOMORROW_PLUS && (
+                          <div className="flex-1 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity min-h-[20px]">
                             <button 
                                 onClick={() => {
                                     setTargetSubjectId(subject.id);
                                     handleAddTask(subject.id);
                                 }}
-                                className="text-slate-300 hover:text-slate-400"
+                                className="p-2 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-full transition-all"
                             >
-                                <Plus size={24} />
+                                <Plus size={20} />
                             </button>
                         </div>
                       )}
-                    </div>
                   </div>
                 );
               })}
@@ -273,7 +310,10 @@ const App: React.FC = () => {
       {/* Modals */}
       <TaskModal
         isOpen={isTaskModalOpen}
-        onClose={() => setIsTaskModalOpen(false)}
+        onClose={() => {
+            setIsTaskModalOpen(false);
+            setDraggingTaskId(null); // Safety reset
+        }}
         onSave={handleSaveTask}
         onDelete={handleDeleteTask}
         initialTask={editingTask}
@@ -301,6 +341,14 @@ const App: React.FC = () => {
         reminders={reminders}
         setReminders={setReminders}
       />
+      
+      {/* Global Drag Overlay (Invisible but helps catch end events if needed) */}
+      {draggingTaskId && (
+         <div 
+            className="fixed inset-0 z-0 pointer-events-none" 
+            onDragEnd={handleDragEnd} 
+         />
+      )}
     </div>
   );
 };

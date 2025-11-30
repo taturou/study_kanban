@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Task, TaskStatus, Subject, STATUS_LABELS, Priority, PRIORITY_LABELS } from '../types';
+import { Task, TaskStatus, Subject, STATUS_LABELS, Priority, PRIORITY_LABELS, isTransitionAllowed, ALLOWED_TRANSITIONS } from '../types';
 import { X, Sparkles, Loader2, Calendar } from 'lucide-react';
 import { generateStudyPlan } from '../services/geminiService';
 
@@ -28,7 +28,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [description, setDescription] = useState('');
   const [estimatedMinutes, setEstimatedMinutes] = useState(30);
   const [actualMinutes, setActualMinutes] = useState(0);
-  const [status, setStatus] = useState<TaskStatus>(TaskStatus.TODAY);
+  const [status, setStatus] = useState<TaskStatus>(TaskStatus.TOMORROW_PLUS);
   const [subjectId, setSubjectId] = useState<string>('');
   const [priority, setPriority] = useState<Priority>('Medium');
   const [deadline, setDeadline] = useState<string>(''); // YYYY-MM-DD string for input
@@ -60,11 +60,13 @@ const TaskModal: React.FC<TaskModalProps> = ({
         }
         setIsAiMode(false);
       } else {
+        // New Task
         setTitle('');
         setDescription('');
         setEstimatedMinutes(30);
         setActualMinutes(0);
-        setStatus(initialStatus || TaskStatus.TODAY);
+        // Strict Rule: [*] --> TOMORROW_PLUS
+        setStatus(TaskStatus.TOMORROW_PLUS);
         setSubjectId(initialSubjectId || (subjects.length > 0 ? subjects[0].id : ''));
         setPriority('Medium');
         setDeadline('');
@@ -119,6 +121,16 @@ const TaskModal: React.FC<TaskModalProps> = ({
   };
 
   if (!isOpen) return null;
+
+  // Determine allowed status options
+  let availableStatuses: TaskStatus[] = [];
+  if (initialTask) {
+    // Current status + allowed transitions
+    availableStatuses = [initialTask.status, ...(ALLOWED_TRANSITIONS[initialTask.status] || [])];
+  } else {
+    // New task: only TOMORROW_PLUS
+    availableStatuses = [TaskStatus.TOMORROW_PLUS];
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -215,11 +227,15 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   value={status}
                   onChange={(e) => setStatus(e.target.value as TaskStatus)}
                   className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  disabled={!initialTask} // Disable for new tasks as they are forced to TOMORROW_PLUS
                 >
-                  {Object.entries(STATUS_LABELS).map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
+                  {availableStatuses.map(s => (
+                     <option key={s} value={s}>{STATUS_LABELS[s]}</option>
                   ))}
                 </select>
+                {!initialTask && (
+                    <p className="text-xs text-slate-400 mt-1">新規タスクは「{STATUS_LABELS[TaskStatus.TOMORROW_PLUS]}」から始まります</p>
+                )}
               </div>
             </div>
 
