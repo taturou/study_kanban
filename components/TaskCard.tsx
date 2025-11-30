@@ -1,14 +1,28 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Task, TaskStatus } from '../types';
 import { Clock, CheckCircle2, PlayCircle, AlertCircle, Calendar } from 'lucide-react';
 
 interface TaskCardProps {
   task: Task;
+  index: number;
+  isDragging: boolean;
   onClick: () => void;
-  onDragStart: (e: React.DragEvent, taskId: string) => void;
+  onDragStart: (e: React.DragEvent, task: Task, index: number) => void;
+  onDragEnter: (subjectId: string, status: TaskStatus, index: number) => void;
+  onDragEnd: () => void;
 }
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, onDragStart }) => {
+const TaskCard: React.FC<TaskCardProps> = ({ 
+  task, 
+  index, 
+  isDragging, 
+  onClick, 
+  onDragStart, 
+  onDragEnter,
+  onDragEnd
+}) => {
+  const ref = useRef<HTMLDivElement>(null);
+
   const getStatusIcon = (status: TaskStatus) => {
     switch (status) {
       case TaskStatus.DONE: return <CheckCircle2 className="w-4 h-4 text-green-500" />;
@@ -37,10 +51,27 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, onDragStart }) => {
 
   return (
     <div
+      ref={ref}
       draggable
-      onDragStart={(e) => onDragStart(e, task.id)}
-      onClick={onClick}
-      className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group active:cursor-grabbing relative"
+      onDragStart={(e) => {
+        onDragStart(e, task, index);
+      }}
+      onDragEnd={onDragEnd}
+      onDragEnter={(e) => {
+        if (!isDragging) {
+           onDragEnter(task.subjectId, task.status, index);
+        }
+      }}
+      onDragOver={(e) => e.preventDefault()} 
+      onClick={(e) => {
+          e.stopPropagation();
+          onClick();
+      }}
+      className={`
+        bg-white p-3 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group relative
+        ${isDragging ? 'opacity-0 pointer-events-none' : 'opacity-100'} 
+        active:cursor-grabbing
+      `}
     >
       <div className="flex justify-between items-start mb-2">
         <h4 className="text-sm font-medium text-slate-800 leading-tight line-clamp-2 pr-4">

@@ -33,6 +33,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [status, setStatus] = useState<TaskStatus>(TaskStatus.TOMORROW_PLUS);
   const [subjectId, setSubjectId] = useState<string>('');
   const [priority, setPriority] = useState<Priority>('Medium');
+  const [order, setOrder] = useState<number>(0);
 
   useEffect(() => {
     if (isOpen) {
@@ -44,6 +45,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
         setStatus(initialTask.status);
         setSubjectId(initialTask.subjectId);
         setPriority(initialTask.priority || 'Medium');
+        setOrder(initialTask.order || 0);
         // Convert timestamp to YYYY-MM-DD
         if (initialTask.deadline) {
             const date = new Date(initialTask.deadline);
@@ -64,6 +66,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
         setStatus(TaskStatus.TOMORROW_PLUS);
         setSubjectId(initialSubjectId || (subjects.length > 0 ? subjects[0].id : ''));
         setPriority('Medium'); // Default
+        setOrder(Date.now()); // Temporary large order to put at end
         setDeadline('');
       }
     }
@@ -88,6 +91,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
       subjectId, // Preserved internal state
       priority, // Preserved internal state
       deadline: deadlineTimestamp,
+      order,
     });
     onClose();
   };

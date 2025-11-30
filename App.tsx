@@ -7,6 +7,20 @@ import AnalyticsModal from './components/AnalyticsModal';
 import ReminderModal from './components/ReminderModal';
 import { Plus, Settings, BookOpen, PieChart, Bell } from 'lucide-react';
 
+// Logic types for Drag & Drop
+interface DragState {
+  taskId: string;
+  sourceSubjectId: string;
+  sourceStatus: TaskStatus;
+  isSourceTop: boolean; // Was this task at the top of its list when drag started?
+}
+
+interface DropTarget {
+  subjectId: string;
+  status: TaskStatus;
+  index: number;
+}
+
 const App: React.FC = () => {
   // --- State ---
   const [subjects, setSubjects] = useState<Subject[]>(() => {
@@ -36,7 +50,8 @@ const App: React.FC = () => {
   const [isReminderOpen, setIsReminderOpen] = useState(false);
 
   // Drag State
-  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
 
   // --- Persistence ---
   useEffect(() => {
@@ -60,7 +75,6 @@ const App: React.FC = () => {
         const currentMinute = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
         const currentDay = now.getDay();
 
-        // Only check once per minute
         if (lastCheckedMinute.current === currentMinute) return;
         lastCheckedMinute.current = currentMinute;
 
@@ -73,14 +87,14 @@ const App: React.FC = () => {
                 if (Notification.permission === 'granted') {
                     new Notification('学習リマインダー', {
                         body: reminder.message,
-                        icon: '/favicon.ico' // Assuming standard icon or none
+                        icon: '/favicon.ico'
                     });
                 }
             }
         });
     };
 
-    const intervalId = setInterval(checkReminders, 5000); // Check every 5 seconds
+    const intervalId = setInterval(checkReminders, 5000);
     return () => clearInterval(intervalId);
   }, [reminders]);
 
@@ -100,15 +114,18 @@ const App: React.FC = () => {
 
   const handleSaveTask = (taskData: Omit<Task, 'id' | 'createdAt'> & { id?: string }) => {
     if (taskData.id) {
-      // Update
       setTasks(prev => prev.map(t => t.id === taskData.id ? { ...t, ...taskData } : t));
     } else {
-      // Create
+      const maxOrder = tasks
+        .filter(t => t.subjectId === taskData.subjectId && t.status === taskData.status)
+        .reduce((max, t) => Math.max(max, t.order || 0), -1);
+
       const newTask: Task = {
         ...taskData,
         id: crypto.randomUUID(),
         createdAt: Date.now(),
         priority: taskData.priority || 'Medium',
+        order: maxOrder + 1,
       } as Task;
       setTasks(prev => [...prev, newTask]);
     }
@@ -119,42 +136,116 @@ const App: React.FC = () => {
   };
 
   // --- Drag and Drop Logic ---
-  const handleDragStart = (e: React.DragEvent, taskId: string) => {
-    setDraggingTaskId(taskId);
-    e.dataTransfer.setData("taskId", taskId);
+
+  const handleDragStart = (e: React.DragEvent, task: Task, index: number) => {
+    // Required for some browsers (Firefox) to start drag
+    e.dataTransfer.setData("text/plain", task.id);
     e.dataTransfer.effectAllowed = "move";
+
+    // Check if this task is at the top (index 0) of its current list
+    const isSourceTop = index === 0;
+
+    // IMPORTANT: Defer state update to allow browser to generate the drag ghost image
+    // from the visible element before we hide it (opacity-0) in render
+    setTimeout(() => {
+        setDragState({
+            taskId: task.id,
+            sourceSubjectId: task.subjectId,
+            sourceStatus: task.status,
+            isSourceTop
+        });
+        
+        // Set initial drop target to current location
+        setDropTarget({
+            subjectId: task.subjectId,
+            status: task.status,
+            index: index
+        });
+    }, 0);
   };
 
-  const handleDragEnd = () => {
-    setDraggingTaskId(null);
-  };
+  // Called when hovering over a task card
+  const handleTaskDragEnter = (subjectId: string, status: TaskStatus, index: number) => {
+    if (!dragState) return;
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  };
+    // Validate Movement Validity to decide if we should update drop target
+    // Same cell is always allowed (reordering)
+    const isSameCell = subjectId === dragState.sourceSubjectId && status === dragState.sourceStatus;
+    
+    if (!isSameCell) {
+        // Different cell: Must be Top Task AND Valid Transition
+        if (!dragState.isSourceTop) return; // Cannot move if not top
 
-  const handleDrop = (e: React.DragEvent, subjectId: string, status: TaskStatus) => {
-    e.preventDefault();
-    const taskId = e.dataTransfer.getData("taskId");
-    if (!taskId) return;
-
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    if (!canMoveTask(task, subjectId, status)) {
-        alert("この移動は許可されていません。\n\n・同一教科内: ルールに従った遷移のみ可能\n・異なる教科間: 「明日以降」「今日やる」同士のみ移動可能");
-        return;
+        // Fake a task object to check transition rules
+        const mockTask = { status: dragState.sourceStatus, subjectId: dragState.sourceSubjectId } as Task;
+        if (!canMoveTask(mockTask, subjectId, status)) return;
     }
 
-    setTasks(prev => prev.map(t => {
-      if (t.id === taskId) {
-        return { ...t, subjectId, status };
-      }
-      return t;
-    }));
+    setDropTarget({ subjectId, status, index });
+  };
+
+  // Called when hovering over empty space in a cell (append to end)
+  const handleCellDragOver = (e: React.DragEvent, subjectId: string, status: TaskStatus, totalItems: number) => {
+    e.preventDefault();
+    if (!dragState) return;
+
+    // Check validity (same logic as above)
+    const isSameCell = subjectId === dragState.sourceSubjectId && status === dragState.sourceStatus;
+    if (!isSameCell) {
+        if (!dragState.isSourceTop) return;
+        const mockTask = { status: dragState.sourceStatus, subjectId: dragState.sourceSubjectId } as Task;
+        if (!canMoveTask(mockTask, subjectId, status)) return;
+    }
+
+    // Only update if we are not hovering over a specific task (handled by handleTaskDragEnter)
+    // or if we are dragging over the container itself.
+    if (dropTarget?.subjectId !== subjectId || dropTarget?.status !== status) {
+         setDropTarget({ subjectId, status, index: totalItems });
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
     
-    setDraggingTaskId(null);
+    if (dragState && dropTarget) {
+        const { taskId } = dragState;
+        const { subjectId, status, index } = dropTarget;
+
+        // Perform the move
+        setTasks(prevTasks => {
+            const taskToMove = prevTasks.find(t => t.id === taskId);
+            if (!taskToMove) return prevTasks;
+
+            // Remove
+            const remaining = prevTasks.filter(t => t.id !== taskId);
+
+            // Get target list (sorted)
+            const targetList = remaining
+                .filter(t => t.subjectId === subjectId && t.status === status)
+                .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+            // Insert
+            const newItem = { ...taskToMove, subjectId, status };
+            targetList.splice(index, 0, newItem);
+
+            // Re-index target list
+            const updatedTargetList = targetList.map((t, i) => ({ ...t, order: i }));
+
+            // Merge
+            const others = remaining.filter(t => !(t.subjectId === subjectId && t.status === status));
+            return [...others, ...updatedTargetList];
+        });
+    }
+
+    // Reset state
+    setDragState(null);
+    setDropTarget(null);
+  };
+
+  // Triggered when drag ends (dropped or cancelled)
+  const handleDragEnd = () => {
+    setDragState(null);
+    setDropTarget(null);
   };
 
   const statuses = Object.values(TaskStatus);
@@ -205,7 +296,7 @@ const App: React.FC = () => {
         }}>
           
           {/* Header Row: Statuses */}
-          <div className="sticky top-0 left-0 z-30 bg-slate-100/90 backdrop-blur border-b border-slate-200"></div> {/* Corner spacer */}
+          <div className="sticky top-0 left-0 z-30 bg-slate-100/90 backdrop-blur border-b border-slate-200"></div>
           {statuses.map(status => (
             <div key={status} className="sticky top-0 z-20 bg-slate-100/95 backdrop-blur border-b border-slate-200 px-2 py-3 font-semibold text-slate-600 text-center flex items-center justify-center gap-2">
                <span className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[status].split(' ')[0].replace('bg-', 'bg-')}`}></span>
@@ -216,7 +307,7 @@ const App: React.FC = () => {
           {/* Subject Rows */}
           {subjects.map(subject => (
             <React.Fragment key={subject.id}>
-              {/* Subject Header (Sticky Left) */}
+              {/* Subject Header */}
               <div className="sticky left-0 z-10 bg-white border-r border-b border-slate-200 p-4 flex flex-col justify-between group shadow-[4px_0_12px_-4px_rgba(0,0,0,0.1)]">
                 <div>
                   <h3 className="font-bold text-lg text-slate-800">{subject.name}</h3>
@@ -234,76 +325,93 @@ const App: React.FC = () => {
 
               {/* Grid Cells */}
               {statuses.map(status => {
-                const cellTasks = tasks.filter(t => t.subjectId === subject.id && t.status === status);
+                // Get tasks for this cell
+                const cellTasks = tasks
+                    .filter(t => t.subjectId === subject.id && t.status === status)
+                    .sort((a, b) => (a.order || 0) - (b.order || 0));
                 
-                // --- Visual Feedback Logic ---
-                const isDragging = draggingTaskId !== null;
-                const activeTask = draggingTaskId ? tasks.find(t => t.id === draggingTaskId) : null;
-                const droppable = activeTask ? canMoveTask(activeTask, subject.id, status) : false;
-
-                let cellClasses = `p-3 transition-all duration-200 relative min-h-[120px] flex flex-col gap-3 `;
-
-                if (isDragging) {
-                    if (droppable) {
-                        // Modern Valid Drop Zone: Dashed border, subtle indigo tint, rounded
-                        cellClasses += `bg-indigo-50/60 border-2 border-dashed border-indigo-400/50 rounded-xl m-1 `;
-                    } else {
-                        // Invalid Drop Zone: Faded, grayscale
-                        cellClasses += `bg-slate-100/50 opacity-30 border-b border-r border-slate-200 grayscale `;
+                // Determine Validity for Dragging
+                let isDroppable = true;
+                if (dragState) {
+                    const isSameCell = dragState.sourceSubjectId === subject.id && dragState.sourceStatus === status;
+                    if (!isSameCell) {
+                         // Different Cell Check
+                         // 1. Must be Source Top
+                         if (!dragState.isSourceTop) {
+                             isDroppable = false;
+                         } else {
+                             // 2. Must be allowed transition
+                             const mockTask = { status: dragState.sourceStatus, subjectId: dragState.sourceSubjectId } as Task;
+                             if (!canMoveTask(mockTask, subject.id, status)) {
+                                 isDroppable = false;
+                             }
+                         }
                     }
-                } else {
-                    // Normal State
-                    cellClasses += `border-b border-r border-slate-200 bg-slate-50/30 hover:bg-slate-100/50 `;
                 }
+
+                const isTargetCell = dropTarget?.subjectId === subject.id && dropTarget?.status === status;
 
                 return (
                   <div
                     key={`${subject.id}-${status}`}
-                    onDragOver={handleDragOver}
-                    onDrop={(e) => handleDrop(e, subject.id, status)}
-                    className={cellClasses}
+                    onDragOver={(e) => {
+                        if (isDroppable) handleCellDragOver(e, subject.id, status, cellTasks.length);
+                    }}
+                    onDrop={handleDrop}
+                    className={`
+                        p-3 transition-all duration-200 relative min-h-[120px] flex flex-col gap-3 border-b border-r border-slate-200
+                        ${dragState && !isDroppable ? 'bg-slate-100 opacity-40 grayscale pointer-events-none' : 'bg-slate-50/30 hover:bg-slate-100/50'}
+                    `}
                   >
-                    {cellTasks.map(task => (
-                        <TaskCard
-                          key={task.id}
-                          task={task}
-                          onClick={() => handleEditTask(task)}
-                          onDragStart={handleDragStart}
-                        />
-                      ))}
-                      
-                      {/* Add Button (only show if not dragging and is TOMORROW_PLUS) */}
-                      {!isDragging && status === TaskStatus.TOMORROW_PLUS && (
-                          <div className="flex-1 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity min-h-[20px]">
-                            <button 
-                                onClick={() => {
-                                    setTargetSubjectId(subject.id);
-                                    handleAddTask(subject.id);
-                                }}
-                                className="p-2 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-full transition-all"
-                            >
-                                <Plus size={20} />
-                            </button>
-                        </div>
-                      )}
+                    {/* Render Tasks with Placeholder Injection */}
+                    {cellTasks.map((task, index) => {
+                        const isDraggingSelf = dragState?.taskId === task.id;
+                        
+                        // If this cell is the drop target, we might need to insert the placeholder BEFORE this item
+                        const showPlaceholderHere = isTargetCell && dropTarget.index === index;
+
+                        return (
+                            <React.Fragment key={task.id}>
+                                {showPlaceholderHere && (
+                                    <div className="h-20 w-full rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/50 transition-all animate-pulse" />
+                                )}
+                                <TaskCard
+                                    task={task}
+                                    index={index}
+                                    isDragging={isDraggingSelf}
+                                    onClick={() => handleEditTask(task)}
+                                    onDragStart={handleDragStart}
+                                    onDragEnter={handleTaskDragEnter}
+                                    onDragEnd={handleDragEnd}
+                                />
+                            </React.Fragment>
+                        );
+                    })}
+
+                    {/* Placeholder at the very end if index matches length */}
+                    {isTargetCell && dropTarget.index === cellTasks.length && (
+                         <div className="h-20 w-full rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/50 transition-all animate-pulse" />
+                    )}
+
+                    {/* Add Button (only show if not dragging and is TOMORROW_PLUS) */}
+                    {!dragState && status === TaskStatus.TOMORROW_PLUS && (
+                        <div className="flex-1 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity min-h-[20px]">
+                        <button 
+                            onClick={() => {
+                                setTargetSubjectId(subject.id);
+                                handleAddTask(subject.id);
+                            }}
+                            className="p-2 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-full transition-all"
+                        >
+                            <Plus size={20} />
+                        </button>
+                    </div>
+                    )}
                   </div>
                 );
               })}
             </React.Fragment>
           ))}
-          
-           {subjects.length === 0 && (
-             <div className="col-span-full py-20 text-center text-slate-500">
-                <p className="mb-4">教科がまだ登録されていません。</p>
-                <button 
-                  onClick={() => setIsSubjectManagerOpen(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  教科を追加する
-                </button>
-             </div>
-           )}
-
         </div>
       </div>
 
@@ -312,7 +420,8 @@ const App: React.FC = () => {
         isOpen={isTaskModalOpen}
         onClose={() => {
             setIsTaskModalOpen(false);
-            setDraggingTaskId(null); // Safety reset
+            setDragState(null);
+            setDropTarget(null);
         }}
         onSave={handleSaveTask}
         onDelete={handleDeleteTask}
@@ -341,14 +450,6 @@ const App: React.FC = () => {
         reminders={reminders}
         setReminders={setReminders}
       />
-      
-      {/* Global Drag Overlay (Invisible but helps catch end events if needed) */}
-      {draggingTaskId && (
-         <div 
-            className="fixed inset-0 z-0 pointer-events-none" 
-            onDragEnd={handleDragEnd} 
-         />
-      )}
     </div>
   );
 };

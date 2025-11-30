@@ -26,6 +26,7 @@ export interface Task {
   priority: Priority;
   deadline?: number; // timestamp
   createdAt: number;
+  order: number; // Lower number = Higher priority (displayed at top)
 }
 
 export interface Reminder {
