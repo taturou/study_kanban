@@ -8,7 +8,6 @@ interface TaskCardProps {
   isDragging: boolean;
   onClick: () => void;
   onDragStart: (e: React.DragEvent, task: Task, index: number) => void;
-  onDragEnter: (subjectId: string, status: TaskStatus, index: number) => void;
   onDragEnd: () => void;
 }
 
@@ -18,7 +17,6 @@ const TaskCard: React.FC<TaskCardProps> = ({
   isDragging, 
   onClick, 
   onDragStart, 
-  onDragEnter,
   onDragEnd
 }) => {
   const ref = useRef<HTMLDivElement>(null);
@@ -53,23 +51,18 @@ const TaskCard: React.FC<TaskCardProps> = ({
     <div
       ref={ref}
       draggable
+      data-task-id={task.id}
       onDragStart={(e) => {
         onDragStart(e, task, index);
       }}
       onDragEnd={onDragEnd}
-      onDragEnter={(e) => {
-        if (!isDragging) {
-           onDragEnter(task.subjectId, task.status, index);
-        }
-      }}
-      onDragOver={(e) => e.preventDefault()} 
       onClick={(e) => {
           e.stopPropagation();
           onClick();
       }}
       className={`
         bg-white p-3 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group relative
-        ${isDragging ? 'opacity-0 pointer-events-none' : 'opacity-100'} 
+        ${isDragging ? 'hidden' : 'opacity-100'} 
         active:cursor-grabbing
       `}
     >

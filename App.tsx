@@ -161,7 +161,7 @@ const App: React.FC = () => {
     const isSourceTop = index === 0;
 
     // IMPORTANT: Defer state update to allow browser to generate the drag ghost image
-    // from the visible element before we hide it (opacity-0) in render
+    // from the visible element before we hide it (display: none via class)
     setTimeout(() => {
         setDragState({
             taskId: task.id,
@@ -179,32 +179,13 @@ const App: React.FC = () => {
     }, 0);
   };
 
-  // Called when hovering over a task card
-  const handleTaskDragEnter = (subjectId: string, status: TaskStatus, index: number) => {
-    if (!dragState) return;
-
-    // Validate Movement Validity to decide if we should update drop target
-    // Same cell is always allowed (reordering)
-    const isSameCell = subjectId === dragState.sourceSubjectId && status === dragState.sourceStatus;
-    
-    if (!isSameCell) {
-        // Different cell: Must be Top Task AND Valid Transition
-        if (!dragState.isSourceTop) return; // Cannot move if not top
-
-        // Fake a task object to check transition rules
-        const mockTask = { status: dragState.sourceStatus, subjectId: dragState.sourceSubjectId } as Task;
-        if (!canMoveTask(mockTask, subjectId, status)) return;
-    }
-
-    setDropTarget({ subjectId, status, index });
-  };
-
-  // Called when hovering over empty space in a cell (append to end)
-  const handleCellDragOver = (e: React.DragEvent, subjectId: string, status: TaskStatus, totalItems: number) => {
+  // Called when hovering over the CELL (Container)
+  // This calculates the insertion index based on mouse Y position relative to children
+  const handleCellDragOver = (e: React.DragEvent, subjectId: string, status: TaskStatus) => {
     e.preventDefault();
     if (!dragState) return;
 
-    // Check validity (same logic as above)
+    // Validate Validity
     const isSameCell = subjectId === dragState.sourceSubjectId && status === dragState.sourceStatus;
     if (!isSameCell) {
         if (!dragState.isSourceTop) return;
@@ -212,11 +193,32 @@ const App: React.FC = () => {
         if (!canMoveTask(mockTask, subjectId, status)) return;
     }
 
-    // Only update if we are not hovering over a specific task (handled by handleTaskDragEnter)
-    // or if we are dragging over the container itself.
-    if (dropTarget?.subjectId !== subjectId || dropTarget?.status !== status) {
-         setDropTarget({ subjectId, status, index: totalItems });
+    // Calculate Insertion Index Geometry
+    const container = e.currentTarget;
+    const children = Array.from(container.children).filter(
+        (el) => el.hasAttribute('data-task-id') && !el.classList.contains('hidden')
+    );
+
+    let newIndex = children.length; // Default to append
+
+    for (let i = 0; i < children.length; i++) {
+        const rect = children[i].getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+        
+        if (e.clientY < midpoint) {
+            newIndex = i;
+            break;
+        }
     }
+
+    // Optimization: only update if changed
+    if (dropTarget?.subjectId === subjectId && 
+        dropTarget?.status === status && 
+        dropTarget?.index === newIndex) {
+        return;
+    }
+    
+    setDropTarget({ subjectId, status, index: newIndex });
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -231,7 +233,6 @@ const App: React.FC = () => {
             let processedTasks = [...prevTasks];
 
             // Enforce Single Studying Task Rule:
-            // If moving TO 'studying', downgrade any current 'studying' task to 'hold'
             if (status === TaskStatus.STUDYING) {
                 processedTasks = processedTasks.map(t => {
                     if (t.status === TaskStatus.STUDYING && t.id !== taskId) {
@@ -244,10 +245,10 @@ const App: React.FC = () => {
             const taskToMove = processedTasks.find(t => t.id === taskId);
             if (!taskToMove) return prevTasks;
 
-            // Remove
+            // Remove from old list
             const remaining = processedTasks.filter(t => t.id !== taskId);
 
-            // Get target list (sorted)
+            // Get target list from remaining tasks
             const targetList = remaining
                 .filter(t => t.subjectId === subjectId && t.status === status)
                 .sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -259,7 +260,7 @@ const App: React.FC = () => {
             // Re-index target list
             const updatedTargetList = targetList.map((t, i) => ({ ...t, order: i }));
 
-            // Merge
+            // Merge back
             const others = remaining.filter(t => !(t.subjectId === subjectId && t.status === status));
             return [...others, ...updatedTargetList];
         });
@@ -270,7 +271,6 @@ const App: React.FC = () => {
     setDropTarget(null);
   };
 
-  // Triggered when drag ends (dropped or cancelled)
   const handleDragEnd = () => {
     setDragState(null);
     setDropTarget(null);
@@ -363,12 +363,9 @@ const App: React.FC = () => {
                 if (dragState) {
                     const isSameCell = dragState.sourceSubjectId === subject.id && dragState.sourceStatus === status;
                     if (!isSameCell) {
-                         // Different Cell Check
-                         // 1. Must be Source Top
                          if (!dragState.isSourceTop) {
                              isDroppable = false;
                          } else {
-                             // 2. Must be allowed transition
                              const mockTask = { status: dragState.sourceStatus, subjectId: dragState.sourceSubjectId } as Task;
                              if (!canMoveTask(mockTask, subject.id, status)) {
                                  isDroppable = false;
@@ -383,7 +380,7 @@ const App: React.FC = () => {
                   <div
                     key={`${subject.id}-${status}`}
                     onDragOver={(e) => {
-                        if (isDroppable) handleCellDragOver(e, subject.id, status, cellTasks.length);
+                        if (isDroppable) handleCellDragOver(e, subject.id, status);
                     }}
                     onDrop={handleDrop}
                     className={`
@@ -395,13 +392,13 @@ const App: React.FC = () => {
                     {cellTasks.map((task, index) => {
                         const isDraggingSelf = dragState?.taskId === task.id;
                         
-                        // If this cell is the drop target, we might need to insert the placeholder BEFORE this item
+                        // Show placeholder before the item if index matches
                         const showPlaceholderHere = isTargetCell && dropTarget.index === index;
 
                         return (
                             <React.Fragment key={task.id}>
                                 {showPlaceholderHere && (
-                                    <div className="h-20 w-full rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/50 transition-all animate-pulse" />
+                                    <div className="h-20 w-full rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/50 transition-all animate-pulse pointer-events-none" />
                                 )}
                                 <TaskCard
                                     task={task}
@@ -409,19 +406,18 @@ const App: React.FC = () => {
                                     isDragging={isDraggingSelf}
                                     onClick={() => handleEditTask(task)}
                                     onDragStart={handleDragStart}
-                                    onDragEnter={handleTaskDragEnter}
                                     onDragEnd={handleDragEnd}
                                 />
                             </React.Fragment>
                         );
                     })}
 
-                    {/* Placeholder at the very end if index matches length */}
+                    {/* Placeholder at the very end */}
                     {isTargetCell && dropTarget.index === cellTasks.length && (
-                         <div className="h-20 w-full rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/50 transition-all animate-pulse" />
+                         <div className="h-20 w-full rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/50 transition-all animate-pulse pointer-events-none" />
                     )}
 
-                    {/* Add Button (only show if not dragging and is TOMORROW_PLUS) */}
+                    {/* Add Button */}
                     {!dragState && status === TaskStatus.TOMORROW_PLUS && (
                         <div className="flex-1 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity min-h-[20px]">
                         <button 
