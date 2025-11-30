@@ -1,8 +1,8 @@
 export enum TaskStatus {
   TOMORROW_PLUS = 'tomorrow_plus',
   TODAY = 'today',
-  HOLD = 'hold',
   STUDYING = 'studying',
+  HOLD = 'hold',
   DONE = 'done',
   WONT_DO = 'wont_do',
 }
@@ -39,8 +39,8 @@ export interface Reminder {
 export const STATUS_LABELS: Record<TaskStatus, string> = {
   [TaskStatus.TOMORROW_PLUS]: '明日以降',
   [TaskStatus.TODAY]: '今日やる',
-  [TaskStatus.HOLD]: '保留',
   [TaskStatus.STUDYING]: '勉強中',
+  [TaskStatus.HOLD]: '保留',
   [TaskStatus.DONE]: '終わった',
   [TaskStatus.WONT_DO]: 'やらない',
 };
@@ -48,8 +48,8 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
 export const STATUS_COLORS: Record<TaskStatus, string> = {
   [TaskStatus.TOMORROW_PLUS]: 'bg-slate-100 border-slate-200 text-slate-600',
   [TaskStatus.TODAY]: 'bg-blue-50 border-blue-200 text-blue-700',
-  [TaskStatus.HOLD]: 'bg-yellow-50 border-yellow-200 text-yellow-700',
   [TaskStatus.STUDYING]: 'bg-purple-50 border-purple-200 text-purple-700',
+  [TaskStatus.HOLD]: 'bg-yellow-50 border-yellow-200 text-yellow-700',
   [TaskStatus.DONE]: 'bg-green-50 border-green-200 text-green-700',
   [TaskStatus.WONT_DO]: 'bg-red-50 border-red-200 text-red-700',
 };
