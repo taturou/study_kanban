@@ -113,22 +113,37 @@ const App: React.FC = () => {
   };
 
   const handleSaveTask = (taskData: Omit<Task, 'id' | 'createdAt'> & { id?: string }) => {
-    if (taskData.id) {
-      setTasks(prev => prev.map(t => t.id === taskData.id ? { ...t, ...taskData } : t));
-    } else {
-      const maxOrder = tasks
-        .filter(t => t.subjectId === taskData.subjectId && t.status === taskData.status)
-        .reduce((max, t) => Math.max(max, t.order || 0), -1);
+    setTasks(prev => {
+      let updatedTasks = [...prev];
+      
+      // Enforce Single Studying Task Rule:
+      // If the new/updated task is set to STUDYING, move any existing STUDYING task to HOLD.
+      if (taskData.status === TaskStatus.STUDYING) {
+        updatedTasks = updatedTasks.map(t => {
+          if (t.status === TaskStatus.STUDYING && t.id !== taskData.id) {
+            return { ...t, status: TaskStatus.HOLD };
+          }
+          return t;
+        });
+      }
 
-      const newTask: Task = {
-        ...taskData,
-        id: crypto.randomUUID(),
-        createdAt: Date.now(),
-        priority: taskData.priority || 'Medium',
-        order: maxOrder + 1,
-      } as Task;
-      setTasks(prev => [...prev, newTask]);
-    }
+      if (taskData.id) {
+        return updatedTasks.map(t => t.id === taskData.id ? { ...t, ...taskData } : t);
+      } else {
+        const maxOrder = updatedTasks
+          .filter(t => t.subjectId === taskData.subjectId && t.status === taskData.status)
+          .reduce((max, t) => Math.max(max, t.order || 0), -1);
+
+        const newTask: Task = {
+          ...taskData,
+          id: crypto.randomUUID(),
+          createdAt: Date.now(),
+          priority: taskData.priority || 'Medium',
+          order: maxOrder + 1,
+        } as Task;
+        return [...updatedTasks, newTask];
+      }
+    });
   };
 
   const handleDeleteTask = (id: string) => {
@@ -213,11 +228,24 @@ const App: React.FC = () => {
 
         // Perform the move
         setTasks(prevTasks => {
-            const taskToMove = prevTasks.find(t => t.id === taskId);
+            let processedTasks = [...prevTasks];
+
+            // Enforce Single Studying Task Rule:
+            // If moving TO 'studying', downgrade any current 'studying' task to 'hold'
+            if (status === TaskStatus.STUDYING) {
+                processedTasks = processedTasks.map(t => {
+                    if (t.status === TaskStatus.STUDYING && t.id !== taskId) {
+                        return { ...t, status: TaskStatus.HOLD };
+                    }
+                    return t;
+                });
+            }
+
+            const taskToMove = processedTasks.find(t => t.id === taskId);
             if (!taskToMove) return prevTasks;
 
             // Remove
-            const remaining = prevTasks.filter(t => t.id !== taskId);
+            const remaining = processedTasks.filter(t => t.id !== taskId);
 
             // Get target list (sorted)
             const targetList = remaining
