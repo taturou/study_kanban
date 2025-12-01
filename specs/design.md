@@ -19,7 +19,7 @@ See `types.ts` for full definitions of `Task`, `Subject`, `WorkLog`, etc.
     - Empty Space (Right, Flex-1)
   - Kanban Board (Bottom, Scrollable)
 - **State**: `tasks`, `subjects`, `reminders`, `selectedWeekStart`.
-- **Logic**: Drag & Drop (geometric insertion), Filtering, Persistence.
+- **Logic**: Drag & Drop (geometric insertion), Filtering, Persistence, Panning.
 
 ### `CalendarView.tsx`
 - **Design**: Compact card, fixed width (~320px).
@@ -38,6 +38,7 @@ See `types.ts` for full definitions of `Task`, `Subject`, `WorkLog`, etc.
 - **Drag & Drop**: Custom implementation using mouse Y-coordinates to determine insertion index.
 - **Move Validation**: Checks against `ALLOWED_TRANSITIONS` and Top-Task rule.
 - **Single Studying**: Auto-move existing `Studying` task to `Hold`.
+- **Board Panning**: Implemented via mouse events (`mousedown`, `mousemove`) on the main scrollable container to adjust `scrollLeft` and `scrollTop` based on cursor movement delta. Ignores interactions with tasks/buttons.
 
 ## 5. UI Design System
 - **Colors**: Slate (Neutral), Blue (Primary/Today), Green (Done/Heatmap), Purple (Studying), Red (Priority/Warning).

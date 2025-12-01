@@ -66,6 +66,12 @@ const App: React.FC = () => {
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
 
+  // Panning State
+  const kanbanContainerRef = useRef<HTMLDivElement>(null);
+  const isPanning = useRef(false);
+  const panStart = useRef({ x: 0, y: 0 });
+  const scrollStart = useRef({ left: 0, top: 0 });
+
   // --- Persistence ---
   useEffect(() => {
     localStorage.setItem('study_subjects', JSON.stringify(subjects));
@@ -324,6 +330,43 @@ const App: React.FC = () => {
     setDropTarget(null);
   };
 
+  // --- Panning Logic ---
+  const handlePanMouseDown = (e: React.MouseEvent) => {
+    // Check if clicking a task, button, etc.
+    if ((e.target as HTMLElement).closest('[data-task-id], button, input, textarea, a')) {
+        return;
+    }
+
+    isPanning.current = true;
+    panStart.current = { x: e.clientX, y: e.clientY };
+    if (kanbanContainerRef.current) {
+        scrollStart.current = { 
+            left: kanbanContainerRef.current.scrollLeft, 
+            top: kanbanContainerRef.current.scrollTop 
+        };
+        kanbanContainerRef.current.style.cursor = 'grabbing';
+    }
+  };
+
+  const handlePanMouseMove = (e: React.MouseEvent) => {
+    if (!isPanning.current || !kanbanContainerRef.current) return;
+    
+    e.preventDefault(); // Prevent text selection etc.
+    const dx = e.clientX - panStart.current.x;
+    const dy = e.clientY - panStart.current.y;
+    
+    kanbanContainerRef.current.scrollLeft = scrollStart.current.left - dx;
+    kanbanContainerRef.current.scrollTop = scrollStart.current.top - dy;
+  };
+
+  const handlePanMouseUp = () => {
+    isPanning.current = false;
+    if (kanbanContainerRef.current) {
+        kanbanContainerRef.current.style.cursor = ''; // Revert to CSS class
+    }
+  };
+
+
   const statuses = Object.values(TaskStatus);
   const gridTemplateColumns = `200px repeat(${statuses.length}, minmax(220px, 1fr))`;
 
@@ -382,7 +425,14 @@ const App: React.FC = () => {
       </div>
 
       {/* Kanban Matrix Area */}
-      <div className="flex-1 overflow-auto kanban-scroll p-4 md:p-6 pt-2">
+      <div 
+        ref={kanbanContainerRef}
+        className="flex-1 overflow-auto kanban-scroll p-4 md:p-6 pt-2 cursor-grab"
+        onMouseDown={handlePanMouseDown}
+        onMouseMove={handlePanMouseMove}
+        onMouseUp={handlePanMouseUp}
+        onMouseLeave={handlePanMouseUp}
+      >
         <div className="inline-block min-w-full">
             
             {/* 1. Header Row (Statuses) */}

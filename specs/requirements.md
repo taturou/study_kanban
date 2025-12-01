@@ -50,6 +50,7 @@
 
 ## 6. Interaction
 - **Drag & Drop**: Placeholder visualization, avoidance animation, invalid drop blocking.
+- **Panning**: Users can drag empty spaces in the Kanban board to scroll the view horizontally and vertically.
 
 ## 7. Analytics & Features
 - **Dashboard**: Study time stats, charts.
