@@ -32,11 +32,13 @@ See `types.ts` for full definitions of `Task`, `Subject`, `WorkLog`, etc.
 
 ### `TaskCard.tsx`
 - **Display**: Standard or Compact (for Done/Won't Do).
+- **Icons**: Uses Flag for Deadline, CalendarCheck for Last Execution.
 - **Interaction**: Drag start/end handlers.
 
 ### `TaskModal.tsx` & `SubjectManager.tsx`
 - **Modals**: For creating/editing entities.
 - **Validation**: Custom delete confirmations to bypass sandbox restrictions.
+- **Study Log Manager**: `TaskModal` manages `workLogs` (array of date/minutes). Total `actualMinutes` is derived from this log array.
 
 ## 4. Key Algorithms
 - **Drag & Drop**: Custom implementation using mouse Y-coordinates to determine insertion index.

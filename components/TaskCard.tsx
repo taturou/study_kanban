@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { Task, TaskStatus } from '../types';
-import { Clock, CheckCircle2, PlayCircle, AlertCircle, Calendar } from 'lucide-react';
+import { Clock, CheckCircle2, PlayCircle, AlertCircle, Flag, CalendarCheck } from 'lucide-react';
 
 interface TaskCardProps {
   task: Task;
@@ -40,10 +40,28 @@ const TaskCard: React.FC<TaskCardProps> = ({
     const isOverdue = timestamp < new Date().setHours(0,0,0,0);
     
     return (
-      <span className={`flex items-center gap-0.5 ${isOverdue ? 'text-red-600 font-medium' : ''}`}>
-        <Calendar size={10} />
+      <span className={`flex items-center gap-0.5 ${isOverdue ? 'text-red-600 font-bold' : ''}`}>
+        <Flag size={10} />
         {isToday ? '今日' : `${date.getMonth() + 1}/${date.getDate()}`}
       </span>
+    );
+  };
+
+  // Determine last execution date from logs
+  const getLastExecutionDate = () => {
+    if (!task.workLogs || task.workLogs.length === 0) return null;
+    
+    // Logs are typically sorted or we can find max date
+    // Let's assume the modal sorts them or we sort here briefly for display
+    const sortedLogs = [...task.workLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const lastLog = sortedLogs[0];
+    const date = new Date(lastLog.date);
+    
+    return (
+        <span className="flex items-center gap-0.5 text-blue-600">
+            <CalendarCheck size={10} />
+            {date.getMonth() + 1}/{date.getDate()}
+        </span>
     );
   };
 
@@ -115,9 +133,15 @@ const TaskCard: React.FC<TaskCardProps> = ({
       <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-2">
         {/* Deadline */}
         {task.deadline && (
-            <div className="flex items-center gap-1 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+            <div className="flex items-center gap-1 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200" title="期限">
                {formatDate(task.deadline)}
             </div>
+        )}
+        {/* Last Execution Date */}
+        {task.actualMinutes > 0 && (
+             <div className="flex items-center gap-1 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100" title="最終実施日">
+                {getLastExecutionDate()}
+             </div>
         )}
       </div>
 

@@ -17,7 +17,7 @@
   5. **Done** (終わった)
   6. **Won't Do** (やらない)
 - **Task Visualization**:
-  - **Standard View**: Detailed card showing Title, Deadline, Estimates.
+  - **Standard View**: Detailed card showing Title, Deadline (Flag Icon), Last Execution Date (Check Icon), Estimates.
   - **Compact View**: Minimalist single-line display for **Done** and **Won't Do** tasks.
 
 ## 3. Calendar & Weekly Planning
@@ -30,6 +30,8 @@
 ## 4. Task Management
 ### 4.1 Task Properties
 - **Visible**: Title, Deadline, Estimated Time, Actual Time, Memo.
+- **Study Logs**: Users can register specific dates and times when they studied (Execution Date).
+- **Icons**: Distinct icons for Deadline (Flag 🏁) and Execution Date (Check/Calendar ✅) to avoid confusion.
 - **Internal**: ID, SubjectId, Status, Priority, Order, WorkLogs, StartDate.
 
 ### 4.2 Transition Rules

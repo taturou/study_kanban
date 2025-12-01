@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Task, TaskStatus, Subject, Priority, STATUS_LABELS } from '../types';
-import { X, AlertTriangle, Trash2 } from 'lucide-react';
+import { Task, TaskStatus, Subject, Priority, WorkLog } from '../types';
+import { X, AlertTriangle, Trash2, Flag, CalendarCheck, Plus, Clock } from 'lucide-react';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -26,8 +26,14 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [estimatedMinutes, setEstimatedMinutes] = useState(30);
-  const [actualMinutes, setActualMinutes] = useState(0);
   const [deadline, setDeadline] = useState<string>(''); // YYYY-MM-DD string for input
+  
+  // Work Logs State
+  const [workLogs, setWorkLogs] = useState<WorkLog[]>([]);
+  
+  // New Log Input State
+  const [newLogDate, setNewLogDate] = useState(new Date().toISOString().split('T')[0]);
+  const [newLogMinutes, setNewLogMinutes] = useState(30);
   
   // Hidden state to preserve data integrity
   const [status, setStatus] = useState<TaskStatus>(TaskStatus.TOMORROW_PLUS);
@@ -39,6 +45,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   const titleInputRef = useRef<HTMLInputElement>(null);
+
+  // Derived state
+  const totalActualMinutes = workLogs.reduce((sum, log) => sum + log.minutes, 0);
 
   // Handle Escape key to close modal
   useEffect(() => {
@@ -68,7 +77,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
         setTitle(initialTask.title);
         setDescription(initialTask.description || '');
         setEstimatedMinutes(initialTask.estimatedMinutes);
-        setActualMinutes(initialTask.actualMinutes);
+        setWorkLogs(initialTask.workLogs || []);
         setStatus(initialTask.status);
         setSubjectId(initialTask.subjectId);
         setPriority(initialTask.priority || 'Medium');
@@ -88,7 +97,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
         setTitle('');
         setDescription('');
         setEstimatedMinutes(30);
-        setActualMinutes(0);
+        setWorkLogs([]);
         // Strict Rule: [*] --> TOMORROW_PLUS
         setStatus(TaskStatus.TOMORROW_PLUS);
         setSubjectId(initialSubjectId || (subjects.length > 0 ? subjects[0].id : ''));
@@ -96,6 +105,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
         setOrder(Date.now()); // Temporary large order to put at end
         setDeadline('');
       }
+      
+      // Reset new log inputs
+      setNewLogDate(new Date().toISOString().split('T')[0]);
+      setNewLogMinutes(30);
 
       // Auto focus on title input
       setTimeout(() => {
@@ -118,13 +131,13 @@ const TaskModal: React.FC<TaskModalProps> = ({
       title,
       description,
       estimatedMinutes,
-      actualMinutes,
+      actualMinutes: totalActualMinutes, // Calculated from logs
       status, // Preserved internal state
       subjectId, // Preserved internal state
       priority, // Preserved internal state
       deadline: deadlineTimestamp,
       order,
-      workLogs: initialTask?.workLogs || [],
+      workLogs,
       startDate: initialTask?.startDate || 0, // Pass dummy value, App.tsx will handle it
     });
     onClose();
@@ -133,7 +146,6 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Open the custom confirmation view
     setIsDeleteConfirmOpen(true);
   };
 
@@ -146,6 +158,26 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
   const cancelDelete = () => {
     setIsDeleteConfirmOpen(false);
+  };
+
+  // --- Work Log Handlers ---
+  const handleAddLog = () => {
+    if (!newLogDate || newLogMinutes <= 0) return;
+    const newLog: WorkLog = {
+      date: newLogDate,
+      minutes: newLogMinutes
+    };
+    // Sort logs by date (descending)
+    const updatedLogs = [...workLogs, newLog].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    setWorkLogs(updatedLogs);
+    // Reset inputs mostly (keep date for convenience?)
+    setNewLogMinutes(30);
+  };
+
+  const handleDeleteLog = (index: number) => {
+    const updatedLogs = [...workLogs];
+    updatedLogs.splice(index, 1);
+    setWorkLogs(updatedLogs);
   };
 
   if (!isOpen) return null;
@@ -215,19 +247,24 @@ const TaskModal: React.FC<TaskModalProps> = ({
             />
           </div>
 
-          <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">期限</label>
-              <input
-                  type="date"
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-              />
-          </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">見積もり時間 (分)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
+                    <Flag size={14} className="text-slate-500" />
+                    期限
+                </label>
+                <input
+                    type="date"
+                    value={deadline}
+                    onChange={(e) => setDeadline(e.target.value)}
+                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
+                 <Clock size={14} className="text-slate-500" />
+                 見積もり (分)
+              </label>
               <input
                 type="number"
                 min="0"
@@ -237,17 +274,67 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">実績時間 (分)</label>
-              <input
-                type="number"
-                min="0"
-                step="5"
-                value={actualMinutes}
-                onChange={(e) => setActualMinutes(parseInt(e.target.value) || 0)}
-                className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500"
-              />
-            </div>
+          </div>
+
+          {/* Study Log Manager */}
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+             <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-bold text-slate-700 flex items-center gap-1">
+                    <CalendarCheck size={16} className="text-blue-600" />
+                    学習ログ
+                </label>
+                <div className="text-sm font-medium text-slate-600">
+                    合計: <span className="text-blue-700 font-bold">{totalActualMinutes}</span> 分
+                </div>
+             </div>
+
+             {/* Add New Log */}
+             <div className="flex gap-2 mb-3">
+                 <input 
+                    type="date" 
+                    value={newLogDate}
+                    onChange={(e) => setNewLogDate(e.target.value)}
+                    className="flex-1 p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-blue-500"
+                 />
+                 <input 
+                    type="number" 
+                    min="5" 
+                    step="5"
+                    value={newLogMinutes}
+                    onChange={(e) => setNewLogMinutes(parseInt(e.target.value) || 0)}
+                    className="w-20 p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-blue-500"
+                    placeholder="分"
+                 />
+                 <button
+                    type="button"
+                    onClick={handleAddLog}
+                    className="bg-blue-600 text-white p-1.5 rounded hover:bg-blue-700"
+                 >
+                    <Plus size={16} />
+                 </button>
+             </div>
+
+             {/* Log List */}
+             <div className="space-y-1 max-h-[120px] overflow-y-auto pr-1">
+                 {workLogs.length === 0 && (
+                     <p className="text-xs text-slate-400 text-center py-2">まだ記録がありません</p>
+                 )}
+                 {workLogs.map((log, index) => (
+                     <div key={index} className="flex justify-between items-center bg-white p-2 rounded border border-slate-100 text-xs">
+                         <div className="flex gap-2">
+                             <span className="text-slate-600 font-mono">{log.date}</span>
+                             <span className="font-bold text-slate-800">{log.minutes}分</span>
+                         </div>
+                         <button
+                            type="button"
+                            onClick={() => handleDeleteLog(index)}
+                            className="text-slate-300 hover:text-red-500"
+                         >
+                             <Trash2 size={14} />
+                         </button>
+                     </div>
+                 ))}
+             </div>
           </div>
 
           <div>
@@ -255,7 +342,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={5}
+              rows={4}
               className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 resize-none"
               placeholder="タスクの詳細やメモ"
             ></textarea>

@@ -146,35 +146,12 @@ const App: React.FC = () => {
         });
       }
 
-      const todayStr = new Date().toISOString().split('T')[0];
-
       if (taskData.id) {
         // Edit existing
-        const existingTask = updatedTasks.find(t => t.id === taskData.id);
-        const oldActual = existingTask ? existingTask.actualMinutes : 0;
-        const newActual = taskData.actualMinutes;
-        const delta = newActual - oldActual;
-
-        // Update WorkLogs if actual time increased
-        let newWorkLogs = existingTask?.workLogs ? [...existingTask.workLogs] : [];
-        if (delta > 0) {
-            const todayLogIdx = newWorkLogs.findIndex(l => l.date === todayStr);
-            if (todayLogIdx >= 0) {
-                newWorkLogs[todayLogIdx] = { ...newWorkLogs[todayLogIdx], minutes: newWorkLogs[todayLogIdx].minutes + delta };
-            } else {
-                newWorkLogs.push({ date: todayStr, minutes: delta });
-            }
-        } else if (delta < 0) {
-             const todayLogIdx = newWorkLogs.findIndex(l => l.date === todayStr);
-             if (todayLogIdx >= 0) {
-                 newWorkLogs[todayLogIdx] = { ...newWorkLogs[todayLogIdx], minutes: Math.max(0, newWorkLogs[todayLogIdx].minutes + delta) };
-             }
-        }
-
+        // WorkLogs are now managed entirely within TaskModal, so we just save what's passed
         return updatedTasks.map(t => t.id === taskData.id ? { 
             ...t, 
             ...taskData, 
-            workLogs: newWorkLogs,
             startDate: t.startDate || selectedWeekStart 
         } : t);
 
@@ -190,7 +167,7 @@ const App: React.FC = () => {
           createdAt: Date.now(),
           priority: taskData.priority || 'Medium',
           order: maxOrder + 1,
-          workLogs: [],
+          workLogs: taskData.workLogs || [],
           startDate: selectedWeekStart, 
         } as Task;
         return [...updatedTasks, newTask];
