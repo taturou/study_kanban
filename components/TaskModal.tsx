@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Task, TaskStatus, Subject, Priority, STATUS_LABELS } from '../types';
-import { X, AlertTriangle } from 'lucide-react';
+import { X, AlertTriangle, Trash2 } from 'lucide-react';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -259,25 +259,26 @@ const TaskModal: React.FC<TaskModalProps> = ({
             ></textarea>
           </div>
 
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 pt-2 items-center">
             {initialTask && (
               canDelete ? (
                 <button
                   type="button"
                   onClick={handleDeleteClick}
                   onMouseDown={(e) => e.stopPropagation()} 
-                  className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors cursor-pointer"
+                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                  title="タスクを削除"
                 >
-                  削除
+                  <Trash2 size={20} />
                 </button>
               ) : (
                 <button
                   type="button"
                   disabled
-                  className="px-4 py-2 text-slate-400 bg-slate-100 rounded-lg cursor-not-allowed"
+                  className="p-2 text-slate-200 bg-slate-50 rounded-lg cursor-not-allowed"
                   title="「明日以降」ステータスのタスクのみ削除できます"
                 >
-                  削除不可
+                  <Trash2 size={20} />
                 </button>
               )
             )}
