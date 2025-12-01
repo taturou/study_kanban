@@ -40,6 +40,25 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
   const titleInputRef = useRef<HTMLInputElement>(null);
 
+  // Handle Escape key to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // If delete confirmation is shown, close it first
+        if (isDeleteConfirmOpen) {
+          setIsDeleteConfirmOpen(false);
+          return;
+        }
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isDeleteConfirmOpen, onClose]);
+
   useEffect(() => {
     if (isOpen) {
       // Reset delete confirm state when modal opens
