@@ -47,6 +47,43 @@ const TaskCard: React.FC<TaskCardProps> = ({
     );
   };
 
+  const isCompact = task.status === TaskStatus.DONE || task.status === TaskStatus.WONT_DO;
+
+  // Compact View for DONE and WONT_DO
+  if (isCompact) {
+    return (
+      <div
+        ref={ref}
+        draggable
+        data-task-id={task.id}
+        onDragStart={(e) => onDragStart(e, task, index)}
+        onDragEnd={onDragEnd}
+        onClick={(e) => {
+            e.stopPropagation();
+            onClick();
+        }}
+        className={`
+          bg-white/80 p-2 rounded border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center gap-2 group relative
+          ${isDragging ? 'hidden' : 'opacity-100'} 
+          active:cursor-grabbing
+        `}
+      >
+        <div className="flex-shrink-0 opacity-70">
+          {getStatusIcon(task.status)}
+        </div>
+        <span className={`text-xs text-slate-600 truncate flex-1 font-medium ${task.status === TaskStatus.DONE ? 'line-through text-slate-400' : ''}`}>
+          {task.title}
+        </span>
+        {task.actualMinutes > 0 && (
+           <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap bg-slate-50 px-1 rounded">
+             {task.actualMinutes}m
+           </span>
+        )}
+      </div>
+    );
+  }
+
+  // Standard View
   return (
     <div
       ref={ref}

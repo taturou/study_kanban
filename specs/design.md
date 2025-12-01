@@ -60,6 +60,9 @@ interface Subject {
 - **Props**: `task`, `index`, `isDragging`.
 - **Responsibilities**:
   - Rendering task details.
+  - **Conditional Rendering**:
+    - **Default**: Full card with details (Title, Status Icon, Estimates, Deadline).
+    - **Compact**: Used for `DONE` and `WONT_DO` statuses. Displays a single line with Icon, Title (strikethrough for Done), and Actual Time.
   - Handling `dragStart` events.
   - **Visuals**: Hides itself (`display: none` / `hidden` class) when `isDragging` is true, relying on the `App` component to render the **Placeholder**.
 

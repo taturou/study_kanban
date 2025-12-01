@@ -15,6 +15,9 @@
   4. **Hold** (保留): Paused tasks.
   5. **Done** (終わった): Completed tasks.
   6. **Won't Do** (やらない): Cancelled tasks.
+- **Task Visualization**:
+  - **Standard View**: Detailed card showing Title, Deadline, Estimates, etc. for active tasks.
+  - **Compact View**: Minimalist single-line display for **Done** and **Won't Do** tasks to save screen space.
 
 ## 3. Task Management
 ### 3.1 Task Properties
