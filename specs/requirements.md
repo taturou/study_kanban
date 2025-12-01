@@ -8,7 +8,10 @@
 - **Independent Row Heights**: Each Subject row's height adjusts independently based on the number of tasks it contains.
 - **Top Layout**: The top area (below header) contains the **Calendar View** aligned to the **left**, with **empty space reserved on the right**.
 - **Target Devices**: PC and Tablet (Responsive design).
-- **Subject Rows**: Users can add, edit, and delete subjects (e.g., Math, English).
+- **Subject Rows**: 
+  - Subjects can be managed per **Week**.
+  - Users can create new subjects or add existing ones (from history) to the current week.
+  - Removing a subject from the current week hides it for that week but preserves it in history.
 - **Status Columns** (Fixed Order):
   1. **Tomorrow+** (明日以降)
   2. **Today** (今日やる)
@@ -27,6 +30,7 @@
 - **Week Selection**: A small **gray indicator bar** is displayed below each date of the selected week.
 - **Today Highlight**: The current date is highlighted with an **orange ring**.
 - **Kanban Filter**: The board displays tasks only for the selected week.
+- **Subject Filter**: The board displays subjects only active for the selected week.
 
 ## 4. Task Management
 ### 4.1 Task Properties
@@ -49,7 +53,9 @@
 - **Confirmation**: Custom in-app confirmation UI.
 
 ## 5. Subject Management
-- **Deletion**: Subjects can only be deleted if they have no tasks. Custom confirmation UI required.
+- **Scope**: Managed per week.
+- **Constraint**: Subjects cannot be removed from the current week if they contain tasks scheduled for that week.
+- **Confirmation**: Custom in-app confirmation UI.
 
 ## 6. Interaction
 - **Drag & Drop**: Placeholder visualization, avoidance animation, invalid drop blocking.

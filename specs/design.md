@@ -7,7 +7,17 @@
 - **Icons**: Lucide React
 
 ## 2. Data Structures
-See `types.ts` for full definitions of `Task`, `Subject`, `WorkLog`, etc.
+See `types.ts` for full definitions.
+
+### Subject
+```typescript
+interface Subject {
+  id: string;
+  name: string;
+  color: string;
+  weekStartDates?: number[]; // Array of Monday timestamps. If undefined, treated as global.
+}
+```
 
 ## 3. Component Architecture
 
@@ -20,6 +30,7 @@ See `types.ts` for full definitions of `Task`, `Subject`, `WorkLog`, etc.
   - Kanban Board (Bottom, Scrollable)
 - **State**: `tasks`, `subjects`, `reminders`, `selectedWeekStart`.
 - **Logic**: Drag & Drop (geometric insertion), Filtering, Persistence, Panning.
+- **Filtering**: Tasks AND Subjects are now filtered by `selectedWeekStart`.
 - **Sticky Positioning**:
   - Status Headers (Top): `sticky top-0`.
   - Subject Headers (Left): `sticky left-0`.
@@ -46,6 +57,11 @@ See `types.ts` for full definitions of `Task`, `Subject`, `WorkLog`, etc.
 
 ### `TaskModal.tsx` & `SubjectManager.tsx`
 - **Modals**: For creating/editing entities.
+- **SubjectManager**:
+  - **Inputs**: `selectedWeekStart` to manage weekly assignment.
+  - **Logic**: 
+    - Add: Create new OR link existing subject to current week.
+    - Remove: Unlink subject from current week.
 - **Validation**: Custom delete confirmations to bypass sandbox restrictions.
 - **Study Log Manager**: `TaskModal` manages `workLogs` (array of date/minutes). Total `actualMinutes` is derived from this log array.
 

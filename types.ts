@@ -13,6 +13,7 @@ export interface Subject {
   id: string;
   name: string;
   color: string;
+  weekStartDates?: number[]; // Timestamps of Mondays representing active weeks
 }
 
 export interface WorkLog {

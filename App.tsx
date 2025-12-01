@@ -333,6 +333,14 @@ const App: React.FC = () => {
   const statuses = Object.values(TaskStatus);
   const gridTemplateColumns = `200px repeat(${statuses.length}, minmax(220px, 1fr))`;
 
+  // Filter visible subjects based on selected week
+  // A subject is visible if:
+  // 1. weekStartDates is undefined (global/legacy)
+  // 2. weekStartDates includes the selectedWeekStart
+  const visibleSubjects = subjects.filter(s => 
+    !s.weekStartDates || s.weekStartDates.includes(selectedWeekStart)
+  );
+
   const visibleTasks = tasks.filter(t => {
       if (!t.startDate) return true;
       return t.startDate >= selectedWeekStart && t.startDate < selectedWeekStart + (7 * 24 * 60 * 60 * 1000);
@@ -418,7 +426,7 @@ const App: React.FC = () => {
 
                 {/* 2. Subject Rows (Independent Grids) */}
                 <div className="flex flex-col gap-4 pb-10">
-                    {subjects.map(subject => (
+                    {visibleSubjects.map(subject => (
                         <div 
                             key={subject.id} 
                             className="grid bg-white rounded-xl shadow-sm border border-slate-200"
@@ -517,6 +525,17 @@ const App: React.FC = () => {
                             })}
                         </div>
                     ))}
+                    {visibleSubjects.length === 0 && (
+                        <div className="text-center py-10 text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">
+                            <p>この週にはまだ教科がありません</p>
+                            <button 
+                                onClick={() => setIsSubjectManagerOpen(true)}
+                                className="mt-2 text-blue-600 hover:underline text-sm"
+                            >
+                                設定から教科を追加
+                            </button>
+                        </div>
+                    )}
                 </div>
           </div>
       </main>
@@ -542,6 +561,7 @@ const App: React.FC = () => {
         subjects={subjects}
         setSubjects={setSubjects}
         tasks={tasks}
+        selectedWeekStart={selectedWeekStart}
       />
 
       <AnalyticsModal
