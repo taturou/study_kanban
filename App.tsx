@@ -194,10 +194,10 @@ const App: React.FC = () => {
     }
 
     // Calculate Insertion Index Geometry
-    const container = e.currentTarget;
+    const container = e.currentTarget as HTMLElement;
     const children = Array.from(container.children).filter(
-        (el) => el.hasAttribute('data-task-id') && !el.classList.contains('hidden')
-    );
+        (el) => (el as HTMLElement).hasAttribute('data-task-id') && !(el as HTMLElement).classList.contains('hidden')
+    ) as HTMLElement[];
 
     let newIndex = children.length; // Default to append
 

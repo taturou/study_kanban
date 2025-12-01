@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Task, TaskStatus, Subject, Priority, STATUS_LABELS } from '../types';
 import { X } from 'lucide-react';
 
@@ -35,6 +35,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [priority, setPriority] = useState<Priority>('Medium');
   const [order, setOrder] = useState<number>(0);
 
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (isOpen) {
       if (initialTask) {
@@ -69,6 +71,11 @@ const TaskModal: React.FC<TaskModalProps> = ({
         setOrder(Date.now()); // Temporary large order to put at end
         setDeadline('');
       }
+
+      // Auto focus on title input
+      setTimeout(() => {
+        titleInputRef.current?.focus();
+      }, 50);
     }
   }, [isOpen, initialTask, initialSubjectId, initialStatus, subjects]);
 
@@ -114,6 +121,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">タイトル</label>
             <input
+              ref={titleInputRef}
               type="text"
               required
               value={title}
