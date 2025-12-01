@@ -11,6 +11,7 @@ interface TaskModalProps {
   initialSubjectId?: string;
   initialStatus?: TaskStatus;
   subjects: Subject[];
+  selectedWeekStart: number;
 }
 
 const TaskModal: React.FC<TaskModalProps> = ({
@@ -22,6 +23,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   initialSubjectId,
   initialStatus,
   subjects,
+  selectedWeekStart,
 }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -32,7 +34,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [workLogs, setWorkLogs] = useState<WorkLog[]>([]);
   
   // New Log Input State
-  const [newLogDate, setNewLogDate] = useState(new Date().toISOString().split('T')[0]);
+  const [newLogDate, setNewLogDate] = useState('');
   const [newLogMinutes, setNewLogMinutes] = useState(30);
   
   // Hidden state to preserve data integrity
@@ -48,6 +50,22 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
   // Derived state
   const totalActualMinutes = workLogs.reduce((sum, log) => sum + log.minutes, 0);
+
+  // Week constraint calculation
+  const effectiveWeekStart = initialTask?.startDate || selectedWeekStart;
+  const weekStartData = new Date(effectiveWeekStart);
+  const weekEndData = new Date(effectiveWeekStart + 6 * 24 * 60 * 60 * 1000); // Sunday
+
+  // Format to YYYY-MM-DD manually to avoid timezone issues
+  const formatDateString = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const minDate = formatDateString(weekStartData);
+  const maxDate = formatDateString(weekEndData);
 
   // Handle Escape key to close modal
   useEffect(() => {
@@ -106,8 +124,19 @@ const TaskModal: React.FC<TaskModalProps> = ({
         setDeadline('');
       }
       
-      // Reset new log inputs
-      setNewLogDate(new Date().toISOString().split('T')[0]);
+      // Determine default log date
+      const today = new Date();
+      const todayStr = formatDateString(today);
+      const todayTs = new Date(todayStr).getTime();
+      const minTs = new Date(minDate).getTime();
+      const maxTs = new Date(maxDate).getTime();
+
+      if (todayTs >= minTs && todayTs <= maxTs) {
+        setNewLogDate(todayStr);
+      } else {
+        setNewLogDate(minDate);
+      }
+      
       setNewLogMinutes(30);
 
       // Auto focus on title input
@@ -115,7 +144,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
         titleInputRef.current?.focus();
       }, 50);
     }
-  }, [isOpen, initialTask, initialSubjectId, initialStatus, subjects]);
+  }, [isOpen, initialTask, initialSubjectId, initialStatus, subjects, minDate, maxDate]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,7 +167,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
       deadline: deadlineTimestamp,
       order,
       workLogs,
-      startDate: initialTask?.startDate || 0, // Pass dummy value, App.tsx will handle it
+      startDate: initialTask?.startDate || selectedWeekStart, 
     });
     onClose();
   };
@@ -170,7 +199,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
     // Sort logs by date (descending)
     const updatedLogs = [...workLogs, newLog].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     setWorkLogs(updatedLogs);
-    // Reset inputs mostly (keep date for convenience?)
+    // Keep date but reset minutes? Or keep both for repeated entry?
+    // Let's reset minutes to 30 for convenience
     setNewLogMinutes(30);
   };
 
@@ -281,7 +311,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
              <div className="flex items-center justify-between mb-3">
                 <label className="text-sm font-bold text-slate-700 flex items-center gap-1">
                     <CalendarCheck size={16} className="text-blue-600" />
-                    学習ログ
+                    学習ログ <span className="text-[10px] font-normal text-slate-400 ml-1">({minDate.slice(5)} ~ {maxDate.slice(5)})</span>
                 </label>
                 <div className="text-sm font-medium text-slate-600">
                     合計: <span className="text-blue-700 font-bold">{totalActualMinutes}</span> 分
@@ -292,6 +322,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
              <div className="flex gap-2 mb-3">
                  <input 
                     type="date" 
+                    min={minDate}
+                    max={maxDate}
                     value={newLogDate}
                     onChange={(e) => setNewLogDate(e.target.value)}
                     className="flex-1 p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-blue-500"

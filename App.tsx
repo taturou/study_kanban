@@ -533,6 +533,7 @@ const App: React.FC = () => {
         initialTask={editingTask}
         initialSubjectId={targetSubjectId}
         subjects={subjects}
+        selectedWeekStart={selectedWeekStart}
       />
 
       <SubjectManager
