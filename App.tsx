@@ -67,7 +67,8 @@ const App: React.FC = () => {
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
 
   // Panning State
-  const kanbanContainerRef = useRef<HTMLDivElement>(null);
+  // We now pan the main content container, not just the kanban area
+  const mainScrollContainerRef = useRef<HTMLDivElement>(null);
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0 });
   const scrollStart = useRef({ left: 0, top: 0 });
@@ -164,8 +165,6 @@ const App: React.FC = () => {
                 newWorkLogs.push({ date: todayStr, minutes: delta });
             }
         } else if (delta < 0) {
-            // Correction (user decreased time manually) - just adjust today's log or do nothing?
-            // Simple approach: try to reduce today's log
              const todayLogIdx = newWorkLogs.findIndex(l => l.date === todayStr);
              if (todayLogIdx >= 0) {
                  newWorkLogs[todayLogIdx] = { ...newWorkLogs[todayLogIdx], minutes: Math.max(0, newWorkLogs[todayLogIdx].minutes + delta) };
@@ -176,13 +175,11 @@ const App: React.FC = () => {
             ...t, 
             ...taskData, 
             workLogs: newWorkLogs,
-            // Keep existing startDate, do not overwrite unless necessary
             startDate: t.startDate || selectedWeekStart 
         } : t);
 
       } else {
         // New Task
-        // Calculate max order
         const maxOrder = updatedTasks
           .filter(t => t.subjectId === taskData.subjectId && t.status === taskData.status)
           .reduce((max, t) => Math.max(max, t.order || 0), -1);
@@ -194,7 +191,7 @@ const App: React.FC = () => {
           priority: taskData.priority || 'Medium',
           order: maxOrder + 1,
           workLogs: [],
-          startDate: selectedWeekStart, // Assign to current selected week
+          startDate: selectedWeekStart, 
         } as Task;
         return [...updatedTasks, newTask];
       }
@@ -208,7 +205,6 @@ const App: React.FC = () => {
   // --- Drag and Drop Logic ---
 
   const handleDragStart = (e: React.DragEvent, task: Task, index: number) => {
-    // Required for some browsers (Firefox) to start drag
     e.dataTransfer.setData("text/plain", task.id);
     e.dataTransfer.effectAllowed = "move";
 
@@ -234,7 +230,6 @@ const App: React.FC = () => {
     e.preventDefault();
     if (!dragState) return;
 
-    // Validate Validity
     const isSameCell = subjectId === dragState.sourceSubjectId && status === dragState.sourceStatus;
     if (!isSameCell) {
         if (!dragState.isSourceTop) return;
@@ -278,7 +273,6 @@ const App: React.FC = () => {
         setTasks(prevTasks => {
             let processedTasks = [...prevTasks];
 
-            // Enforce Single Studying Task Rule:
             if (status === TaskStatus.STUDYING) {
                 processedTasks = processedTasks.map(t => {
                     if (t.status === TaskStatus.STUDYING && t.id !== taskId) {
@@ -296,26 +290,19 @@ const App: React.FC = () => {
             const targetList = remaining
                 .filter(t => t.subjectId === subjectId && t.status === status)
                 .filter(t => {
-                    // Fallback for legacy tasks without startDate: assume they are in current view
                     const tStart = t.startDate || selectedWeekStart;
                     return tStart >= selectedWeekStart && tStart < selectedWeekStart + 7 * 86400000; 
                 })
                 .sort((a, b) => (a.order || 0) - (b.order || 0));
 
-            // Insert
             const newItem = { ...taskToMove, subjectId, status };
             targetList.splice(index, 0, newItem);
 
             const updatedTargetList = targetList.map((t, i) => ({ ...t, order: i }));
 
-            // We need to update these tasks in the main array.
-            // Be careful not to lose tasks from OTHER weeks that were filtered out of `targetList`.
-            
-            // Map of updated tasks
             const updates = new Map(updatedTargetList.map(t => [t.id, t]));
             
             return remaining.map(t => updates.has(t.id) ? updates.get(t.id)! : t).concat(
-                // Add the moved task if it wasn't in remaining (it wasn't)
                 updatedTargetList.find(t => t.id === taskId)!
             );
         });
@@ -332,37 +319,36 @@ const App: React.FC = () => {
 
   // --- Panning Logic ---
   const handlePanMouseDown = (e: React.MouseEvent) => {
-    // Check if clicking a task, button, etc.
     if ((e.target as HTMLElement).closest('[data-task-id], button, input, textarea, a')) {
         return;
     }
 
     isPanning.current = true;
     panStart.current = { x: e.clientX, y: e.clientY };
-    if (kanbanContainerRef.current) {
+    if (mainScrollContainerRef.current) {
         scrollStart.current = { 
-            left: kanbanContainerRef.current.scrollLeft, 
-            top: kanbanContainerRef.current.scrollTop 
+            left: mainScrollContainerRef.current.scrollLeft, 
+            top: mainScrollContainerRef.current.scrollTop 
         };
-        kanbanContainerRef.current.style.cursor = 'grabbing';
+        mainScrollContainerRef.current.style.cursor = 'grabbing';
     }
   };
 
   const handlePanMouseMove = (e: React.MouseEvent) => {
-    if (!isPanning.current || !kanbanContainerRef.current) return;
+    if (!isPanning.current || !mainScrollContainerRef.current) return;
     
-    e.preventDefault(); // Prevent text selection etc.
+    e.preventDefault();
     const dx = e.clientX - panStart.current.x;
     const dy = e.clientY - panStart.current.y;
     
-    kanbanContainerRef.current.scrollLeft = scrollStart.current.left - dx;
-    kanbanContainerRef.current.scrollTop = scrollStart.current.top - dy;
+    mainScrollContainerRef.current.scrollLeft = scrollStart.current.left - dx;
+    mainScrollContainerRef.current.scrollTop = scrollStart.current.top - dy;
   };
 
   const handlePanMouseUp = () => {
     isPanning.current = false;
-    if (kanbanContainerRef.current) {
-        kanbanContainerRef.current.style.cursor = ''; // Revert to CSS class
+    if (mainScrollContainerRef.current) {
+        mainScrollContainerRef.current.style.cursor = '';
     }
   };
 
@@ -370,7 +356,6 @@ const App: React.FC = () => {
   const statuses = Object.values(TaskStatus);
   const gridTemplateColumns = `200px repeat(${statuses.length}, minmax(220px, 1fr))`;
 
-  // Filter tasks for the selected week
   const visibleTasks = tasks.filter(t => {
       if (!t.startDate) return true;
       return t.startDate >= selectedWeekStart && t.startDate < selectedWeekStart + (7 * 24 * 60 * 60 * 1000);
@@ -378,8 +363,8 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 overflow-hidden">
-      {/* Header */}
-      <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0 z-40 relative shadow-sm">
+      {/* Header - Fixed */}
+      <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0 z-50 relative shadow-sm">
         <div className="flex items-center gap-2">
           <div className="p-1.5 bg-blue-600 rounded-lg">
             <BookOpen className="text-white w-5 h-5" />
@@ -411,151 +396,153 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Top Area: Calendar and Space */}
-      <div className="flex-shrink-0 z-30 relative px-4 pt-4 pb-0 flex gap-4 items-start">
-          <CalendarView 
-            tasks={tasks} 
-            selectedWeekStart={selectedWeekStart} 
-            onSelectWeek={setSelectedWeekStart} 
-          />
-          <div className="flex-1 min-h-[100px] border-2 border-dashed border-slate-200 rounded-2xl flex items-center justify-center text-slate-300">
-             {/* Space for future widgets or ads */}
-             <span>Empty Space</span>
-          </div>
-      </div>
-
-      {/* Kanban Matrix Area */}
-      <div 
-        ref={kanbanContainerRef}
-        className="flex-1 overflow-auto kanban-scroll p-4 md:p-6 pt-2 cursor-grab"
+      {/* Main Content Area - Scrollable & Pannable */}
+      <main 
+        ref={mainScrollContainerRef}
+        className="flex-1 overflow-auto cursor-grab relative kanban-scroll"
         onMouseDown={handlePanMouseDown}
         onMouseMove={handlePanMouseMove}
         onMouseUp={handlePanMouseUp}
         onMouseLeave={handlePanMouseUp}
       >
-        <div className="inline-block min-w-full">
-            
-            {/* 1. Header Row (Statuses) */}
-            <div 
-              className="grid sticky top-0 z-30 mb-2" 
-              style={{ gridTemplateColumns }}
-            >
-                 <div className="sticky left-0 z-40 bg-slate-100 border-b border-slate-200"></div>
-                 {statuses.map(status => (
-                    <div 
-                        key={status} 
-                        className="bg-slate-100/95 backdrop-blur border-b border-slate-200 px-2 py-3 font-semibold text-slate-600 text-center flex items-center justify-center gap-2 mx-1 rounded-t-lg"
-                    >
-                        <span className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[status].split(' ')[0].replace('bg-', 'bg-')}`}></span>
-                        {STATUS_LABELS[status]}
-                    </div>
-                ))}
-            </div>
+          {/* Top Area: Calendar and Space */}
+          <div className="px-4 pt-4 pb-0 flex gap-4 items-start min-w-max">
+              <CalendarView 
+                tasks={tasks} 
+                selectedWeekStart={selectedWeekStart} 
+                onSelectWeek={setSelectedWeekStart} 
+              />
+              <div className="flex-1 min-w-[300px] min-h-[100px] border-2 border-dashed border-slate-200 rounded-2xl flex items-center justify-center text-slate-300">
+                <span>Empty Space</span>
+              </div>
+          </div>
 
-            {/* 2. Subject Rows (Independent Grids) */}
-            <div className="flex flex-col gap-4 pb-10">
-                {subjects.map(subject => (
-                    <div 
-                        key={subject.id} 
-                        className="grid bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
-                        style={{ gridTemplateColumns }}
-                    >
-                        {/* Subject Header */}
-                        <div className="sticky left-0 z-20 bg-white border-r border-slate-100 p-4 flex flex-col justify-between group shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)]">
-                            <div>
-                                <h3 className="font-bold text-lg text-slate-800">{subject.name}</h3>
-                                <p className="text-xs text-slate-400 mt-1">
-                                    {visibleTasks.filter(t => t.subjectId === subject.id && t.status !== TaskStatus.DONE).length} tasks
-                                </p>
-                            </div>
-                            <button
-                                onClick={() => handleAddTask(subject.id)}
-                                className="mt-4 flex items-center justify-center w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg border border-slate-200 transition-colors text-sm font-medium gap-1"
-                            >
-                                <Plus size={16} /> タスク追加
-                            </button>
+          {/* Kanban Matrix Area */}
+          <div className="p-4 md:p-6 pt-2 inline-block min-w-full">
+                
+                {/* 1. Header Row (Statuses) - STICKY TOP */}
+                <div 
+                  className="grid sticky top-0 z-40 mb-2" 
+                  style={{ gridTemplateColumns }}
+                >
+                    {/* The Corner (Top-Left) - STICKY LEFT & TOP */}
+                     <div className="sticky left-0 z-50 bg-slate-100 border-b border-slate-200"></div>
+                     
+                     {statuses.map(status => (
+                        <div 
+                            key={status} 
+                            className="bg-slate-100/95 backdrop-blur border-b border-slate-200 px-2 py-3 font-semibold text-slate-600 text-center flex items-center justify-center gap-2 mx-1 rounded-t-lg shadow-sm"
+                        >
+                            <span className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[status].split(' ')[0].replace('bg-', 'bg-')}`}></span>
+                            {STATUS_LABELS[status]}
                         </div>
+                    ))}
+                </div>
 
-                        {/* Status Cells */}
-                        {statuses.map((status, colIndex) => {
-                            const cellTasks = visibleTasks
-                                .filter(t => t.subjectId === subject.id && t.status === status)
-                                .sort((a, b) => (a.order || 0) - (b.order || 0));
-                            
-                            let isDroppable = true;
-                            if (dragState) {
-                                const isSameCell = dragState.sourceSubjectId === subject.id && dragState.sourceStatus === status;
-                                if (!isSameCell) {
-                                    if (!dragState.isSourceTop) {
-                                        isDroppable = false;
-                                    } else {
-                                        const mockTask = { status: dragState.sourceStatus, subjectId: dragState.sourceSubjectId } as Task;
-                                        if (!canMoveTask(mockTask, subject.id, status)) {
+                {/* 2. Subject Rows (Independent Grids) */}
+                <div className="flex flex-col gap-4 pb-10">
+                    {subjects.map(subject => (
+                        <div 
+                            key={subject.id} 
+                            className="grid bg-white rounded-xl shadow-sm border border-slate-200"
+                            style={{ gridTemplateColumns }}
+                        >
+                            {/* Subject Header - STICKY LEFT */}
+                            <div className="sticky left-0 z-30 bg-white border-r border-l border-slate-200 rounded-l-xl p-4 flex flex-col justify-between group shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)]">
+                                <div>
+                                    <h3 className="font-bold text-lg text-slate-800">{subject.name}</h3>
+                                    <p className="text-xs text-slate-400 mt-1">
+                                        {visibleTasks.filter(t => t.subjectId === subject.id && t.status !== TaskStatus.DONE).length} tasks
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => handleAddTask(subject.id)}
+                                    className="mt-4 flex items-center justify-center w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg border border-slate-200 transition-colors text-sm font-medium gap-1"
+                                >
+                                    <Plus size={16} /> タスク追加
+                                </button>
+                            </div>
+
+                            {/* Status Cells */}
+                            {statuses.map((status, colIndex) => {
+                                const cellTasks = visibleTasks
+                                    .filter(t => t.subjectId === subject.id && t.status === status)
+                                    .sort((a, b) => (a.order || 0) - (b.order || 0));
+                                
+                                let isDroppable = true;
+                                if (dragState) {
+                                    const isSameCell = dragState.sourceSubjectId === subject.id && dragState.sourceStatus === status;
+                                    if (!isSameCell) {
+                                        if (!dragState.isSourceTop) {
                                             isDroppable = false;
+                                        } else {
+                                            const mockTask = { status: dragState.sourceStatus, subjectId: dragState.sourceSubjectId } as Task;
+                                            if (!canMoveTask(mockTask, subject.id, status)) {
+                                                isDroppable = false;
+                                            }
                                         }
                                     }
                                 }
-                            }
 
-                            const isTargetCell = dropTarget?.subjectId === subject.id && dropTarget?.status === status;
-                            const borderClass = colIndex < statuses.length - 1 ? 'border-r border-slate-100' : '';
+                                const isTargetCell = dropTarget?.subjectId === subject.id && dropTarget?.status === status;
+                                const borderClass = colIndex < statuses.length - 1 ? 'border-r border-slate-100' : '';
 
-                            return (
-                                <div
-                                    key={`${subject.id}-${status}`}
-                                    onDragOver={(e) => {
-                                        if (isDroppable) handleCellDragOver(e, subject.id, status);
-                                    }}
-                                    onDrop={handleDrop}
-                                    className={`
-                                        p-3 transition-all duration-200 relative min-h-[160px] flex flex-col gap-3 ${borderClass}
-                                        ${dragState && !isDroppable ? 'bg-slate-50 opacity-40 grayscale pointer-events-none' : 'hover:bg-slate-50/50'}
-                                    `}
-                                >
-                                    {cellTasks.map((task, index) => {
-                                        const isDraggingSelf = dragState?.taskId === task.id;
-                                        const showPlaceholderHere = isTargetCell && dropTarget.index === index;
+                                return (
+                                    <div
+                                        key={`${subject.id}-${status}`}
+                                        onDragOver={(e) => {
+                                            if (isDroppable) handleCellDragOver(e, subject.id, status);
+                                        }}
+                                        onDrop={handleDrop}
+                                        className={`
+                                            p-3 transition-all duration-200 relative min-h-[160px] flex flex-col gap-3 ${borderClass}
+                                            ${dragState && !isDroppable ? 'bg-slate-50 opacity-40 grayscale pointer-events-none' : 'hover:bg-slate-50/50'}
+                                        `}
+                                    >
+                                        {cellTasks.map((task, index) => {
+                                            const isDraggingSelf = dragState?.taskId === task.id;
+                                            const showPlaceholderHere = isTargetCell && dropTarget.index === index;
 
-                                        return (
-                                            <React.Fragment key={task.id}>
-                                                {showPlaceholderHere && (
-                                                    <div className="h-20 w-full rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/50 transition-all animate-pulse pointer-events-none" />
-                                                )}
-                                                <TaskCard
-                                                    task={task}
-                                                    index={index}
-                                                    isDragging={isDraggingSelf}
-                                                    onClick={() => handleEditTask(task)}
-                                                    onDragStart={handleDragStart}
-                                                    onDragEnd={handleDragEnd}
-                                                />
-                                            </React.Fragment>
-                                        );
-                                    })}
-                                    {isTargetCell && dropTarget.index === cellTasks.length && (
-                                        <div className="h-20 w-full rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/50 transition-all animate-pulse pointer-events-none" />
-                                    )}
-                                    {!dragState && status === TaskStatus.TOMORROW_PLUS && (
-                                        <div className="flex-1 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity min-h-[20px]">
-                                            <button 
-                                                onClick={() => {
-                                                    setTargetSubjectId(subject.id);
-                                                    handleAddTask(subject.id);
-                                                }}
-                                                className="p-2 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-full transition-all"
-                                            >
-                                                <Plus size={20} />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                ))}
-            </div>
-        </div>
-      </div>
+                                            return (
+                                                <React.Fragment key={task.id}>
+                                                    {showPlaceholderHere && (
+                                                        <div className="h-20 w-full rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/50 transition-all animate-pulse pointer-events-none" />
+                                                    )}
+                                                    <TaskCard
+                                                        task={task}
+                                                        index={index}
+                                                        isDragging={isDraggingSelf}
+                                                        onClick={() => handleEditTask(task)}
+                                                        onDragStart={handleDragStart}
+                                                        onDragEnd={handleDragEnd}
+                                                    />
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                        {isTargetCell && dropTarget.index === cellTasks.length && (
+                                            <div className="h-20 w-full rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/50 transition-all animate-pulse pointer-events-none" />
+                                        )}
+                                        {!dragState && status === TaskStatus.TOMORROW_PLUS && (
+                                            <div className="flex-1 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity min-h-[20px]">
+                                                <button 
+                                                    onClick={() => {
+                                                        setTargetSubjectId(subject.id);
+                                                        handleAddTask(subject.id);
+                                                    }}
+                                                    className="p-2 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-full transition-all"
+                                                >
+                                                    <Plus size={20} />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ))}
+                </div>
+          </div>
+      </main>
 
       <TaskModal
         isOpen={isTaskModalOpen}

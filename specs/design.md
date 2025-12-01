@@ -20,6 +20,10 @@ See `types.ts` for full definitions of `Task`, `Subject`, `WorkLog`, etc.
   - Kanban Board (Bottom, Scrollable)
 - **State**: `tasks`, `subjects`, `reminders`, `selectedWeekStart`.
 - **Logic**: Drag & Drop (geometric insertion), Filtering, Persistence, Panning.
+- **Sticky Positioning**:
+  - Status Headers (Top): `sticky top-0`.
+  - Subject Headers (Left): `sticky left-0`.
+  - **Important**: The grid row container (`div.grid`) must **NOT** have `overflow-hidden` for the left sticky header to work relative to the main viewport scroll.
 
 ### `CalendarView.tsx`
 - **Design**: Compact card, fixed width (~320px).
