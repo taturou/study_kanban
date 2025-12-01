@@ -278,10 +278,13 @@ const App: React.FC = () => {
 
   const statuses = Object.values(TaskStatus);
 
+  // Common grid columns definition
+  const gridTemplateColumns = `200px repeat(${statuses.length}, minmax(220px, 1fr))`;
+
   return (
     <div className="flex flex-col h-screen bg-slate-100 overflow-hidden">
       {/* Header */}
-      <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0 z-20">
+      <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0 z-40 relative">
         <div className="flex items-center gap-2">
           <div className="p-1.5 bg-blue-600 rounded-lg">
             <BookOpen className="text-white w-5 h-5" />
@@ -316,126 +319,143 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Kanban Matrix */}
+      {/* Kanban Matrix Area */}
       <div className="flex-1 overflow-auto kanban-scroll p-4 md:p-6">
-        <div className="inline-grid min-w-full" style={{
-          gridTemplateColumns: `200px repeat(${statuses.length}, minmax(220px, 1fr))`,
-          gridTemplateRows: `50px repeat(${subjects.length}, minmax(180px, 1fr))`
-        }}>
-          
-          {/* Header Row: Statuses */}
-          <div className="sticky top-0 left-0 z-30 bg-slate-100/90 backdrop-blur border-b border-slate-200"></div>
-          {statuses.map(status => (
-            <div key={status} className="sticky top-0 z-20 bg-slate-100/95 backdrop-blur border-b border-slate-200 px-2 py-3 font-semibold text-slate-600 text-center flex items-center justify-center gap-2">
-               <span className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[status].split(' ')[0].replace('bg-', 'bg-')}`}></span>
-               {STATUS_LABELS[status]}
-            </div>
-          ))}
+        <div className="inline-block min-w-full">
+            
+            {/* 1. Header Row (Statuses) */}
+            <div 
+              className="grid sticky top-0 z-30 mb-2" 
+              style={{ gridTemplateColumns }}
+            >
+                 {/* Top-Left Corner Spacer (Sticky) */}
+                 <div className="sticky left-0 z-40 bg-slate-100 border-b border-slate-200"></div>
 
-          {/* Subject Rows */}
-          {subjects.map(subject => (
-            <React.Fragment key={subject.id}>
-              {/* Subject Header */}
-              <div className="sticky left-0 z-10 bg-white border-r border-b border-slate-200 p-4 flex flex-col justify-between group shadow-[4px_0_12px_-4px_rgba(0,0,0,0.1)]">
-                <div>
-                  <h3 className="font-bold text-lg text-slate-800">{subject.name}</h3>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {tasks.filter(t => t.subjectId === subject.id && t.status !== TaskStatus.DONE).length} tasks left
-                  </p>
-                </div>
-                <button
-                  onClick={() => handleAddTask(subject.id)}
-                  className="mt-4 flex items-center justify-center w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg border border-slate-200 transition-colors text-sm font-medium gap-1"
-                >
-                  <Plus size={16} /> タスク追加
-                </button>
-              </div>
-
-              {/* Grid Cells */}
-              {statuses.map(status => {
-                // Get tasks for this cell
-                const cellTasks = tasks
-                    .filter(t => t.subjectId === subject.id && t.status === status)
-                    .sort((a, b) => (a.order || 0) - (b.order || 0));
-                
-                // Determine Validity for Dragging
-                let isDroppable = true;
-                if (dragState) {
-                    const isSameCell = dragState.sourceSubjectId === subject.id && dragState.sourceStatus === status;
-                    if (!isSameCell) {
-                         if (!dragState.isSourceTop) {
-                             isDroppable = false;
-                         } else {
-                             const mockTask = { status: dragState.sourceStatus, subjectId: dragState.sourceSubjectId } as Task;
-                             if (!canMoveTask(mockTask, subject.id, status)) {
-                                 isDroppable = false;
-                             }
-                         }
-                    }
-                }
-
-                const isTargetCell = dropTarget?.subjectId === subject.id && dropTarget?.status === status;
-
-                return (
-                  <div
-                    key={`${subject.id}-${status}`}
-                    onDragOver={(e) => {
-                        if (isDroppable) handleCellDragOver(e, subject.id, status);
-                    }}
-                    onDrop={handleDrop}
-                    className={`
-                        p-3 transition-all duration-200 relative min-h-[120px] flex flex-col gap-3 border-b border-r border-slate-200
-                        ${dragState && !isDroppable ? 'bg-slate-100 opacity-40 grayscale pointer-events-none' : 'bg-slate-50/30 hover:bg-slate-100/50'}
-                    `}
-                  >
-                    {/* Render Tasks with Placeholder Injection */}
-                    {cellTasks.map((task, index) => {
-                        const isDraggingSelf = dragState?.taskId === task.id;
-                        
-                        // Show placeholder before the item if index matches
-                        const showPlaceholderHere = isTargetCell && dropTarget.index === index;
-
-                        return (
-                            <React.Fragment key={task.id}>
-                                {showPlaceholderHere && (
-                                    <div className="h-20 w-full rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/50 transition-all animate-pulse pointer-events-none" />
-                                )}
-                                <TaskCard
-                                    task={task}
-                                    index={index}
-                                    isDragging={isDraggingSelf}
-                                    onClick={() => handleEditTask(task)}
-                                    onDragStart={handleDragStart}
-                                    onDragEnd={handleDragEnd}
-                                />
-                            </React.Fragment>
-                        );
-                    })}
-
-                    {/* Placeholder at the very end */}
-                    {isTargetCell && dropTarget.index === cellTasks.length && (
-                         <div className="h-20 w-full rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/50 transition-all animate-pulse pointer-events-none" />
-                    )}
-
-                    {/* Add Button */}
-                    {!dragState && status === TaskStatus.TOMORROW_PLUS && (
-                        <div className="flex-1 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity min-h-[20px]">
-                        <button 
-                            onClick={() => {
-                                setTargetSubjectId(subject.id);
-                                handleAddTask(subject.id);
-                            }}
-                            className="p-2 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-full transition-all"
-                        >
-                            <Plus size={20} />
-                        </button>
+                 {/* Status Headers */}
+                 {statuses.map(status => (
+                    <div 
+                        key={status} 
+                        className="bg-slate-100/95 backdrop-blur border-b border-slate-200 px-2 py-3 font-semibold text-slate-600 text-center flex items-center justify-center gap-2 mx-1 rounded-t-lg"
+                    >
+                        <span className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[status].split(' ')[0].replace('bg-', 'bg-')}`}></span>
+                        {STATUS_LABELS[status]}
                     </div>
-                    )}
-                  </div>
-                );
-              })}
-            </React.Fragment>
-          ))}
+                ))}
+            </div>
+
+            {/* 2. Subject Rows (Independent Grids) */}
+            <div className="flex flex-col gap-4">
+                {subjects.map(subject => (
+                    <div 
+                        key={subject.id} 
+                        className="grid bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
+                        style={{ gridTemplateColumns }}
+                    >
+                        {/* Subject Header (Left Column) */}
+                        <div className="sticky left-0 z-20 bg-white border-r border-slate-100 p-4 flex flex-col justify-between group shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)]">
+                            <div>
+                                <h3 className="font-bold text-lg text-slate-800">{subject.name}</h3>
+                                <p className="text-xs text-slate-400 mt-1">
+                                    {tasks.filter(t => t.subjectId === subject.id && t.status !== TaskStatus.DONE).length} tasks left
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => handleAddTask(subject.id)}
+                                className="mt-4 flex items-center justify-center w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg border border-slate-200 transition-colors text-sm font-medium gap-1"
+                            >
+                                <Plus size={16} /> タスク追加
+                            </button>
+                        </div>
+
+                        {/* Status Cells */}
+                        {statuses.map((status, colIndex) => {
+                            // Get tasks for this cell
+                            const cellTasks = tasks
+                                .filter(t => t.subjectId === subject.id && t.status === status)
+                                .sort((a, b) => (a.order || 0) - (b.order || 0));
+                            
+                            // Determine Validity for Dragging
+                            let isDroppable = true;
+                            if (dragState) {
+                                const isSameCell = dragState.sourceSubjectId === subject.id && dragState.sourceStatus === status;
+                                if (!isSameCell) {
+                                    if (!dragState.isSourceTop) {
+                                        isDroppable = false;
+                                    } else {
+                                        const mockTask = { status: dragState.sourceStatus, subjectId: dragState.sourceSubjectId } as Task;
+                                        if (!canMoveTask(mockTask, subject.id, status)) {
+                                            isDroppable = false;
+                                        }
+                                    }
+                                }
+                            }
+
+                            const isTargetCell = dropTarget?.subjectId === subject.id && dropTarget?.status === status;
+                            
+                            // Last column doesn't need right border, but middle ones might
+                            const borderClass = colIndex < statuses.length - 1 ? 'border-r border-slate-100' : '';
+
+                            return (
+                                <div
+                                    key={`${subject.id}-${status}`}
+                                    onDragOver={(e) => {
+                                        if (isDroppable) handleCellDragOver(e, subject.id, status);
+                                    }}
+                                    onDrop={handleDrop}
+                                    className={`
+                                        p-3 transition-all duration-200 relative min-h-[160px] flex flex-col gap-3 ${borderClass}
+                                        ${dragState && !isDroppable ? 'bg-slate-50 opacity-40 grayscale pointer-events-none' : 'hover:bg-slate-50/50'}
+                                    `}
+                                >
+                                    {/* Render Tasks with Placeholder Injection */}
+                                    {cellTasks.map((task, index) => {
+                                        const isDraggingSelf = dragState?.taskId === task.id;
+                                        
+                                        // Show placeholder before the item if index matches
+                                        const showPlaceholderHere = isTargetCell && dropTarget.index === index;
+
+                                        return (
+                                            <React.Fragment key={task.id}>
+                                                {showPlaceholderHere && (
+                                                    <div className="h-20 w-full rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/50 transition-all animate-pulse pointer-events-none" />
+                                                )}
+                                                <TaskCard
+                                                    task={task}
+                                                    index={index}
+                                                    isDragging={isDraggingSelf}
+                                                    onClick={() => handleEditTask(task)}
+                                                    onDragStart={handleDragStart}
+                                                    onDragEnd={handleDragEnd}
+                                                />
+                                            </React.Fragment>
+                                        );
+                                    })}
+
+                                    {/* Placeholder at the very end */}
+                                    {isTargetCell && dropTarget.index === cellTasks.length && (
+                                        <div className="h-20 w-full rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/50 transition-all animate-pulse pointer-events-none" />
+                                    )}
+
+                                    {/* Add Button Shortcut */}
+                                    {!dragState && status === TaskStatus.TOMORROW_PLUS && (
+                                        <div className="flex-1 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity min-h-[20px]">
+                                            <button 
+                                                onClick={() => {
+                                                    setTargetSubjectId(subject.id);
+                                                    handleAddTask(subject.id);
+                                                }}
+                                                className="p-2 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-full transition-all"
+                                            >
+                                                <Plus size={20} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                ))}
+            </div>
         </div>
       </div>
 

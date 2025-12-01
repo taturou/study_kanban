@@ -49,7 +49,9 @@ interface Subject {
   - `dragState`: Information about the task currently being dragged (`sourceSubjectId`, `isSourceTop`, etc.).
   - `dropTarget`: The calculated destination (`subjectId`, `status`, `index`) used for the placeholder.
 - **Responsibilities**:
-  - Layout rendering (Grid).
+  - Layout rendering:
+    - Uses **Independent CSS Grids** for each Subject Row to allow independent height adjustment.
+    - Maintains column alignment via shared `grid-template-columns`.
   - Data persistence (`useEffect` -> `localStorage`).
   - **Drag & Drop Logic**: Centralized handler for `onDragStart`, `onDragOver` (Container), and `onDrop`.
   - **Rule Enforcement**: Implementation of transition rules and "Single Studying" logic.

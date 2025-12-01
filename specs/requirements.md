@@ -5,6 +5,7 @@
 
 ## 2. Core UI Structure
 - **Layout**: 2D Matrix (Rows: Subjects, Columns: Statuses).
+- **Independent Row Heights**: Each Subject row's height adjusts independently based on the number of tasks it contains, preventing empty white space in other rows.
 - **Target Devices**: PC and Tablet (Responsive design).
 - **Subject Rows**: Users can add, edit, and delete subjects (e.g., Math, English).
 - **Status Columns** (Fixed Order):
