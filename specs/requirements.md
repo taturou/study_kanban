@@ -60,6 +60,11 @@ Tasks must follow strict transition rules based on their current status.
 - **UI Behavior**: The delete button is disabled or hidden for tasks in other statuses.
 - **Confirmation**: A **custom confirmation UI** (not `window.confirm`) must appear within the app to confirm deletion. This ensures compatibility with sandboxed environments where native modals are blocked.
 
+### 3.6 Subject Deletion
+- **Constraint**: Subjects can ONLY be deleted if they contain **no tasks**.
+- **UI Behavior**: The delete button for a subject is disabled (grayed out) if any tasks are associated with it.
+- **Confirmation**: A **custom confirmation UI** (not `window.confirm`) must appear within the Subject Manager to confirm deletion.
+
 ## 4. Interaction (Drag & Drop)
 - **Visual Feedback**:
   - **Placeholder**: A dashed outline indicates where the task will be dropped.

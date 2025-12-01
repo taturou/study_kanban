@@ -72,6 +72,13 @@ interface Subject {
   - `handleDeleteClick`: Explicitly stops event propagation and triggers a custom confirmation view state (`isDeleteConfirmOpen`).
   - **Custom Confirmation UI**: A sub-modal component rendered conditionally when `isDeleteConfirmOpen` is true. This replaces `window.confirm` to avoid sandbox restrictions.
 
+### `SubjectManager.tsx`
+- **Props**: `subjects`, `setSubjects`, `tasks` (NEW: required for validation).
+- **Responsibilities**:
+  - Add, Delete, and Reorder (via Drag & Drop) subjects.
+  - **Constraint**: Cannot delete a subject if `tasks` contains any items matching that subject ID. The delete button is disabled.
+  - **Custom Confirmation UI**: Uses an internal state `subjectToDelete` to show a confirmation overlay instead of `window.confirm`.
+
 ## 4. Key Algorithms
 
 ### 4.1 Drag & Drop (Geometric Insertion)

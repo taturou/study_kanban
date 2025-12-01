@@ -479,6 +479,7 @@ const App: React.FC = () => {
         onClose={() => setIsSubjectManagerOpen(false)}
         subjects={subjects}
         setSubjects={setSubjects}
+        tasks={tasks}
       />
 
       <AnalyticsModal
