@@ -39,7 +39,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ tasks, selectedWeekStart, o
         dates.push(new Date(year, month, i));
     }
 
-    // Fill remaining to keep grid consistent (optional, but looks better)
+    // Fill remaining to keep grid consistent
     const remaining = 7 - (dates.length % 7);
     if (remaining < 7) {
         for (let i = 1; i <= remaining; i++) {
@@ -52,9 +52,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({ tasks, selectedWeekStart, o
 
   const dates = generateDates();
 
-  // Calculate heatmap data
+  // Calculate heatmap data (Navy Blue style colors)
   const getHeatmapColor = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    // FIX: Use local time formatting instead of toISOString() to avoid timezone offsets
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+
     let totalMinutes = 0;
     
     tasks.forEach(task => {
@@ -65,12 +70,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({ tasks, selectedWeekStart, o
     });
 
     if (totalMinutes === 0) return '';
-    if (totalMinutes < 30) return 'bg-green-100 text-green-800';
-    if (totalMinutes < 60) return 'bg-green-200 text-green-800';
-    if (totalMinutes < 120) return 'bg-green-300 text-green-900';
-    if (totalMinutes < 180) return 'bg-green-400 text-white';
-    if (totalMinutes < 240) return 'bg-green-500 text-white';
-    return 'bg-green-600 text-white';
+    
+    // Navy Blue Colors
+    if (totalMinutes < 30) return 'bg-[#dbeafe] text-slate-800'; // Lightest
+    if (totalMinutes < 60) return 'bg-[#60a5fa] text-white';     // Medium
+    if (totalMinutes < 120) return 'bg-[#1e40af] text-white';    // Dark
+    return 'bg-[#172554] text-white';                            // Deepest Navy
   };
 
   const isSelectedWeek = (date: Date) => {
@@ -116,9 +121,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({ tasks, selectedWeekStart, o
             </div>
         </div>
 
-        <div className="grid grid-cols-7 gap-y-1 gap-x-1">
+        <div className="grid grid-cols-7 gap-y-2 gap-x-1">
             {WEEKDAYS.map(day => (
-                <div key={day} className="text-center text-[10px] text-slate-400 font-medium mb-1">
+                <div key={day} className="text-center text-[10px] text-slate-400 font-medium">
                     {day}
                 </div>
             ))}
@@ -132,24 +137,26 @@ const CalendarView: React.FC<CalendarViewProps> = ({ tasks, selectedWeekStart, o
                     <div 
                         key={i}
                         onClick={() => handleDateClick(date)}
-                        className={`
-                            aspect-square flex items-center justify-center rounded-lg cursor-pointer transition-colors
-                            ${isSelected ? 'bg-indigo-50' : 'hover:bg-slate-50'}
-                        `}
+                        className="flex flex-col items-center cursor-pointer group"
                     >
                         <div className={`
-                            w-7 h-7 flex items-center justify-center rounded-full text-xs relative
+                            w-7 h-7 flex items-center justify-center rounded-full text-xs transition-all relative
                             ${!isCurrentMonth ? 'text-slate-300' : 'text-slate-700'}
-                            ${heatmapClass ? heatmapClass : ''}
-                            ${isToday ? 'ring-2 ring-blue-500 ring-offset-2' : ''}
+                            ${heatmapClass ? heatmapClass : 'group-hover:bg-slate-50'}
+                            ${isToday ? 'ring-2 ring-orange-400 ring-offset-1 z-10' : ''}
                         `}>
                             {date.getDate()}
                         </div>
+                        {/* Selected Indicator */}
+                        <div className={`
+                            w-4 h-1 rounded-full mt-1 transition-colors
+                            ${isSelected ? 'bg-slate-400' : 'bg-transparent'}
+                        `}></div>
                     </div>
                 );
             })}
         </div>
-        <div className="text-center text-[10px] text-slate-400 mt-3 border-t border-slate-50 pt-2">
+        <div className="text-center text-[10px] text-slate-400 mt-2 border-t border-slate-50 pt-2">
             週を選択してタスクを表示
         </div>
     </div>

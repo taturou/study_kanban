@@ -27,8 +27,17 @@ See `types.ts` for full definitions of `Task`, `Subject`, `WorkLog`, etc.
 
 ### `CalendarView.tsx`
 - **Design**: Compact card, fixed width (~320px).
-- **UI**: Circular date cells (`rounded-full`, `aspect-square`).
-- **Features**: Heatmap coloring, Week selection (Monday start).
+- **UI**: 
+  - Circular date cells (`rounded-full`).
+  - **Heatmap Colors (Navy Blue Base)**: 
+    - Level 0 (0m): Default/Empty
+    - Level 1 (<30m): `#dbeafe` (Light Blue)
+    - Level 2 (<60m): `#60a5fa` (Medium Blue)
+    - Level 3 (<120m): `#1e40af` (Dark Blue)
+    - Level 4 (>120m): `#172554` (Deep Navy)
+  - **Selection**: Gray indicator bar (`bg-slate-400`) below dates.
+  - **Today**: Orange ring (`ring-orange-400`).
+- **Features**: Week selection (Monday start).
 
 ### `TaskCard.tsx`
 - **Display**: Standard or Compact (for Done/Won't Do).
@@ -47,5 +56,5 @@ See `types.ts` for full definitions of `Task`, `Subject`, `WorkLog`, etc.
 - **Board Panning**: Implemented via mouse events (`mousedown`, `mousemove`) on the main scrollable container to adjust `scrollLeft` and `scrollTop` based on cursor movement delta. Ignores interactions with tasks/buttons.
 
 ## 5. UI Design System
-- **Colors**: Slate (Neutral), Blue (Primary/Today), Green (Done/Heatmap), Purple (Studying), Red (Priority/Warning).
+- **Colors**: Slate (Neutral), Blue (Primary/Today), Navy Blue (Heatmap), Purple (Studying), Red (Priority/Warning), Orange (Today Highlight).
 - **Shapes**: Rounded corners (XL for containers, LG for items), Circular badges/dates.

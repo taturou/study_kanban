@@ -23,8 +23,9 @@
 ## 3. Calendar & Weekly Planning
 - **UI Design**: Modern, compact card layout displayed at the top-left.
 - **Date Display**: Dates are displayed as **circles** (rounded-full).
-- **Heatmap**: Each day is colored based on total study time.
-- **Weekly Selection**: Clicking a day selects the week.
+- **Heatmap**: Each day is colored based on total study time, using **Navy Blue** shades (Light Blue to Deep Navy).
+- **Week Selection**: A small **gray indicator bar** is displayed below each date of the selected week.
+- **Today Highlight**: The current date is highlighted with an **orange ring**.
 - **Kanban Filter**: The board displays tasks only for the selected week.
 
 ## 4. Task Management
