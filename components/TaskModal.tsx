@@ -124,6 +124,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
       priority, // Preserved internal state
       deadline: deadlineTimestamp,
       order,
+      workLogs: initialTask?.workLogs || [],
+      startDate: initialTask?.startDate || 0, // Pass dummy value, App.tsx will handle it
     });
     onClose();
   };

@@ -15,6 +15,11 @@ export interface Subject {
   color: string;
 }
 
+export interface WorkLog {
+  date: string; // YYYY-MM-DD
+  minutes: number;
+}
+
 export interface Task {
   id: string;
   subjectId: string;
@@ -27,6 +32,10 @@ export interface Task {
   deadline?: number; // timestamp
   createdAt: number;
   order: number; // Lower number = Higher priority (displayed at top)
+  
+  // New properties for Calendar/Heatmap
+  workLogs: WorkLog[]; 
+  startDate: number; // Timestamp representing the start of the week (Monday) this task belongs to
 }
 
 export interface Reminder {

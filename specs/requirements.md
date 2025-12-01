@@ -5,81 +5,53 @@
 
 ## 2. Core UI Structure
 - **Layout**: 2D Matrix (Rows: Subjects, Columns: Statuses).
-- **Independent Row Heights**: Each Subject row's height adjusts independently based on the number of tasks it contains, preventing empty white space in other rows.
+- **Independent Row Heights**: Each Subject row's height adjusts independently based on the number of tasks it contains.
+- **Top Layout**: The top area (below header) contains the **Calendar View** aligned to the **left**, with **empty space reserved on the right**.
 - **Target Devices**: PC and Tablet (Responsive design).
 - **Subject Rows**: Users can add, edit, and delete subjects (e.g., Math, English).
 - **Status Columns** (Fixed Order):
-  1. **Tomorrow+** (明日以降): Backlog for future tasks.
-  2. **Today** (今日やる): Queue for today's tasks.
-  3. **Studying** (勉強中): The single active task being worked on.
-  4. **Hold** (保留): Paused tasks.
-  5. **Done** (終わった): Completed tasks.
-  6. **Won't Do** (やらない): Cancelled tasks.
+  1. **Tomorrow+** (明日以降)
+  2. **Today** (今日やる)
+  3. **Studying** (勉強中)
+  4. **Hold** (保留)
+  5. **Done** (終わった)
+  6. **Won't Do** (やらない)
 - **Task Visualization**:
-  - **Standard View**: Detailed card showing Title, Deadline, Estimates, etc. for active tasks.
-  - **Compact View**: Minimalist single-line display for **Done** and **Won't Do** tasks to save screen space.
+  - **Standard View**: Detailed card showing Title, Deadline, Estimates.
+  - **Compact View**: Minimalist single-line display for **Done** and **Won't Do** tasks.
 
-## 3. Task Management
-### 3.1 Task Properties
-Users can view and edit strictly the following fields:
-- **Title**: Name of the task.
-- **Deadline**: Date (optional).
-- **Estimated Time**: Planned duration in minutes.
-- **Actual Time**: Actual duration spent in minutes.
-- **Memo**: Description or notes.
+## 3. Calendar & Weekly Planning
+- **UI Design**: Modern, compact card layout displayed at the top-left.
+- **Date Display**: Dates are displayed as **circles** (rounded-full).
+- **Heatmap**: Each day is colored based on total study time.
+- **Weekly Selection**: Clicking a day selects the week.
+- **Kanban Filter**: The board displays tasks only for the selected week.
 
-*Note: Internal properties like `id`, `subjectId`, `status`, `priority`, and `order` are managed by the system.*
+## 4. Task Management
+### 4.1 Task Properties
+- **Visible**: Title, Deadline, Estimated Time, Actual Time, Memo.
+- **Internal**: ID, SubjectId, Status, Priority, Order, WorkLogs, StartDate.
 
-### 3.2 Task Transitions Rules (State Machine)
-Tasks must follow strict transition rules based on their current status.
+### 4.2 Transition Rules
+- **Same Subject**: Strict state machine (see `types.ts`).
+- **Cross Subject**: Only allowed for `Tomorrow+` and `Today` tasks.
 
-#### Status Transitions (Same Subject)
-- **From Tomorrow+**: → Today, Won't Do
-- **From Today**: → Tomorrow+, Studying, Won't Do
-- **From Studying**: → Today (Return to queue), Hold, Done, Won't Do
-- **From Hold**: → Studying, Done, Won't Do
-- **From Done**: → Today (Re-open)
-- **From Won't Do**: → Today (Revive)
+### 4.3 Priority & Constraints
+- **Ordering**: D&D reordering within cells.
+- **Movement Restriction**: Only the **Top Task** (Index 0) can change status/subject.
+- **Single Studying**: Only one task can be `Studying` globally.
 
-#### Cross-Subject Movement
-- **Allowed**: Tasks can move between subjects ONLY if they are in **Tomorrow+** or **Today** status.
-- **Forbidden**: Tasks in Studying, Hold, Done, or Won't Do cannot change subjects.
-- **Constraint**: When moving between subjects, the status must remain the same.
+### 4.4 Deletion
+- **Constraint**: Only tasks in `Tomorrow+` can be deleted.
+- **Confirmation**: Custom in-app confirmation UI.
 
-### 3.3 Priority & Movement Constraints (The "Top Task" Rule)
-- **Ordering**: Tasks are ordered within a cell. Higher position = Higher priority.
-- **Movement Restriction**: Only the task at the **very top (Index 0)** of a list can be moved to a different Status or Subject.
-- **Reordering**: Users can freely reorder tasks within the same cell to change priority.
+## 5. Subject Management
+- **Deletion**: Subjects can only be deleted if they have no tasks. Custom confirmation UI required.
 
-### 3.4 Global "Studying" Constraint
-- **Single Active Task**: Only **one** task can be in the "Studying" status across the entire application (all subjects).
-- **Auto-Hold**: Moving a new task to "Studying" automatically moves the existing "Studying" task to "Hold".
+## 6. Interaction
+- **Drag & Drop**: Placeholder visualization, avoidance animation, invalid drop blocking.
 
-### 3.5 Task Deletion
-- **Constraint**: Tasks can only be deleted if their current status is **Tomorrow+** (明日以降).
-- **UI Behavior**: The delete button is disabled or hidden for tasks in other statuses.
-- **Confirmation**: A **custom confirmation UI** (not `window.confirm`) must appear within the app to confirm deletion. This ensures compatibility with sandboxed environments where native modals are blocked.
-
-### 3.6 Subject Deletion
-- **Constraint**: Subjects can ONLY be deleted if they contain **no tasks**.
-- **UI Behavior**: The delete button for a subject is disabled (grayed out) if any tasks are associated with it.
-- **Confirmation**: A **custom confirmation UI** (not `window.confirm`) must appear within the Subject Manager to confirm deletion.
-
-## 4. Interaction (Drag & Drop)
-- **Visual Feedback**:
-  - **Placeholder**: A dashed outline indicates where the task will be dropped.
-  - **Avoidance**: Other tasks visually shift to make room for the placeholder.
-  - **Invalid Targets**: If a user drags a non-top task (or attempts an invalid transition), invalid destination cells are visually grayed out/blocked.
-- **Drop Logic**:
-  - Dropping on a cell: Appends to the end of the list.
-  - Dropping on a task: Inserts the task immediately before the target task.
-
-## 5. Analytics & Features
-- **Analytics Dashboard**:
-  - Visualize total study time.
-  - Task completion rates per subject (Bar/Pie charts).
-  - Average time per task.
-- **Reminders**:
-  - Users can set custom browser notifications (Time, Days of week, Message).
-  - Requires browser permission.
-- **Persistence**: All data (Tasks, Subjects, Reminders) is saved locally (LocalStorage).
+## 7. Analytics & Features
+- **Dashboard**: Study time stats, charts.
+- **Reminders**: Browser notifications.
+- **Persistence**: LocalStorage.

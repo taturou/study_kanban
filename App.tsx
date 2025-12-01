@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Task, Subject, TaskStatus, STATUS_LABELS, STATUS_COLORS, Reminder, canMoveTask } from './types';
+import { Task, Subject, TaskStatus, STATUS_LABELS, STATUS_COLORS, Reminder, canMoveTask, WorkLog } from './types';
 import TaskCard from './components/TaskCard';
 import TaskModal from './components/TaskModal';
 import SubjectManager from './components/SubjectManager';
 import AnalyticsModal from './components/AnalyticsModal';
 import ReminderModal from './components/ReminderModal';
+import CalendarView from './components/CalendarView';
 import { Plus, Settings, BookOpen, PieChart, Bell } from 'lucide-react';
 
 // Logic types for Drag & Drop
@@ -40,6 +41,18 @@ const App: React.FC = () => {
       const saved = localStorage.getItem('study_reminders');
       return saved ? JSON.parse(saved) : [];
   });
+
+  // Calendar State: Default to current week's Monday
+  const getMonday = (d: Date) => {
+    const date = new Date(d);
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+    const m = new Date(date.setDate(diff));
+    m.setHours(0,0,0,0);
+    return m.getTime();
+  };
+  
+  const [selectedWeekStart, setSelectedWeekStart] = useState<number>(getMonday(new Date()));
 
   // Modals
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -117,7 +130,6 @@ const App: React.FC = () => {
       let updatedTasks = [...prev];
       
       // Enforce Single Studying Task Rule:
-      // If the new/updated task is set to STUDYING, move any existing STUDYING task to HOLD.
       if (taskData.status === TaskStatus.STUDYING) {
         updatedTasks = updatedTasks.map(t => {
           if (t.status === TaskStatus.STUDYING && t.id !== taskData.id) {
@@ -127,9 +139,44 @@ const App: React.FC = () => {
         });
       }
 
+      const todayStr = new Date().toISOString().split('T')[0];
+
       if (taskData.id) {
-        return updatedTasks.map(t => t.id === taskData.id ? { ...t, ...taskData } : t);
+        // Edit existing
+        const existingTask = updatedTasks.find(t => t.id === taskData.id);
+        const oldActual = existingTask ? existingTask.actualMinutes : 0;
+        const newActual = taskData.actualMinutes;
+        const delta = newActual - oldActual;
+
+        // Update WorkLogs if actual time increased
+        let newWorkLogs = existingTask?.workLogs ? [...existingTask.workLogs] : [];
+        if (delta > 0) {
+            const todayLogIdx = newWorkLogs.findIndex(l => l.date === todayStr);
+            if (todayLogIdx >= 0) {
+                newWorkLogs[todayLogIdx] = { ...newWorkLogs[todayLogIdx], minutes: newWorkLogs[todayLogIdx].minutes + delta };
+            } else {
+                newWorkLogs.push({ date: todayStr, minutes: delta });
+            }
+        } else if (delta < 0) {
+            // Correction (user decreased time manually) - just adjust today's log or do nothing?
+            // Simple approach: try to reduce today's log
+             const todayLogIdx = newWorkLogs.findIndex(l => l.date === todayStr);
+             if (todayLogIdx >= 0) {
+                 newWorkLogs[todayLogIdx] = { ...newWorkLogs[todayLogIdx], minutes: Math.max(0, newWorkLogs[todayLogIdx].minutes + delta) };
+             }
+        }
+
+        return updatedTasks.map(t => t.id === taskData.id ? { 
+            ...t, 
+            ...taskData, 
+            workLogs: newWorkLogs,
+            // Keep existing startDate, do not overwrite unless necessary
+            startDate: t.startDate || selectedWeekStart 
+        } : t);
+
       } else {
+        // New Task
+        // Calculate max order
         const maxOrder = updatedTasks
           .filter(t => t.subjectId === taskData.subjectId && t.status === taskData.status)
           .reduce((max, t) => Math.max(max, t.order || 0), -1);
@@ -140,6 +187,8 @@ const App: React.FC = () => {
           createdAt: Date.now(),
           priority: taskData.priority || 'Medium',
           order: maxOrder + 1,
+          workLogs: [],
+          startDate: selectedWeekStart, // Assign to current selected week
         } as Task;
         return [...updatedTasks, newTask];
       }
@@ -157,11 +206,8 @@ const App: React.FC = () => {
     e.dataTransfer.setData("text/plain", task.id);
     e.dataTransfer.effectAllowed = "move";
 
-    // Check if this task is at the top (index 0) of its current list
     const isSourceTop = index === 0;
 
-    // IMPORTANT: Defer state update to allow browser to generate the drag ghost image
-    // from the visible element before we hide it (display: none via class)
     setTimeout(() => {
         setDragState({
             taskId: task.id,
@@ -170,7 +216,6 @@ const App: React.FC = () => {
             isSourceTop
         });
         
-        // Set initial drop target to current location
         setDropTarget({
             subjectId: task.subjectId,
             status: task.status,
@@ -179,8 +224,6 @@ const App: React.FC = () => {
     }, 0);
   };
 
-  // Called when hovering over the CELL (Container)
-  // This calculates the insertion index based on mouse Y position relative to children
   const handleCellDragOver = (e: React.DragEvent, subjectId: string, status: TaskStatus) => {
     e.preventDefault();
     if (!dragState) return;
@@ -193,13 +236,12 @@ const App: React.FC = () => {
         if (!canMoveTask(mockTask, subjectId, status)) return;
     }
 
-    // Calculate Insertion Index Geometry
     const container = e.currentTarget as HTMLElement;
     const children = Array.from(container.children).filter(
         (el) => (el as HTMLElement).hasAttribute('data-task-id') && !(el as HTMLElement).classList.contains('hidden')
     ) as HTMLElement[];
 
-    let newIndex = children.length; // Default to append
+    let newIndex = children.length;
 
     for (let i = 0; i < children.length; i++) {
         const rect = children[i].getBoundingClientRect();
@@ -211,7 +253,6 @@ const App: React.FC = () => {
         }
     }
 
-    // Optimization: only update if changed
     if (dropTarget?.subjectId === subjectId && 
         dropTarget?.status === status && 
         dropTarget?.index === newIndex) {
@@ -228,7 +269,6 @@ const App: React.FC = () => {
         const { taskId } = dragState;
         const { subjectId, status, index } = dropTarget;
 
-        // Perform the move
         setTasks(prevTasks => {
             let processedTasks = [...prevTasks];
 
@@ -245,28 +285,36 @@ const App: React.FC = () => {
             const taskToMove = processedTasks.find(t => t.id === taskId);
             if (!taskToMove) return prevTasks;
 
-            // Remove from old list
             const remaining = processedTasks.filter(t => t.id !== taskId);
 
-            // Get target list from remaining tasks
             const targetList = remaining
                 .filter(t => t.subjectId === subjectId && t.status === status)
+                .filter(t => {
+                    // Fallback for legacy tasks without startDate: assume they are in current view
+                    const tStart = t.startDate || selectedWeekStart;
+                    return tStart >= selectedWeekStart && tStart < selectedWeekStart + 7 * 86400000; 
+                })
                 .sort((a, b) => (a.order || 0) - (b.order || 0));
 
             // Insert
             const newItem = { ...taskToMove, subjectId, status };
             targetList.splice(index, 0, newItem);
 
-            // Re-index target list
             const updatedTargetList = targetList.map((t, i) => ({ ...t, order: i }));
 
-            // Merge back
-            const others = remaining.filter(t => !(t.subjectId === subjectId && t.status === status));
-            return [...others, ...updatedTargetList];
+            // We need to update these tasks in the main array.
+            // Be careful not to lose tasks from OTHER weeks that were filtered out of `targetList`.
+            
+            // Map of updated tasks
+            const updates = new Map(updatedTargetList.map(t => [t.id, t]));
+            
+            return remaining.map(t => updates.has(t.id) ? updates.get(t.id)! : t).concat(
+                // Add the moved task if it wasn't in remaining (it wasn't)
+                updatedTargetList.find(t => t.id === taskId)!
+            );
         });
     }
 
-    // Reset state
     setDragState(null);
     setDropTarget(null);
   };
@@ -277,14 +325,18 @@ const App: React.FC = () => {
   };
 
   const statuses = Object.values(TaskStatus);
-
-  // Common grid columns definition
   const gridTemplateColumns = `200px repeat(${statuses.length}, minmax(220px, 1fr))`;
+
+  // Filter tasks for the selected week
+  const visibleTasks = tasks.filter(t => {
+      if (!t.startDate) return true;
+      return t.startDate >= selectedWeekStart && t.startDate < selectedWeekStart + (7 * 24 * 60 * 60 * 1000);
+  });
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 overflow-hidden">
       {/* Header */}
-      <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0 z-40 relative">
+      <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0 z-40 relative shadow-sm">
         <div className="flex items-center gap-2">
           <div className="p-1.5 bg-blue-600 rounded-lg">
             <BookOpen className="text-white w-5 h-5" />
@@ -295,7 +347,6 @@ const App: React.FC = () => {
             <button
                 onClick={() => setIsAnalyticsOpen(true)}
                 className="flex items-center gap-2 text-sm text-slate-600 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-colors"
-                title="学習データ"
             >
                 <PieChart size={18} />
                 <span className="hidden sm:inline">分析</span>
@@ -303,7 +354,6 @@ const App: React.FC = () => {
             <button
                 onClick={() => setIsReminderOpen(true)}
                 className="flex items-center gap-2 text-sm text-slate-600 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-colors"
-                title="リマインダー"
             >
                 <Bell size={18} />
                 <span className="hidden sm:inline">通知</span>
@@ -311,7 +361,6 @@ const App: React.FC = () => {
             <button
             onClick={() => setIsSubjectManagerOpen(true)}
             className="flex items-center gap-2 text-sm text-slate-600 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-colors"
-            title="教科設定"
             >
             <Settings size={18} />
             <span className="hidden sm:inline">設定</span>
@@ -319,8 +368,21 @@ const App: React.FC = () => {
         </div>
       </header>
 
+      {/* Top Area: Calendar and Space */}
+      <div className="flex-shrink-0 z-30 relative px-4 pt-4 pb-0 flex gap-4 items-start">
+          <CalendarView 
+            tasks={tasks} 
+            selectedWeekStart={selectedWeekStart} 
+            onSelectWeek={setSelectedWeekStart} 
+          />
+          <div className="flex-1 min-h-[100px] border-2 border-dashed border-slate-200 rounded-2xl flex items-center justify-center text-slate-300">
+             {/* Space for future widgets or ads */}
+             <span>Empty Space</span>
+          </div>
+      </div>
+
       {/* Kanban Matrix Area */}
-      <div className="flex-1 overflow-auto kanban-scroll p-4 md:p-6">
+      <div className="flex-1 overflow-auto kanban-scroll p-4 md:p-6 pt-2">
         <div className="inline-block min-w-full">
             
             {/* 1. Header Row (Statuses) */}
@@ -328,10 +390,7 @@ const App: React.FC = () => {
               className="grid sticky top-0 z-30 mb-2" 
               style={{ gridTemplateColumns }}
             >
-                 {/* Top-Left Corner Spacer (Sticky) */}
                  <div className="sticky left-0 z-40 bg-slate-100 border-b border-slate-200"></div>
-
-                 {/* Status Headers */}
                  {statuses.map(status => (
                     <div 
                         key={status} 
@@ -344,19 +403,19 @@ const App: React.FC = () => {
             </div>
 
             {/* 2. Subject Rows (Independent Grids) */}
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 pb-10">
                 {subjects.map(subject => (
                     <div 
                         key={subject.id} 
                         className="grid bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
                         style={{ gridTemplateColumns }}
                     >
-                        {/* Subject Header (Left Column) */}
+                        {/* Subject Header */}
                         <div className="sticky left-0 z-20 bg-white border-r border-slate-100 p-4 flex flex-col justify-between group shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)]">
                             <div>
                                 <h3 className="font-bold text-lg text-slate-800">{subject.name}</h3>
                                 <p className="text-xs text-slate-400 mt-1">
-                                    {tasks.filter(t => t.subjectId === subject.id && t.status !== TaskStatus.DONE).length} tasks left
+                                    {visibleTasks.filter(t => t.subjectId === subject.id && t.status !== TaskStatus.DONE).length} tasks
                                 </p>
                             </div>
                             <button
@@ -369,12 +428,10 @@ const App: React.FC = () => {
 
                         {/* Status Cells */}
                         {statuses.map((status, colIndex) => {
-                            // Get tasks for this cell
-                            const cellTasks = tasks
+                            const cellTasks = visibleTasks
                                 .filter(t => t.subjectId === subject.id && t.status === status)
                                 .sort((a, b) => (a.order || 0) - (b.order || 0));
                             
-                            // Determine Validity for Dragging
                             let isDroppable = true;
                             if (dragState) {
                                 const isSameCell = dragState.sourceSubjectId === subject.id && dragState.sourceStatus === status;
@@ -391,8 +448,6 @@ const App: React.FC = () => {
                             }
 
                             const isTargetCell = dropTarget?.subjectId === subject.id && dropTarget?.status === status;
-                            
-                            // Last column doesn't need right border, but middle ones might
                             const borderClass = colIndex < statuses.length - 1 ? 'border-r border-slate-100' : '';
 
                             return (
@@ -407,11 +462,8 @@ const App: React.FC = () => {
                                         ${dragState && !isDroppable ? 'bg-slate-50 opacity-40 grayscale pointer-events-none' : 'hover:bg-slate-50/50'}
                                     `}
                                 >
-                                    {/* Render Tasks with Placeholder Injection */}
                                     {cellTasks.map((task, index) => {
                                         const isDraggingSelf = dragState?.taskId === task.id;
-                                        
-                                        // Show placeholder before the item if index matches
                                         const showPlaceholderHere = isTargetCell && dropTarget.index === index;
 
                                         return (
@@ -430,13 +482,9 @@ const App: React.FC = () => {
                                             </React.Fragment>
                                         );
                                     })}
-
-                                    {/* Placeholder at the very end */}
                                     {isTargetCell && dropTarget.index === cellTasks.length && (
                                         <div className="h-20 w-full rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/50 transition-all animate-pulse pointer-events-none" />
                                     )}
-
-                                    {/* Add Button Shortcut */}
                                     {!dragState && status === TaskStatus.TOMORROW_PLUS && (
                                         <div className="flex-1 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity min-h-[20px]">
                                             <button 
@@ -459,7 +507,6 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Modals */}
       <TaskModal
         isOpen={isTaskModalOpen}
         onClose={() => {
