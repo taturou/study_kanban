@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Task, TaskStatus, Subject, Priority, STATUS_LABELS } from '../types';
-import { X } from 'lucide-react';
+import { X, AlertTriangle } from 'lucide-react';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -35,10 +35,16 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [priority, setPriority] = useState<Priority>('Medium');
   const [order, setOrder] = useState<number>(0);
 
+  // State for Custom Delete Confirmation
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+
   const titleInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
+      // Reset delete confirm state when modal opens
+      setIsDeleteConfirmOpen(false);
+
       if (initialTask) {
         setTitle(initialTask.title);
         setDescription(initialTask.description || '');
@@ -103,8 +109,65 @@ const TaskModal: React.FC<TaskModalProps> = ({
     onClose();
   };
 
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Open the custom confirmation view
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (initialTask?.id) {
+        onDelete(initialTask.id);
+        onClose();
+    }
+  };
+
+  const cancelDelete = () => {
+    setIsDeleteConfirmOpen(false);
+  };
+
   if (!isOpen) return null;
 
+  const canDelete = initialTask?.status === TaskStatus.TOMORROW_PLUS;
+
+  // --- Render Delete Confirmation View ---
+  if (isDeleteConfirmOpen) {
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden p-6 animate-in fade-in zoom-in duration-200">
+                <div className="flex flex-col items-center text-center mb-6">
+                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4 text-red-600">
+                        <AlertTriangle size={24} />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-800 mb-2">タスクを削除しますか？</h3>
+                    <p className="text-sm text-slate-500">
+                        この操作は取り消せません。<br/>
+                        「{initialTask?.title}」を本当に削除してもよろしいですか？
+                    </p>
+                </div>
+                <div className="flex gap-3">
+                    <button
+                        type="button"
+                        onClick={cancelDelete}
+                        className="flex-1 px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors font-medium"
+                    >
+                        キャンセル
+                    </button>
+                    <button
+                        type="button"
+                        onClick={confirmDelete}
+                        className="flex-1 px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors font-medium shadow-sm"
+                    >
+                        削除する
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+  }
+
+  // --- Render Main Form ---
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
@@ -179,18 +242,25 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
           <div className="flex gap-3 pt-2">
             {initialTask && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm('このタスクを削除しますか？')) {
-                    if (initialTask.id) onDelete(initialTask.id);
-                    onClose();
-                  }
-                }}
-                className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-              >
-                削除
-              </button>
+              canDelete ? (
+                <button
+                  type="button"
+                  onClick={handleDeleteClick}
+                  onMouseDown={(e) => e.stopPropagation()} 
+                  className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors cursor-pointer"
+                >
+                  削除
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="px-4 py-2 text-slate-400 bg-slate-100 rounded-lg cursor-not-allowed"
+                  title="「明日以降」ステータスのタスクのみ削除できます"
+                >
+                  削除不可
+                </button>
+              )
             )}
             <div className="flex-1"></div>
             <button

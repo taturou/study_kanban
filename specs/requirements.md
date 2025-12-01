@@ -52,6 +52,11 @@ Tasks must follow strict transition rules based on their current status.
 - **Single Active Task**: Only **one** task can be in the "Studying" status across the entire application (all subjects).
 - **Auto-Hold**: Moving a new task to "Studying" automatically moves the existing "Studying" task to "Hold".
 
+### 3.5 Task Deletion
+- **Constraint**: Tasks can only be deleted if their current status is **Tomorrow+** (明日以降).
+- **UI Behavior**: The delete button is disabled or hidden for tasks in other statuses.
+- **Confirmation**: A **custom confirmation UI** (not `window.confirm`) must appear within the app to confirm deletion. This ensures compatibility with sandboxed environments where native modals are blocked.
+
 ## 4. Interaction (Drag & Drop)
 - **Visual Feedback**:
   - **Placeholder**: A dashed outline indicates where the task will be dropped.

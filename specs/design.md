@@ -65,6 +65,9 @@ interface Subject {
 
 ### `TaskModal.tsx`
 - **Responsibilities**: Form for creating/editing tasks. Hides internal fields (Priority selector, Status selector) to simplify UX.
+- **Handlers**:
+  - `handleDeleteClick`: Explicitly stops event propagation and triggers a custom confirmation view state (`isDeleteConfirmOpen`).
+  - **Custom Confirmation UI**: A sub-modal component rendered conditionally when `isDeleteConfirmOpen` is true. This replaces `window.confirm` to avoid sandbox restrictions.
 
 ## 4. Key Algorithms
 
