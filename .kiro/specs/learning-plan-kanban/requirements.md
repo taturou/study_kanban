@@ -134,6 +134,14 @@
 3. If ビルドが成功すると, the LPK shall 生成された成果物をGitHub Pagesにデプロイする。
 4. The LPK shall デプロイプロセスの状況と結果を開発者に通知する。
 
+### Requirement 9: 開発環境のセットアップ
+**Objective:** 開発者として、ホスト環境に依存せず、再現性の高い開発環境を迅速に構築したい。
+
+#### Acceptance Criteria
+1. The LPK shall VS Code の Dev Container 機能を利用して、開発環境を構築できること。
+2. The LPK shall 必要な依存関係（Node.js, TypeScript など）がプリインストールされている状態を提供すること。
+3. The LPK shall 推奨されるVS Code拡張機能（ESLint, Prettier, Copilot など）が自動的にインストールされること。
+
 ## 1週間の利用フロー（ガイドライン）
 
 ### スプリント計画・振り返り（日曜）
