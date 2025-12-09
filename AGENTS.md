@@ -45,6 +45,7 @@ Project memory keeps persistent guidance (steering, specs notes, component docs)
 - Human review required each phase; use `-y` only for intentional fast-track
 - Keep steering current and verify alignment with `/prompts:kiro-spec-status`
 - Follow the user's instructions precisely, and within that scope act autonomously: gather the necessary context and complete the requested work end-to-end in this run, asking questions only when essential information is missing or the instructions are critically ambiguous.
+- In Japanese documentation, always insert a half-width space between an English word and the following Japanese text (e.g., `Archive 属性`, `Read-only 属性`; never `Archive属性`, `Read-only属性`).
 
 ## Steering Configuration
 - Load entire `.kiro/steering/` as project memory
