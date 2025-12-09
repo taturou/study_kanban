@@ -14,6 +14,7 @@
 - `.kiro/settings/rules/` : EARS書式や設計・タスク生成などの共通ルール。
 - `AGENTS.md` : AI-DLC運用とスペック駆動開発のガイド。
 - `memo.txt` : 開発メモ（任意）。
+- `scripts/update_code_AIs.sh` : codex / gemini / copilot CLI を npm -g で更新し、更新前後のバージョンを表示するユーティリティ。
 
 ## 開発フロー（AI-DLC）
 1. 要件: `/prompts:kiro-spec-requirements learning-plan-kanban`
