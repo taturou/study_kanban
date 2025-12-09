@@ -10,6 +10,7 @@
 - **Language**: TypeScript (v5.3)
 - **UI Framework**: React.js (v18)
 - **Runtime/Hosting**: GitHub Pages
+- **Build Tool**: Vite - ESM dev server（esbuild 事前バンドル）＋Rollup ビルドで軽量・静的配信に最適化
 - **Auth/Storage**: Google アカウント + Google Drive API
 - **Calendar**: Google Calendar API
 - **App Form Factor**: PWA
@@ -32,5 +33,6 @@
 - オフラインキャッシュ→オンライン時同期（随時＋定期＋手動トリガー）を標準とする
 - カレンダー/予定と学習可能時間を結合し、Today負荷判定とゲージ表示に利用
 - Material-UI のテーマ機能を利用し、カラーパレットやタイポグラフィを柔軟に変更可能とする
+- RSC/SSR を必須としない静的配信＋PWA 構成に合わせ、Vite を標準ビルド基盤として採用（dev: esbuild で高速HMR、build: Rollup/Rolldown 互換で将来性を確保）。RSC 要件が出た場合のみ Next.js/Remix などへ再検討する。
 
-updated_at: 2025-12-10T14:30:00+09:00
+updated_at: 2025-12-10T05:37:10+09:00
