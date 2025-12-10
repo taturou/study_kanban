@@ -219,7 +219,7 @@ Key: syncToken 失効時はフル再取得、競合時は保守的マージ＋�
 | TaskCard | UI | タスク表示（ゲージ/円形インジケータ） | 2.3,3.6,3.12 | TimeCalc (P0), PomodoroTimer (P1) | State |
 | TaskDialog | UI | 作成/編集/消去と入力制御 | 1.8,2.x | TaskStore (P0) | Service |
 | Dashboard | UI | 週次集計・バーンダウン | 4.1,4.3,4.4,4.13 | Burndown (P0) | State |
-| SettingsPanel | UI | ステータス表示名と言語を設定し、バージョン/アップデート状態を表示 | 1.5,7.4,5.8,5.9,5.14 | TaskStore (P0), UpdateManager (P1) | State |
+| SettingsPanel | UI | ステータス表示名と言語を設定し、バージョン/アップデート状態と PT デフォルト時間を表示 | 1.5,7.4,5.8,5.9,5.14,3.13 | TaskStore (P0), UpdateManager (P1) | State |
 | CalendarView | UI | 月曜始まりカレンダーと予定/学習時間表示 | 4.5-4.16 | CalendarAdapter (P0), Availability (P0) | State |
 | ReadOnlyView | UI | 閲覧専用 PWA | 6.x | TaskStore (P0), SyncEngine (P1) | State |
 | HelpPage | UI | 操作説明 | 4.15 | - | - |
@@ -341,6 +341,7 @@ interface TaskDialogService {
 **Responsibilities & Constraints**
 - 固定ステータス集合を前提に、表示名のみを編集可能（追加/削除/並べ替え不可）。言語切替を提供。
 - バージョン表示とアップデート状態（強制更新含む）を表示し、手動で新バージョンチェックを実行して、存在する場合は即時バージョンアップを適用する（Service Worker の停止→更新→再起動を含む）。
+- PT のデフォルト作業/休憩時間を設定可能にする（タスク実績には影響させない）。
 
 **Dependencies**
 - Outbound: TaskStore (settings 永続) (P0); UpdateManager (バージョン/アップデート状態) (P1)
@@ -494,7 +495,7 @@ type MoveDecision =
 | Contracts | Service |
 
 **Implementation Notes**
-- Integration: 1分刻みで InPro タスクに実績を付与し、AlertBar に状態通知。
+- Integration: InPro 実績には影響させず（PT は独立）、AlertBar に開始/終了/休憩状態を通知する。
 - Risks: ブラウザスリープ時の精度低下→Service Worker アラームは使用せず、再開時に経過補正。
 
 #### SyncEngine
