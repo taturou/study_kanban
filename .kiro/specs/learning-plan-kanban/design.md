@@ -554,7 +554,7 @@ interface SyncEngine {
 | Contracts | Service |
 
 **Implementation Notes**
-- 新バージョン検知で非モーダル通知後、自動リロードを実行。未同期変更がある場合は同期完了までリロード遅延。
+- 新バージョン検知: `version.json`（ビルド時に埋め込んだ appVersion）を fetch してローカル版と比較し、新版なら Service Worker `registration.update()` を実行。`updatefound/statechange` で完了を監視し、強制更新時は `skipWaiting` → クライアントに `postMessage` でリロード要求。未同期変更がある場合は同期完了までリロード遅延。
 
 ### Infra/Tooling
 - Auth: Google OAuth（トークンはメモリまたは Session Storage、長期保存しない）。閲覧招待トークンの発行・検証・失効を提供し、ReadOnlyView で利用する。
