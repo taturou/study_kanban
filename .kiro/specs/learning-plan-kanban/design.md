@@ -397,7 +397,7 @@ interface TaskStoreState {
 }
 // 状態変更のための操作群
 interface TaskStoreActions {
-  upsertTask(task: Task): void; // 作成・更新
+  upsertTask(task: Task): void; // 作成または更新（upsert = update or insert: 存在すれば更新・無ければ作成）
   moveTask(taskId: TaskId, to: StatusSlot): Result<SideEffects, PolicyError>; // ステータス/教科移動
   reorderTasks(subjectId: SubjectId, status: Status, order: TaskId[]): void; // セル内並び替え
   recordActual(taskId: TaskId, entry: ActualEntry): void; // 実績時間の追記
