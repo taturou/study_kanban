@@ -420,7 +420,7 @@ type MoveDecision =
 | Contracts | Service |
 
 **Implementation Notes**
-- Integration: comparator を共通化し、再計算時にカスタム順を考慮。SyncEngine からのマージ時は優先度→更新時刻→デバイスIDのタイブレークルールを適用する。
+- Integration: comparator を共通化し、Subject.taskOrder（status 別の TaskId[]）を並び順のソースとする。SyncEngine からのマージ時は優先度→更新時刻→デバイスIDのタイブレークで再計算し、Subject.taskOrder を更新する。
 - Risks: 並び順の競合（他端末更新）→ SyncEngine マージ時に優先度＋更新時刻で解決。
 
 #### TimeCalc
@@ -449,12 +449,12 @@ type MoveDecision =
 | Field | Detail |
 |-------|--------|
 | Intent | 学習可能時間（曜日デフォルト＋当日上書き＋予定控除） |
-| Requirements | 4.6,4.9-4.12 |
+| Requirements | 4.9-4.12 |
 | Contracts | Service |
 
 **Implementation Notes**
-- Integration: CalendarAdapter 予定を取り込み、時間帯重複を集約して控除。
-- Risks: 予定の終日/タイムゾーン処理。
+- Integration: `dayDefaultAvailability` に対し、スプリント内の日付が `Sprint.dayOverrides` に存在する場合はその値で上書き。Calendar 予定は閲覧用のみで学習可能時間の計算には使用しない。
+- Risks: 予定の終日/タイムゾーン処理（表示上の問題のみ）。
 
 #### PomodoroTimer
 | Field | Detail |
@@ -489,7 +489,7 @@ interface SyncEngine {
 - Postconditions: 成功時に lastSyncedAt/世代 ID を更新。失敗時は再試行可能なステータスを返却。
 
 **Implementation Notes**
-- Integration: syncToken 失効時のフルリロード、競合時はローカル優先で警告。更新競合は世代ID＋更新時刻で解決し、並び順は PrioritySorter に委譲して「優先度→更新時刻→デバイスID」のタイブレークで再計算。キューはサイズ上限でバッチ分割。バックアップ取得とローテーション（例: 日次N世代＋週次M世代）を Drive に対して実行し、リストア手順を用意する。
+- Integration: syncToken 失効時のフルリロード、競合時はローカル優先で警告。更新競合は世代ID＋更新時刻で解決し、並び順は PrioritySorter に委譲して「優先度→更新時刻→デバイスID」のタイブレークで再計算し、結果を Subject.taskOrder に反映。キューはサイズ上限でバッチ分割。バックアップ取得とローテーション（例: 日次N世代＋週次M世代）を Drive に対して実行し、リストア手順を用意する。
 - Risks: 大きな差分でのパフォーマンス低下→バッチ分割。
 
 #### DriveAdapter / CalendarAdapter
@@ -532,11 +532,11 @@ interface SyncEngine {
 ## Data Models
 
 ### Domain Model
-- **Task**: id, title, detail, goal, subjectId, status, priority, estimateMinutes, actuals[{date, minutes}], dueDate, createdAt, updatedAt, customOrder.
-- **Subject**: id, name, order.
-- **Sprint**: id, startDate (Mon), endDate, subjectsOrder.
-- **CalendarEvent**: id, title, start/end, allDay, source (LPK/Google), syncToken, etag.
-- **Settings**: statusLabels, language (ja/en), dayDefaultAvailability, dayOverrides, notifications.
+- **Task**: id, title, detail, subjectId, status, priority, estimateMinutes, actuals[{date, minutes}], dueDate, createdAt, updatedAt.
+- **Subject**: id, name, taskOrder: Record<Status, TaskId[]>（教科×ステータスごとの並び順）
+- **Sprint**: id (スプリント開始日の ISO 日付を推奨), startDate (Mon), endDate, subjectsOrder (SubjectId[]), dayOverrides[{date, availableMinutes}]（スプリント内の特定日上書き）
+- **CalendarEvent**: id, title, start/end, source (LPK/Google), syncToken, etag.
+- **Settings**: statusLabels, language (ja/en), dayDefaultAvailability, notifications, currentSprintId.
 - **SyncState**: lastSyncedAt, generation, pendingQueue.
 - **ViewerInvite**: token, issuedTo(optional), expiresAt, revokedAt, issuedBy.
 - **BackupSnapshot**: id, createdAt, manifestVersion, files[{name, path, checksum}], retentionSlot (daily/weekly), source (local/remote).
@@ -544,11 +544,11 @@ interface SyncEngine {
 ### Logical Data Model
 - IndexedDB ストア: `tasks`, `subjects`, `sprints`, `settings`, `syncState`, `calendarEvents`, `pendingQueue`.
 - Key: `Task.id` は uuid。`Task` の status は固定 enum。`pendingQueue` は順序付きログ。
-- Consistency: Task と pendingQueue は同一トランザクションで更新。教科削除時はタスク存在チェックで禁止。
+- Consistency: Task と pendingQueue は同一トランザクションで更新。教科削除時はタスク存在チェックで禁止。Subject.taskOrder でセル内順序を保持し、Task 側では並び順を持たない。
 
 ### Data Contracts & Integration
-- **Drive**: ディレクトリ `/LPK/` 配下に `tasks.json`（tasks + subjects + sprint + settings + syncState のスナップショット）と `queue.json`（変更キュー）を保存。`modifiedTime` と世代 ID でマージ。バックアップは `/LPK/backups/` にタイムスタンプ付きスナップショット（`backup-YYYYMMDD-HHMM.json`）を置き、保持数・ローテーションは SyncEngine が管理。
-- **Calendar**: syncToken ベース差分。LPK 起点イベントは source=LPK を付与し二重反映を防止。衝突時はリロード。
+- **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides）と `settings.json`（statusLabels, language, currentSprintId 等）、`queue.json`（変更キュー）を保存。ファイル自体は1つを維持し、Drive の Revisions をバックアップとして活用する。リビジョン保持数をローテーション管理し、必要な世代のみ `keepForever`、古いものは削除。復元はリビジョンを取得しローカルへ戻す。
+- **Calendar**: 予定は閲覧用に取得・表示のみ行い、学習可能時間の算出には用いない。LPK 起点イベントは source=LPK を付与し二重反映を防止。衝突時はリロード。
 - **Internal Events**: `SyncStatusChanged`, `UpdateAvailable`, `PomodoroTick` を発行し UI 通知と再計算をトリガ。
 
 ## Error Handling

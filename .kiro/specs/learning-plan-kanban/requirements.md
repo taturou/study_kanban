@@ -39,7 +39,7 @@
 **Objective:** 学習者として、学習内容と締切を正確に登録・更新するために、詳細な TCard を扱いたい。
 
 #### Acceptance Criteria
-1. When 学習者が新規 TDialog を開く, the LPK shall タイトル・詳細・目標成果・期日・予定時間・実績時間・優先度の入力を受け付け Task として保存する。
+1. When 学習者が新規 TDialog を開く, the LPK shall タイトル・詳細・期日・予定時間・実績時間・優先度の入力を受け付け Task として保存する。
 2. When 学習者が既存 Task を開く, the LPK shall 現在値を TDialog に読込んで編集を可能にし更新内容を Task として保存する。
 3. The LPK shall TCard にタイトル・期日・予定時間・残り時間（予定時間－実績時間の単純差分）を表示し、予定時間/残り時間を全 TCard 共通の体力ゲージ風の棒グラフで可視化し、詳細・実績時間は TDialog で表示する。
 4. When TDialog が開く, the LPK shall タイトル入力欄にフォーカスを合わせる。
