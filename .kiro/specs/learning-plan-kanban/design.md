@@ -218,7 +218,8 @@ Key: syncToken 失効時はフル再取得、競合時は保守的マージ＋�
 | KanbanBoard | UI | 教科×ステータスグリッドと DnD | 1.x,3.x,4.2,4.12 | StatusPolicy (P0), TaskStore (P0), DnD Kit (P1) | State |
 | TaskCard | UI | タスク表示（ゲージ/円形インジケータ） | 2.3,3.6,3.12 | TimeCalc (P0), PomodoroTimer (P1) | State |
 | TaskDialog | UI | 作成/編集/消去と入力制御 | 1.8,2.x | TaskStore (P0) | Service |
-| Dashboard | UI | 週次集計・バーンダウン・バージョン表示 | 4.1,4.3,4.4,4.13 | Burndown (P0), UpdateManager (P1) | State |
+| Dashboard | UI | 週次集計・バーンダウン | 4.1,4.3,4.4,4.13 | Burndown (P0) | State |
+| SettingsPanel | UI | ステータス表示名と言語を設定し、バージョン/アップデート状態を表示 | 1.5,7.4,5.8,5.9 | TaskStore (P0), UpdateManager (P1) | State |
 | CalendarView | UI | 月曜始まりカレンダーと予定/学習時間表示 | 4.5-4.16 | CalendarAdapter (P0), Availability (P0) | State |
 | ReadOnlyView | UI | 閲覧専用 PWA | 6.x | TaskStore (P0), SyncEngine (P1) | State |
 | HelpPage | UI | 操作説明 | 4.15 | - | - |
@@ -280,10 +281,11 @@ Key: syncToken 失効時はフル再取得、競合時は保守的マージ＋�
 
 **Contracts**: Service [x] / API [ ] / Event [ ] / Batch [ ] / State [ ]
 ```typescript
+// タスク作成・更新・削除を扱うダイアログ向けサービス
 interface TaskDialogService {
-  createTask(input: TaskInput): Result<TaskId, ValidationError>;
-  updateTask(taskId: TaskId, input: TaskInput): Result<void, ValidationError>;
-  deleteTask(taskId: TaskId): Result<void, Error>;
+  createTask(input: TaskInput): Result<TaskId, ValidationError>; // 必須項目を検証し新規作成
+  updateTask(taskId: TaskId, input: TaskInput): Result<void, ValidationError>; // 既存タスクを更新
+  deleteTask(taskId: TaskId): Result<void, Error>; // タスクを消去
 }
 ```
 - Preconditions: 必須フィールド（タイトル、期日、教科、ステータス）を検証。
@@ -296,13 +298,12 @@ interface TaskDialogService {
 #### Dashboard
 | Field | Detail |
 |-------|--------|
-| Intent | 週次集計、バーンダウン、バージョン表示 |
+| Intent | 週次集計、バーンダウン |
 | Requirements | 4.1,4.3,4.4,4.13 |
 | Contracts | State |
 
 **Responsibilities & Constraints**
 - バーンダウン計算、期日超過リスト、教科別完了/学習時間集計。
-- バージョン表示とアップデート有無を反映。
 
 **Dependencies**
 - Outbound: Burndown (P0); TimeCalc (P1); UpdateManager (P1); TaskStore (P0)
@@ -329,6 +330,26 @@ interface TaskDialogService {
 **Implementation Notes**
 - Integration: syncToken 失効時は全件再取得し、UI に再取得中を表示。
 - Risks: タイムゾーン差異による日付ずれ→ UTC 保持＋表示時ローカル変換。
+
+
+#### SettingsPanel
+| Field | Detail |
+|-------|--------|
+| Intent | ステータス表示名と言語設定、バージョン/アップデート状態の確認 |
+| Requirements | 1.5,7.4,5.8,5.9 |
+| Contracts | State |
+
+**Responsibilities & Constraints**
+- 固定ステータス集合を前提に、表示名のみを編集可能（追加/削除/並べ替え不可）。言語切替を提供。
+- バージョン表示とアップデート状態（強制更新含む）を表示する。
+
+**Dependencies**
+- Outbound: TaskStore (settings 永続) (P0); UpdateManager (バージョン/アップデート状態) (P1)
+
+**Implementation Notes**
+- Integration: 入力バリデーション（空/重複不可）。固定集合から外れる更新は拒否。
+- Risks: 設定変更と同期競合→ settings を queue に反映し、競合時は更新時刻で解決。
+
 
 #### ReadOnlyView
 | Field | Detail |
@@ -366,19 +387,21 @@ interface TaskDialogService {
 
 **Contracts**: State [x]
 ```typescript
+// グローバル状態のスナップショット
 interface TaskStoreState {
-  tasks: Record<TaskId, Task>;
-  subjects: Subject[];
-  sprint: Sprint;
-  settings: UserSettings;
-  pendingQueue: ChangeRecord[];
+  tasks: Record<TaskId, Task>; // タスク本体
+  subjects: Subject[]; // 教科と並び順
+  sprint: Sprint; // 現在スプリント
+  settings: UserSettings; // 表示設定・言語など
+  pendingQueue: ChangeRecord[]; // 同期待ちキュー
 }
+// 状態変更のための操作群
 interface TaskStoreActions {
-  upsertTask(task: Task): void;
-  moveTask(taskId: TaskId, to: StatusSlot): Result<SideEffects, PolicyError>;
-  reorderTasks(subjectId: SubjectId, status: Status, order: TaskId[]): void;
-  recordActual(taskId: TaskId, entry: ActualEntry): void;
-  setSubjectOrder(subjectIds: SubjectId[]): void;
+  upsertTask(task: Task): void; // 作成・更新
+  moveTask(taskId: TaskId, to: StatusSlot): Result<SideEffects, PolicyError>; // ステータス/教科移動
+  reorderTasks(subjectId: SubjectId, status: Status, order: TaskId[]): void; // セル内並び替え
+  recordActual(taskId: TaskId, entry: ActualEntry): void; // 実績時間の追記
+  setSubjectOrder(subjectIds: SubjectId[]): void; // 教科順の更新
 }
 ```
 
@@ -395,8 +418,9 @@ interface TaskStoreActions {
 
 **Contracts**: Service [x]
 ```typescript
+// ステータス遷移の可否と副作用を判定
 interface StatusPolicyService {
-  validateMove(input: MoveInput): MoveDecision;
+  validateMove(input: MoveInput): MoveDecision; // 許可/拒否と副作用を返す
 }
 type MoveDecision =
   | { allowed: true; sideEffects: SideEffect[] }
@@ -479,10 +503,11 @@ type MoveDecision =
 
 **Contracts**: Service [x]
 ```typescript
+// ローカル変更キューの管理と Drive/Calendar との同期を司る
 interface SyncEngine {
-  enqueue(change: ChangeRecord): void;
-  flush(): Promise<SyncResult>;
-  applyRemote(remote: RemoteSnapshot): MergeResult;
+  enqueue(change: ChangeRecord): void; // 変更をキューに積む
+  flush(): Promise<SyncResult>; // キューを送信し同期を実行
+  applyRemote(remote: RemoteSnapshot): MergeResult; // リモート差分をローカルへマージ
 }
 ```
 - Preconditions: オフライン時は flush をスキップしキューのみ蓄積。
