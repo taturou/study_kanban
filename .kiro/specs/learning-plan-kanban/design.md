@@ -189,6 +189,8 @@ Key: syncToken 失効時はフル再取得、競合時は保守的マージ＋�
 | 5.9 | 強制アップデート | UpdateManager | ServiceWorker | 更新フロー |
 | 5.10 | Drive 複数ファイルは専用ディレクトリ | DriveAdapter | - | - |
 | 5.11 | 将来の API 拡張性 | SyncEngine, TaskStore | Ports | - |
+| 5.12 | gh スクリプトで保護/マージ方式/Pages 設定 | RepoSetupScript | GitHub API | - |
+| 5.13 | データバックアップとローテーション | SyncEngine, DriveAdapter, StorageAdapter | - | - |
 | 6.1 | 期日接近リマインド | AlertBar | TimeCalc | - |
 | 6.2 | 閲覧専用リンク/権限 | ReadOnlyView, Auth | Router | - |
 | 6.3 | 閲覧専用 PWA モード | ReadOnlyView | ServiceWorker | - |
@@ -235,6 +237,8 @@ Key: syncToken 失効時はフル再取得、競合時は保守的マージ＋�
 | UpdateManager | Infra | バージョン検知と強制アップデート | 4.1,5.8,5.9 | ServiceWorker (P0) | Service |
 | Auth | Infra | Google 認証とトークン管理 | 5.3,6.2 | Google OAuth (P0) | Service |
 | DevContainer/CI | Tooling | 開発用コンテナ（ビルド/実装/テストを同一環境で実施）と CI/CD | 8.x,9.x | - | - |
+| RepoSetupScript | Tooling | gh でリポジトリ保護設定を自動適用 | 5.12 | GitHub API (P0) | Service |
+| RepoSetupScript | Tooling | gh コマンドでブランチ保護・マージ方式・Pages 設定を適用 | 5.12 | GitHub API (P0) | Service |
 
 ### UI Layer
 
@@ -335,12 +339,13 @@ interface TaskDialogService {
 
 **Responsibilities & Constraints**
 - 編集操作を無効化し、同期結果を表示。オフライン時は最後のキャッシュを表示し、再接続時に自動更新。
+- 閲覧招待トークンの発行・検証・失効（有効期限/手動失効）を Auth と連携して扱う。
 
 **Dependencies**
 - Outbound: TaskStore (P0); SyncEngine (P1); Router (P1)
 
 **Implementation Notes**
-- Integration: 権限チェックは Auth のトークン/招待状態に依存。
+- Integration: Auth と連携し、招待トークンの有効性を判定。無効化時はキャッシュ表示も遮断する。
 - Risks: キャッシュ stale 表示→最終同期時刻を明示。
 
 ### Domain/State Layer
@@ -415,7 +420,7 @@ type MoveDecision =
 | Contracts | Service |
 
 **Implementation Notes**
-- Integration: comparator を共通化し、再計算時にカスタム順を考慮。
+- Integration: comparator を共通化し、再計算時にカスタム順を考慮。SyncEngine からのマージ時は優先度→更新時刻→デバイスIDのタイブレークルールを適用する。
 - Risks: 並び順の競合（他端末更新）→ SyncEngine マージ時に優先度＋更新時刻で解決。
 
 #### TimeCalc
@@ -484,7 +489,7 @@ interface SyncEngine {
 - Postconditions: 成功時に lastSyncedAt/世代 ID を更新。失敗時は再試行可能なステータスを返却。
 
 **Implementation Notes**
-- Integration: syncToken 失効時のフルリロード、競合時はローカル優先で警告。
+- Integration: syncToken 失効時のフルリロード、競合時はローカル優先で警告。更新競合は世代ID＋更新時刻で解決し、並び順は PrioritySorter に委譲して「優先度→更新時刻→デバイスID」のタイブレークで再計算。キューはサイズ上限でバッチ分割。バックアップ取得とローテーション（例: 日次N世代＋週次M世代）を Drive に対して実行し、リストア手順を用意する。
 - Risks: 大きな差分でのパフォーマンス低下→バッチ分割。
 
 #### DriveAdapter / CalendarAdapter
@@ -520,8 +525,9 @@ interface SyncEngine {
 - 新バージョン検知で非モーダル通知後、自動リロードを実行。未同期変更がある場合は同期完了までリロード遅延。
 
 ### Infra/Tooling
-- Auth: Google OAuth（トークンはメモリまたは Session Storage、長期保存しない）。
+- Auth: Google OAuth（トークンはメモリまたは Session Storage、長期保存しない）。閲覧招待トークンの発行・検証・失効を提供し、ReadOnlyView で利用する。
 - DevContainer/CI: VS Code Dev Container 上で実装・ビルド・テストを一貫実行し、CI は test→build→deploy to Pages を自動化。
+- RepoSetupScript: gh API を用いて main 保護（必須チェック/レビュー）、マージ方式（Squash/通常マージ許可, Rebase 無効）、ブランチ自動削除、必要に応じて Pages 設定を適用する。入力: リポジトリ owner/repo; 出力: 設定結果（ログ）。
 
 ## Data Models
 
@@ -532,6 +538,8 @@ interface SyncEngine {
 - **CalendarEvent**: id, title, start/end, allDay, source (LPK/Google), syncToken, etag.
 - **Settings**: statusLabels, language (ja/en), dayDefaultAvailability, dayOverrides, notifications.
 - **SyncState**: lastSyncedAt, generation, pendingQueue.
+- **ViewerInvite**: token, issuedTo(optional), expiresAt, revokedAt, issuedBy.
+- **BackupSnapshot**: id, createdAt, manifestVersion, files[{name, path, checksum}], retentionSlot (daily/weekly), source (local/remote).
 
 ### Logical Data Model
 - IndexedDB ストア: `tasks`, `subjects`, `sprints`, `settings`, `syncState`, `calendarEvents`, `pendingQueue`.
@@ -539,7 +547,7 @@ interface SyncEngine {
 - Consistency: Task と pendingQueue は同一トランザクションで更新。教科削除時はタスク存在チェックで禁止。
 
 ### Data Contracts & Integration
-- **Drive**: ディレクトリ `/LPK/` 配下に `tasks.json`（tasks + subjects + sprint + settings + syncState のスナップショット）と `queue.json`（変更キュー）を保存。`modifiedTime` と世代 ID でマージ。
+- **Drive**: ディレクトリ `/LPK/` 配下に `tasks.json`（tasks + subjects + sprint + settings + syncState のスナップショット）と `queue.json`（変更キュー）を保存。`modifiedTime` と世代 ID でマージ。バックアップは `/LPK/backups/` にタイムスタンプ付きスナップショット（`backup-YYYYMMDD-HHMM.json`）を置き、保持数・ローテーションは SyncEngine が管理。
 - **Calendar**: syncToken ベース差分。LPK 起点イベントは source=LPK を付与し二重反映を防止。衝突時はリロード。
 - **Internal Events**: `SyncStatusChanged`, `UpdateAvailable`, `PomodoroTick` を発行し UI 通知と再計算をトリガ。
 
