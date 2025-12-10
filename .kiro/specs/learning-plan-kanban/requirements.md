@@ -54,7 +54,7 @@
 
 #### Acceptance Criteria
 1. When 学習者がTCard をステータス列や教科行間でドラッグ移動する, the LPK shall タスクを移動し新しいステータスと教科の紐づけを保存する。
-2. While TCard をドラッグ中, the LPK shall 有効なドロップセルをハイライトし無効なセルを視覚的にブロックする。
+2. While TCard をドラッグ中, the LPK shall 有効なドロップセルのみをハイライトし、無効セルではドロップを受け付けず元の位置に戻す。
 3. The LPK shall 各セル内のTCard を優先度の高い順に並べ、優先度変更時に順序を再計算する。
 4. When 学習者が同一セル内で並び替える, the LPK shall カスタム順序を保存し次回表示でも維持する。
 5. The LPK shall マウス（PC）とタッチ（タブレット）の両方でTCard のドラッグ＆ドロップをサポートする。

@@ -251,7 +251,7 @@ Key: syncToken 失効時はフル再取得、競合時は保守的マージ＋�
 
 **Responsibilities & Constraints**
 - ステータス列と教科行を固定し、スクロール時もヘッダー/左列をピン留め。
-- DnD は StatusPolicy の判定結果に従い、拒否理由を非モーダル表示。
+- DnD は StatusPolicy の判定結果に従い、ドラッグ中に有効セルのみをハイライトし、無効セルではドロップを受け付けず元の位置に戻す。
 - 空セルドラッグでスクロール補助、Backlog プラスから TaskDialog を起動。
 
 **Dependencies**
