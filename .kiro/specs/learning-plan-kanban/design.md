@@ -238,7 +238,6 @@ Key: syncToken 失効時はフル再取得、競合時は保守的マージ＋�
 | UpdateManager | Infra | バージョン検知と強制アップデート | 4.1,5.8,5.9 | ServiceWorker (P0) | Service |
 | Auth | Infra | Google 認証とトークン管理 | 5.3,6.2 | Google OAuth (P0) | Service |
 | DevContainer/CI | Tooling | 開発用コンテナ（ビルド/実装/テストを同一環境で実施）と CI/CD | 8.x,9.x | - | - |
-| RepoSetupScript | Tooling | gh でリポジトリ保護設定を自動適用 | 5.12 | GitHub API (P0) | Service |
 | RepoSetupScript | Tooling | gh コマンドでブランチ保護・マージ方式・Pages 設定を適用 | 5.12 | GitHub API (P0) | Service |
 
 ### UI Layer
@@ -422,6 +421,13 @@ interface TaskStoreActions {
 interface StatusPolicyService {
   validateMove(input: MoveInput): MoveDecision; // 許可/拒否と副作用を返す
 }
+// タスク移動の入力（優先度/元セルの並び情報を渡す）
+type MoveInput = {
+  taskId: TaskId;
+  from: { subjectId: SubjectId; status: Status; priority: number }; // Today→InPro 判定に優先度を使用（自動 OnHold も Today 時の優先度を保持）
+  to: { subjectId: SubjectId; status: Status }; // 並び順は受け入れ先で PrioritySorter が決定
+  initiator?: 'mouse' | 'touch' | 'keyboard';
+};
 type MoveDecision =
   | { allowed: true; sideEffects: SideEffect[] }
   | { allowed: false; reason: PolicyError };
