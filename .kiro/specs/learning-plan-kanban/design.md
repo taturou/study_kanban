@@ -386,7 +386,7 @@ interface TaskDialogService {
 
 **Contracts**: State [x]
 ```typescript
-// グローバル状態のスナップショット
+// グローバル状態のスナップショット（Sprint に burndownHistory を含む）
 interface TaskStoreState {
   tasks: Record<TaskId, Task>; // タスク本体
   subjects: Subject[]; // 教科と並び順
@@ -565,20 +565,22 @@ interface SyncEngine {
 ### Domain Model
 - **Task**: id, title, detail, subjectId, status, priority, estimateMinutes, actuals[{date, minutes}], dueDate, createdAt, updatedAt.
 - **Subject**: id, name, taskOrder: Record<Status, TaskId[]>（教科×ステータスごとの並び順）
-- **Sprint**: id (スプリント開始日の ISO 日付を推奨), startDate (Mon), endDate, subjectsOrder (SubjectId[]), dayOverrides[{date, availableMinutes}]（スプリント内の特定日上書き）
+- **Sprint**: id (スプリント開始日の ISO 日付を推奨), startDate (Mon), endDate, subjectsOrder (SubjectId[]), dayOverrides[{date, availableMinutes}]（スプリント内の特定日上書き）, burndownHistory: BurndownHistoryEntry[]
 - **CalendarEvent**: id, title, start/end, source (LPK/Google), syncToken, etag.
 - **Settings**: statusLabels, language (ja/en), dayDefaultAvailability, notifications, currentSprintId.
 - **SyncState**: lastSyncedAt, generation, pendingQueue.
 - **ViewerInvite**: token, issuedTo(optional), expiresAt, revokedAt, issuedBy.
 - **BackupSnapshot**: id, createdAt, manifestVersion, files[{name, path, checksum}], retentionSlot (daily/weekly), source (local/remote).
+- **BurndownHistoryEntry**: date, remainingMinutes, remainingCount（過去日付のバーンダウン表示用スナップショット）
 
 ### Logical Data Model
 - IndexedDB ストア: `tasks`, `subjects`, `sprints`, `settings`, `syncState`, `calendarEvents`, `pendingQueue`。アプリ起動時にこれらを集約して TaskStoreState に載せる（TaskStoreState とファイルは1対1ではない）。
 - Key: `Task.id` は uuid。`Task` の status は固定 enum。`pendingQueue` は順序付きログ。
 - Consistency: Task と pendingQueue は同一トランザクションで更新。教科削除時はタスク存在チェックで禁止。Subject.taskOrder でセル内順序を保持し、Task 側では並び順を持たない。
+- BurndownHistory: 過去日付の残工数（件/見積時間）はスプリントファイル内の `burndownHistory` に日次スナップショットとして保持し、過去表示はスナップショットを優先する（欠損時のみ再計算）。
 
 - ### Data Contracts & Integration
-- **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides）と `settings.json`（statusLabels, language, currentSprintId 等）、`queue.json`（変更キュー）を保存。ファイル自体はそれぞれ1つを維持し、Drive の Revisions をバックアップとして活用する。リビジョン保持数をローテーション管理し、必要な世代のみ `keepForever`、古いものは削除。復元はリビジョンを取得しローカルへ戻す。
+- **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, language, currentSprintId 等）、`queue.json`（変更キュー）を保存。ファイル自体はそれぞれ1つを維持し、Drive の Revisions をバックアップとして活用する。リビジョン保持数をローテーション管理し、必要な世代のみ `keepForever`、古いものは削除。復元はリビジョンを取得しローカルへ戻す。
 - **Calendar**: 予定は閲覧用に取得・表示のみ行い、学習可能時間の算出には用いない。LPK 起点イベントは source=LPK を付与し二重反映を防止。衝突時はリロード。
 - **Internal Events**: `SyncStatusChanged`, `UpdateAvailable`, `PomodoroTick` を発行し UI 通知と再計算をトリガ。
 
