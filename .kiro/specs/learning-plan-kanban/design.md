@@ -221,7 +221,6 @@ Key: syncToken 失効時はフル再取得、競合時は保守的マージ＋�
 | Dashboard | UI | 週次集計・バーンダウン | 4.1,4.3,4.4,4.13 | Burndown (P0) | State |
 | SettingsPanel | UI | ステータス表示名と言語を設定し、バージョン/アップデート状態と PT デフォルト時間を表示 | 1.5,7.4,5.8,5.9,5.14,3.13 | TaskStore (P0), UpdateManager (P1) | State |
 | CalendarView | UI | 月曜始まりカレンダーと予定/学習時間表示 | 4.5-4.16 | CalendarAdapter (P0), Availability (P0) | State |
-| ReadOnlyView | UI | 閲覧専用 PWA | 6.x | TaskStore (P0), SyncEngine (P1) | State |
 | HelpPage | UI | 操作説明 | 4.15 | - | - |
 | AlertBar | UI | 非モーダル通知（同期/PT/期日） | 3.11,3.13,4.6,5.6,5.8 | SyncEngine (P0), TimeCalc (P0) | State |
 | TaskStore | State | タスク/教科/スプリント状態と IndexedDB 永続 | 全般 | StorageAdapter (P0), SyncEngine (P0) | State |
@@ -242,6 +241,11 @@ Key: syncToken 失効時はフル再取得、競合時は保守的マージ＋�
 
 ### UI Layer
 
+**View Mode 管理**
+- ソース: AppShell/Router が Auth と閲覧招待トークンを検証し `viewMode: 'editable' | 'readonly'` を決定する（閲覧専用は全画面共通のモード）。
+- 伝播: viewMode をコンテキストまたは props で各画面（KanbanBoard/TaskDialog/CalendarView/Dashboard/SettingsPanel 等）へ渡し、編集操作をガードする。
+- 永続化: viewMode は一時的なアクセスモードであり、settings/sprint には保存しない。
+
 #### KanbanBoard
 | Field | Detail |
 |-------|--------|
@@ -253,6 +257,7 @@ Key: syncToken 失効時はフル再取得、競合時は保守的マージ＋�
 - ステータス列と教科行を固定し、スクロール時もヘッダー/左列をピン留め。
 - DnD は StatusPolicy の判定結果に従い、ドラッグ中に有効セルのみをハイライトし、無効セルではドロップを受け付けず元の位置に戻す。
 - 空セルドラッグでスクロール補助、Backlog プラスから TaskDialog を起動。
+- viewMode が readonly の場合は DnD/ダイアログ起動など編集操作を無効化し、表示のみとする。
 
 **Dependencies**
 - Inbound: Router — 表示切替 (P2)
@@ -274,6 +279,7 @@ Key: syncToken 失効時はフル再取得、競合時は保守的マージ＋�
 **Responsibilities & Constraints**
 - タイトル初期フォーカス、Tab ナビゲーション、Ctrl+Enter/Enter 保存、Esc/キャンセル。
 - 実績時間は日付別に編集可能、累積表示。
+- viewMode が readonly の場合は全入力を無効化し表示専用とする。
 
 **Dependencies**
 - Outbound: TaskStore — CRUD (P0); TimeCalc — 残り時間計算 (P1)
@@ -303,6 +309,7 @@ interface TaskDialogService {
 
 **Responsibilities & Constraints**
 - バーンダウン計算、期日超過リスト、教科別完了/学習時間集計。
+- viewMode が readonly の場合は閲覧のみとし、編集/保存操作は提供しない。
 
 **Dependencies**
 - Outbound: Burndown (P0); TimeCalc (P1); UpdateManager (P1); TaskStore (P0)
@@ -322,6 +329,7 @@ interface TaskDialogService {
 - 特定日ビューで実施/期日/追加タスクを表示。
 - Google Calendar 予定を取得し、学習可能時間と Today 残り時間に反映。
 - LPK 側の予定追加/更新を CalendarAdapter 経由で同期。
+- viewMode が readonly の場合は予定追加/編集を無効化し、閲覧のみとする。
 
 **Dependencies**
 - Outbound: CalendarAdapter (P0); Availability (P0); TaskStore (P0); SyncEngine (P1)
@@ -342,6 +350,7 @@ interface TaskDialogService {
 - 固定ステータス集合を前提に、表示名のみを編集可能（追加/削除/並べ替え不可）。言語切替を提供。
 - バージョン表示とアップデート状態（強制更新含む）を表示し、手動で新バージョンチェックを実行して、存在する場合は即時バージョンアップを適用する（Service Worker の停止→更新→再起動を含む）。
 - PT のデフォルト作業/休憩時間を設定可能にする（タスク実績には影響させない）。
+- viewMode が readonly の場合は設定変更を禁止し、表示のみ。
 
 **Dependencies**
 - Outbound: TaskStore (settings 永続) (P0); UpdateManager (バージョン/アップデート状態) (P1)
@@ -351,23 +360,6 @@ interface TaskDialogService {
 - Risks: 設定変更と同期競合→ settings を queue に反映し、競合時は更新時刻で解決。
 
 
-#### ReadOnlyView
-| Field | Detail |
-|-------|--------|
-| Intent | 閲覧専用モード（リンク/権限でアクセス） |
-| Requirements | 6.x |
-| Contracts | State |
-
-**Responsibilities & Constraints**
-- 編集操作を無効化し、同期結果を表示。オフライン時は最後のキャッシュを表示し、再接続時に自動更新。
-- 閲覧招待トークンの発行・検証・失効（有効期限/手動失効）を Auth と連携して扱う。
-
-**Dependencies**
-- Outbound: TaskStore (P0); SyncEngine (P1); Router (P1)
-
-**Implementation Notes**
-- Integration: Auth と連携し、招待トークンの有効性を判定。無効化時はキャッシュ表示も遮断する。
-- Risks: キャッシュ stale 表示→最終同期時刻を明示。
 
 ### Domain/State Layer
 
@@ -557,7 +549,7 @@ interface SyncEngine {
 - 新バージョン検知: `version.json`（ビルド時に埋め込んだ appVersion）を fetch してローカル版と比較し、新版なら Service Worker `registration.update()` を実行。`updatefound/statechange` で完了を監視し、強制更新時は `skipWaiting` → クライアントに `postMessage` でリロード要求。未同期変更がある場合は同期完了までリロード遅延。
 
 ### Infra/Tooling
-- Auth: Google OAuth（トークンはメモリまたは Session Storage、長期保存しない）。閲覧招待トークンの発行・検証・失効を提供し、ReadOnlyView で利用する。
+- Auth: Google OAuth（トークンはメモリまたは Session Storage、長期保存しない）。閲覧招待トークンの発行・検証・失効を提供し、AppShell/Router で閲覧専用モードを判定する。
 - DevContainer/CI: VS Code Dev Container 上で実装・ビルド・テストを一貫実行し、CI は test→build→deploy to Pages を自動化。
 - RepoSetupScript: gh API を用いて main 保護（必須チェック/レビュー）、マージ方式（Squash/通常マージ許可, Rebase 無効）、ブランチ自動削除、必要に応じて Pages 設定を適用する。入力: リポジトリ owner/repo; 出力: 設定結果（ログ）。
 
@@ -619,3 +611,5 @@ interface SyncEngine {
 
 ## Supporting References
 - 詳細な API 呼び出し仕様や競合解決パターンは `research.md` の Design Decisions と Research Log を参照。
+- 閲覧専用モードで管理: `viewMode`（editable|readonly）を Router/AppShell から受け取り、編集系操作（DnD/ダイアログ起動/保存）を無効化する。
+- viewMode が readonly の場合は全入力を無効化し表示専用とする。
