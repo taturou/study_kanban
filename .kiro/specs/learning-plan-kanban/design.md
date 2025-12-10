@@ -234,7 +234,7 @@ Key: syncToken 失効時はフル再取得、競合時は保守的マージ＋�
 | StorageAdapter | Infra | IndexedDB CRUD | 5.4,5.5 | - | Service |
 | UpdateManager | Infra | バージョン検知と強制アップデート | 4.1,5.8,5.9 | ServiceWorker (P0) | Service |
 | Auth | Infra | Google 認証とトークン管理 | 5.3,6.2 | Google OAuth (P0) | Service |
-| DevContainer/CI | Tooling | Dev 環境と CI/CD | 8.x,9.x | - | - |
+| DevContainer/CI | Tooling | 開発用コンテナ（ビルド/実装/テストを同一環境で実施）と CI/CD | 8.x,9.x | - | - |
 
 ### UI Layer
 
@@ -521,7 +521,7 @@ interface SyncEngine {
 
 ### Infra/Tooling
 - Auth: Google OAuth（トークンはメモリまたは Session Storage、長期保存しない）。
-- DevContainer/CI: VS Code Dev Container、CI は test→build→deploy to Pages を自動化。
+- DevContainer/CI: VS Code Dev Container 上で実装・ビルド・テストを一貫実行し、CI は test→build→deploy to Pages を自動化。
 
 ## Data Models
 
