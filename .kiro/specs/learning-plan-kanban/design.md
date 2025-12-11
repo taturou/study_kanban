@@ -257,6 +257,7 @@ flowchart TD
 | Availability | Domain | 学習可能時間（予定/上書き/曜日）計算 | 4.6,4.9-4.12 | CalendarAdapter (P1), SettingsStore (P1) | Service |
 | PomodoroTimer | Domain | PT 計測と通知 | 3.12-3.14 | AlertBar (P1) | Service |
 | SyncEngine | Sync | 変更キューと双方向同期 | 5.3-5.6,6.4 | DriveAdapter (P0), CalendarAdapter (P0), StorageAdapter (P0) | Service |
+| BackupService | Sync | バックアップ取得・保持・復元 | 5.13 | DriveAdapter (P0), StorageAdapter (P0) | Service |
 | DriveAdapter | Integration | Drive API 呼び出し | 5.3,5.10 | Auth (P0) | API |
 | CalendarAdapter | Integration | Calendar API 呼び出し | 4.6-4.12 | Auth (P0) | API |
 | StorageAdapter | Infra | IndexedDB CRUD | 5.4,5.5 | - | Service |
@@ -378,6 +379,7 @@ interface TaskDialogService {
 - バージョン表示とアップデート状態（強制更新含む）を表示し、手動で新バージョンチェックを実行して、存在する場合は即時バージョンアップを適用する（Service Worker の停止→更新→再起動を含む）。
 - PT のデフォルト作業/休憩時間を設定可能にする（タスク実績には影響させない）。
 - viewMode が readonly の場合は設定変更を禁止し、表示のみ。
+- バックアップ/リストア UI を提供し、BackupService を経由して daily/weekly の取得・復元を実行する（一覧表示→選択→確認→実行）。実行中は pendingQueue 停止と進捗表示を行う。
 
 **Dependencies**
 - Outbound: TaskStore (settings 永続) (P0); UpdateManager (バージョン/アップデート状態) (P1)
@@ -530,6 +532,21 @@ type MoveDecision =
 - PomodoroTimer とは独立（Pomodoro は通知と休憩管理のみ）。Pomodoro が停止中でも計測は継続し、休憩は実績に影響させない。
 - オフラインでも加算を続け、pendingQueue に ChangeRecord を enqueue。同期後に Drive/Calendar 反映。
 
+#### BackupService
+| Field | Detail |
+|-------|--------|
+| Intent | バックアップの取得・保持ローテーション・復元を行う | 5.13 |
+| Contracts | Service |
+
+**Implementation Notes**
+- トリガー: 日次と週次で snapshot を作成（自動スケジュールは常時有効で、アプリ稼働中かつオンラインなら SyncEngine が実行）。必要に応じて UI から手動実行も可能にする。
+- 保持ポリシー: retention スロットを日次/週次で管理（例: daily=7 件, weekly=4 件）。新規作成時にスロット上限を超えた古い snapshot を削除/上書き。
+- スコープ: daily は「現行スプリント + settings + queue（+calendarEvents 必要なら）」のみを保存。weekly は「全スプリントファイル + settings + queue」を保存。新規スプリント確定直後の最初の daily/weekly で必ず当該スプリントを含める。temp/manual はデフォルト daily 同等スコープだが、オプションで全スプリントを含められる。
+- 格納: Drive の `/LPK/backups/backup-{type}-{isoDate}/` 配下に manifest.json と複数のデータファイル（settings.json, queue.json, sprint-{id}.json …）をまとめて保存。manifest にチェックサム・ファイルリスト・世代IDを保持し、ローカルにも一覧キャッシュを持つ。`{type}` は daily/weekly/temp（必要に応じて manual を追加）。
+- 復元フロー: UI で一覧→選択→復元確認→ pendingQueue を一時停止し、選択 snapshot を StorageAdapter 経由でローカルに適用→同期再開。Drive/Calendar との差分は SyncEngine のマージルールで再同期。
+- 復元時の安全策: 現行状態を一時的にローカルへバックアップ（temp slot）し、失敗時はロールバック可能にする。
+- UI 起点: SettingsPanel からバックアップ一覧取得・手動バックアップ・復元を実行する。
+
 #### SyncEngine
 | Field | Detail |
 |-------|--------|
@@ -553,7 +570,8 @@ interface SyncEngine {
 - Postconditions: 成功時に lastSyncedAt/世代 ID を更新。失敗時は再試行可能なステータスを返却。
 
 **Implementation Notes**
-- Integration: syncToken 失効時のフルリロード、競合時はローカル優先で警告。更新競合は世代ID＋更新時刻で解決し、並び順は PrioritySorter に委譲して「優先度→更新時刻→デバイスID」のタイブレークで再計算し、結果を Subject.taskOrder に反映。キューはサイズ上限でバッチ分割。バックアップ取得とローテーション（例: 日次N世代＋週次M世代）を Drive に対して実行し、リストア手順を用意する。
+- Integration: syncToken 失効時のフルリロード、競合時はローカル優先で警告。更新競合は世代ID＋更新時刻で解決し、並び順は PrioritySorter に委譲して「優先度→更新時刻→デバイスID」のタイブレークで再計算し、結果を Subject.taskOrder に反映。キューはサイズ上限でバッチ分割。BackupService を介して日次/週次スナップショットを取得し、復元時は pendingQueue を停止したうえで適用→再同期する。
+- ステート取得時に Drive から古いリビジョンへ後退しないよう、DriveAdapter の head revision/etag を確認し、世代ID が後退する場合は拒否して再取得する（最新の1版のみを同期対象とし、旧版は BackupService 管理下のスナップショットとして扱う）。
 - Risks: 大きな差分でのパフォーマンス低下→バッチ分割。
 
 #### DriveAdapter / CalendarAdapter
@@ -564,7 +582,7 @@ interface SyncEngine {
 | Contracts | API |
 
 **Implementation Notes**
-- Drive: JSON ファイルを専用ディレクトリに保存（tasks.json 等）、`If-Match` を用いた楽観ロックを検討。
+- Drive: JSON ファイルを専用ディレクトリに保存（tasks.json 等）、`If-Match` を用いた楽観ロックを検討。`files.get` で head revision/etag を取得し、ローカルより古いリビジョンをダウンロードしない防御を入れる。バックアップは `/LPK/backups/` 配下に分離し、通常同期ファイルとは混在させない。
 - Calendar: syncToken で差分取得、ETag で同一性確認。失効時は full sync。
 - Risks: レートリミット→指数バックオフと MSW でテスト。
 
