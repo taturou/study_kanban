@@ -241,7 +241,7 @@ flowchart TD
 |-----------|--------------|--------|--------------|--------------------------|-----------|
 | AppShell | UI | ルーティングとシェル、閲覧モード切替 | 1.3,6.2,7.4 | Router (P0), ServiceWorker (P1) | State |
 | KanbanBoard | UI | 教科×ステータスグリッドと DnD | 1.x,3.x,4.2,4.12 | StatusPolicy (P0), TaskStore (P0), DnD Kit (P1) | State |
-| TaskCard | UI | タスク表示（ゲージ/円形インジケータ） | 2.3,3.6,3.12 | TimeCalc (P0), PomodoroTimer (P1) | State |
+| TaskCard | UI | タスク表示（ゲージ/円形インジケータ） | 2.3,3.6,3.12 | TimeCalc (P0), PomodoroTimer (P1), InProAutoTracker (P0) | State |
 | TaskDialog | UI | 作成/編集/消去と入力制御 | 1.8,2.x | TaskStore (P0) | Service |
 | Dashboard | UI | 週次集計・バーンダウン | 4.1,4.3,4.4,4.13 | Burndown (P0) | State |
 | SettingsPanel | UI | ステータス表示名と言語を設定し、バージョン/アップデート状態と PT デフォルト時間を表示 | 1.5,7.4,5.8,5.9,5.14,3.13 | TaskStore (P0), UpdateManager (P1) | State |
@@ -251,6 +251,7 @@ flowchart TD
 | TaskStore | State | タスク/教科/スプリント状態と IndexedDB 永続 | 全般 | StorageAdapter (P0), SyncEngine (P0) | State |
 | StatusPolicy | Domain | ステータス遷移ガードと副作用計算 | 1.4,3.x | TaskStore (P1) | Service |
 | PrioritySorter | Domain | セル内優先度順序 | 3.3,3.4 | TaskStore (P1) | Service |
+| InProAutoTracker | Domain | InPro 滞在中の自動実績反映 | 3.12 | TaskStore (P0) | Service |
 | TimeCalc | Domain | 残り時間計算と Today 負荷 | 2.3,3.11,4.2,4.12 | TaskStore (P1) | Service |
 | Burndown | Domain | バーンダウン計算と週次サマリ | 4.1,4.4,4.13 | TaskStore (P1) | Service |
 | Availability | Domain | 学習可能時間（予定/上書き/曜日）計算 | 4.6,4.9-4.12 | CalendarAdapter (P1), SettingsStore (P1) | Service |
@@ -305,6 +306,7 @@ flowchart TD
 - タイトル初期フォーカス、Tab ナビゲーション、Ctrl+Enter/Enter 保存、Esc/キャンセル。
 - 実績時間は日付別に編集可能、累積表示。
 - viewMode が readonly の場合は全入力を無効化し表示専用とする。
+- InPro 滞在中の自動実績加算は InProAutoTracker が担い、PomodoroTimer とは独立運用する（Pomodoro は通知・休憩管理に専念）。
 
 **Dependencies**
 - Outbound: TaskStore — CRUD (P0); TimeCalc — 残り時間計算 (P1)
@@ -398,6 +400,7 @@ interface TaskDialogService {
 **Responsibilities & Constraints**
 - ローカル状態と IndexedDB 永続、変更キュー生成。
 - 教科順/ステータスラベル/言語設定の保存。
+- InProAutoTracker と連携し、InPro 滞在中のタスクに 1 分刻みで実績を自動加算。バックグラウンド復帰時は経過差分で補正し、退出時（他ステータスへ移動/別タスクが InPro に入る/タブ終了）に最終加算する。実績追加は pendingQueue に enqueue し、オフラインでも蓄積。
 
 **Dependencies**
 - Outbound: StorageAdapter (P0); SyncEngine (P0); StatusPolicy (P1); PrioritySorter (P1)
@@ -507,13 +510,25 @@ type MoveDecision =
 #### PomodoroTimer
 | Field | Detail |
 |-------|--------|
-| Intent | 作業/休憩計測と通知、InPro 実績反映 |
+| Intent | 作業/休憩計測と通知（タスク実績とは独立） |
 | Requirements | 3.12-3.14 |
 | Contracts | Service |
 
 **Implementation Notes**
-- Integration: InPro 実績には影響させず（PT は独立）、AlertBar に開始/終了/休憩状態を通知する。
+- Integration: AlertBar に開始/終了/休憩状態を通知し、InProAutoTracker と連携せずに独立稼働する（PT の休憩は実績を変えない）。
 - Risks: ブラウザスリープ時の精度低下→Service Worker アラームは使用せず、再開時に経過補正。
+
+#### InProAutoTracker
+| Field | Detail |
+|-------|--------|
+| Intent | InPro ステータスのタスクに対して、滞在中の経過時間を自動で実績に加算する | 3.12 |
+| Contracts | Service |
+
+**Implementation Notes**
+- InPro 入室時に計測開始し、1 分刻みで Task.actuals に追記。バックグラウンド復帰時は経過差分を算出して一括加算し、計測ずれを補正。
+- InPro 退出（他ステータスへ移動、または別タスクが InPro へ入る）時に計測を停止し、最終加算を行う。タブ終了時は Beacon/Fallback で最終書き込みを試行。
+- PomodoroTimer とは独立（Pomodoro は通知と休憩管理のみ）。Pomodoro が停止中でも計測は継続し、休憩は実績に影響させない。
+- オフラインでも加算を続け、pendingQueue に ChangeRecord を enqueue。同期後に Drive/Calendar 反映。
 
 #### SyncEngine
 | Field | Detail |
