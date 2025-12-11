@@ -626,11 +626,12 @@ interface SyncEngine {
 - **Task**: id, title, detail, subjectId, status, priority, estimateMinutes, actuals[{date, minutes}], dueDate, createdAt, updatedAt.
 - **Subject**: id, name, taskOrder: Record<Status, TaskId[]>（教科×ステータスごとの並び順）
 - **Sprint**: id (スプリント開始日の ISO 日付を推奨), startDate (Mon), endDate, subjectsOrder (SubjectId[]), dayOverrides[{date, availableMinutes}]（スプリント内の特定日上書き）, burndownHistory: BurndownHistoryEntry[]
-- **CalendarEvent**: id, title, start/end, source (LPK/Google), syncToken, etag.
+- **CalendarEvent**: id, title, description, start/end, status, source (LPK/Google), etag.
+  - カレンダー全体の `syncToken` はカレンダーメタとして管理し、イベントごとには持たせない。
 - **Settings**: statusLabels, language (ja/en), dayDefaultAvailability, notifications, currentSprintId, readonlyRefreshIntervalSec (閲覧専用時の定期 pull 間隔・秒、デフォルト 60).
 - **SyncState**: lastSyncedAt, generation, pendingQueue.
 - **ViewerInvite**: token, issuedTo(optional), expiresAt, revokedAt, issuedBy.
-- **BackupSnapshot**: id, createdAt, manifestVersion, files[{name, path, checksum}], retentionSlot (daily/weekly), source (local/remote).
+- **BackupSnapshot**: id, createdAt, manifestVersion, files[{name, path, checksum, kind (common|sprints), month (YYYY-MM)?}], retentionSlot (daily/weekly), type (daily/weekly/temp/manual), isoDate, source (local/remote).
 - **BurndownHistoryEntry**: date, remainingMinutes, remainingCount（過去日付のバーンダウン表示用スナップショット）
 
 ### Logical Data Model
@@ -641,6 +642,7 @@ interface SyncEngine {
 - updatedAt 運用: ローカル編集時にレコードの updatedAt を現在時刻で更新。並び順再計算（PrioritySorter）で Subject.taskOrder が変わった場合は Subject と関連タスクの updatedAt を揃える。applyRemote で採用したリモートレコードはリモートの updatedAt を保持。ファイル書き出し時にファイル単位の updatedAt も更新する。
 - スプリントファイル作成タイミング: カレンダーで未来週を参照しただけでは作成しない。ユーザーが明示的に「スプリントを表示」を確定した時点で `sprint-{sprintId}.json` を新規作成（存在しない場合）。過去スプリントのファイルは削除せず保持し、settings.currentSprintId を更新する。
 - スプリント未開始週の編集: スプリントが未開始の週はカレンダー/Availability を閲覧のみとし、学習可能時間の上書きやスプリントデータの編集は「スプリントを表示」確定後にのみ許可する。
+- バックアップ保存先（Drive 側）: `/LPK/backups/` 配下に `common-{type}-{isoDate}.zip`（settings/queue/calendarEvents/manifest）と `sprints-{type}-{YYYY-MM}-{isoDate}.zip`（開始月ごとのスプリント群）を保存する。バックアップは IndexedDB には格納しない（必要時に Drive からダウンロードして復元）。
 
 - ### Data Contracts & Integration
 - **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, language, currentSprintId 等）、`queue.json`（変更キュー）を保存。ファイル自体はそれぞれ1つを維持し、Drive の Revisions をバックアップとして活用する。リビジョン保持数をローテーション管理し、必要な世代のみ `keepForever`、古いものは削除。復元はリビジョンを取得しローカルへ戻す。settings.json は updatedAt で丸ごと上書き、スプリントファイルはタスク単位で updatedAt マージ＋並びは PrioritySorter で再計算。
