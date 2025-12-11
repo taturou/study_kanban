@@ -4,6 +4,19 @@
 **Purpose**: 要件を満たすためのアーキテクチャとインターフェースを定義し、実装ブレを防ぐ。
 ---
 
+## 用語集
+| 正式名称 | 略称 | 種別 | 説明 |
+| --- | --- | --- | --- |
+| カンバンボード | KanbanBoard | UI（View/Board） | 教科×ステータスの固定グリッドを表示するボード View。 |
+| カレンダービュー | CalendarView | UI（View） | 月曜始まりカレンダーと予定/学習時間表示の View。 |
+| 閲覧専用ビュー | ReadOnlyView | UI（View） | 閲覧専用モードの View。 |
+| アラートバー | AlertBar | UI（Bar） | 同期/PT/期日などの非モーダル通知バー。 |
+| ナビゲーション | Navigation | UI | View 切替のメニュー/タブ。 |
+| チャート | Chart | UI | グラフ可視化要素（バーンダウンなど）。 |
+| View | - | UI | 画面単位の UI。ルーティングで切替。 |
+| Panel | - | UI | View 内の設定/補助エリア。 |
+| Mode | - | 概念 | 機能/表示の切替状態（viewMode: editable/readonly、TaskDialog 入力モード: 個別/一括 など）。 |
+
 ## Overview
 学習計画カンバン（LPK）はブラウザ完結の PWA として、教科×ステータスの固定グリッド上でタスクを運用し、オフラインでも編集・計測・同期を継続する。Google Drive を主ストレージ、Google Calendar を予定連携に用い、週次スプリントの計画と日次運用、週次レビューを一貫して支援する。
 
