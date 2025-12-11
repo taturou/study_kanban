@@ -381,6 +381,7 @@ interface TaskDialogService {
 - viewMode が readonly の場合は設定変更を禁止し、表示のみ。
 - バックアップ/リストア UI を提供し、BackupService を経由して daily/weekly の取得・復元を実行する（一覧表示→選択→確認→実行）。実行中は pendingQueue 停止と進捗表示を行う。
 - viewMode=readonly の場合、手動バックアップ/復元操作は無効化（表示のみ）とする。
+- 閲覧専用モードの自動更新間隔（Drive/Calendar からの pull）を設定可能にする（デフォルト 1 分）。編集不可のためローカルキューは持たず、pull のみを行う。
 
 **Dependencies**
 - Outbound: TaskStore (settings 永続) (P0); UpdateManager (バージョン/アップデート状態) (P1)
@@ -552,6 +553,7 @@ type MoveDecision =
 - UI 起点: SettingsPanel からバックアップ一覧取得・手動バックアップ・復元を実行する。
 - 手動バックアップ/復元のエラーハンドリング: オフライン時は実行せずエラーを表示（キューに積まないが自動バックアップスケジュールは継続）。Drive 権限不足時はエラーを表示し再認証を促し、ユーザーが許可した場合のみ認証フローを実施して再試行する。
 - viewMode=readonly の場合、手動バックアップ/復元操作は無効化（表示のみ）とする。
+- viewMode=readonly の場合、SyncEngine はローカルキューを持たず（enqueue しない）、設定された間隔（デフォルト 1 分）で Drive/Calendar から pull して表示を更新する。オフライン時は最終スナップショットを表示し、オンライン復帰時に即時 pull する。
 
 #### SyncEngine
 | Field | Detail |
@@ -625,7 +627,7 @@ interface SyncEngine {
 - **Subject**: id, name, taskOrder: Record<Status, TaskId[]>（教科×ステータスごとの並び順）
 - **Sprint**: id (スプリント開始日の ISO 日付を推奨), startDate (Mon), endDate, subjectsOrder (SubjectId[]), dayOverrides[{date, availableMinutes}]（スプリント内の特定日上書き）, burndownHistory: BurndownHistoryEntry[]
 - **CalendarEvent**: id, title, start/end, source (LPK/Google), syncToken, etag.
-- **Settings**: statusLabels, language (ja/en), dayDefaultAvailability, notifications, currentSprintId.
+- **Settings**: statusLabels, language (ja/en), dayDefaultAvailability, notifications, currentSprintId, readonlyRefreshIntervalSec (閲覧専用時の定期 pull 間隔・秒、デフォルト 60).
 - **SyncState**: lastSyncedAt, generation, pendingQueue.
 - **ViewerInvite**: token, issuedTo(optional), expiresAt, revokedAt, issuedBy.
 - **BackupSnapshot**: id, createdAt, manifestVersion, files[{name, path, checksum}], retentionSlot (daily/weekly), source (local/remote).
