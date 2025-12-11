@@ -299,7 +299,7 @@ flowchart TD
 #### TaskDialog
 | Field | Detail |
 |-------|--------|
-| Intent | タスク作成/編集/消去をフォーム操作で行う |
+| Intent | タスク作成/編集/消去をフォーム操作で行う（個別追加と一括追加を切替可能） |
 | Requirements | 1.8,2.x |
 | Contracts | Service |
 
@@ -308,6 +308,7 @@ flowchart TD
 - 実績時間は日付別に編集可能、累積表示。
 - viewMode が readonly の場合は全入力を無効化し表示専用とする。
 - InPro 滞在中の自動実績加算は InProAutoTracker が担い、PomodoroTimer とは独立運用する（Pomodoro は通知・休憩管理に専念）。
+- Backlog から起動する場合は教科が自明なため、教科入力なしで作成する。ダイアログ内で「個別追加（詳細入力）」と「一括追加（複数行テキストで1行=1タスク、タイトルのみ）」を切替でき、選択状態を記憶する。一括作成後の詳細編集は通常の TCard 編集で行う。
 
 **Dependencies**
 - Outbound: TaskStore — CRUD (P0); TimeCalc — 残り時間計算 (P1)
