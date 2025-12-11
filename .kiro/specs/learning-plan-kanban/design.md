@@ -126,27 +126,6 @@ sequenceDiagram
 ```
 Key: syncToken 失効時はフル再取得、競合時は保守的マージ＋ユーザー通知。
 
-### UI 遷移（カレンダーからスプリント切替を明示操作とする）
-```mermaid
-stateDiagram-v2
-  [*] --> AppShell
-  state AppShell {
-    [*] --> Kanban
-    state Kanban {
-      [*] --> Board
-      Board -->|カード操作で開く| TaskDialog
-      TaskDialog -->|保存/キャンセルで閉じる| Board
-    }
-    Kanban -->|メニュー/タブ操作| Calendar
-    Kanban -->|メニュー/タブ操作| Dashboard
-    Calendar -->|メニュー/タブ操作| Kanban
-    Dashboard -->|メニュー/タブ操作| Kanban
-    Calendar -->|「スプリントを表示」で切替| Kanban
-  }
-```
-Note: 週を参照しただけではスプリントを作成/切替しない。Calendar で日付を選び「スプリントを表示」を押した場合のみ、その日付を含むスプリントに切り替え `sprint-{id}.json` を読み込み/作成し、currentSprintId を更新する（状態更新は UI 遷移とは別に行う）。
-
-
 ### UI 階層構造（コンテナと主要画面）
 ```mermaid
 flowchart TD
