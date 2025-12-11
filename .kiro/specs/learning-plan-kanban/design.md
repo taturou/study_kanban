@@ -192,13 +192,13 @@ flowchart TD
 | 4.3 | 期日超過フラグ/リスト | Dashboard | TimeCalc | - |
 | 4.4 | バーンダウンチャート | Dashboard | Burndown | - |
 | 4.5 | 月曜始まりカレンダー選択 | CalendarView | Router | カレンダーフロー |
-| 4.6 | Calendar 予定取得し表示/学習可能時間反映 | CalendarView | CalendarAdapter, Availability | カレンダーフロー |
+| 4.6 | Calendar 予定取得し表示（学習可能時間は自動反映しない） | CalendarView | CalendarAdapter, Availability | カレンダーフロー |
 | 4.7 | LPK カレンダー更新を Google Calendar に反映 | CalendarView | CalendarAdapter | カレンダーフロー |
 | 4.8 | 特定日ビューで3種のタスク一覧 | CalendarView | TaskStore | - |
 | 4.9 | 曜日ごとの作業可能時間デフォルト | Availability | SettingsStore | - |
 | 4.10 | 特定日上書き | Availability | TaskStore | - |
-| 4.11 | 予定を学習可能時間に反映 | Availability | CalendarAdapter | カレンダーフロー |
-| 4.12 | 当日の予定＋残り学習可能時間ゲージ表示 | KanbanBoard | Availability, TimeCalc | - |
+| 4.11 | 予定を表示して学習可能時間調整の参考にする（自動反映なし） | Availability | CalendarAdapter | カレンダーフロー |
+| 4.12 | 当日の予定と、手入力の学習可能時間に基づく残り学習可能時間ゲージ表示 | KanbanBoard | Availability, TimeCalc | - |
 | 4.13 | 教科別完了数/時間の週次サマリ | Dashboard | Burndown, TimeCalc | - |
 | 4.14 | 当日追加タスクのみ表示 | CalendarView | TaskStore | - |
 | 4.15 | ヘルプページ提供 | HelpPage | - | - |
@@ -352,7 +352,7 @@ interface TaskDialogService {
 
 **Responsibilities & Constraints**
 - 特定日ビューで実施/期日/追加タスクを表示。
-- Google Calendar 予定を取得し、学習可能時間と Today 残り時間に反映。
+- Google Calendar 予定を取得して表示し、ユーザーが dayDefaultAvailability/当日上書き値を手動調整する際の参考情報として提示（自動控除はしない）。
 - LPK 側の予定追加/更新を CalendarAdapter 経由で同期。
 - viewMode が readonly の場合は予定追加/編集を無効化し、閲覧のみとする。
 
@@ -496,13 +496,13 @@ type MoveDecision =
 #### Availability
 | Field | Detail |
 |-------|--------|
-| Intent | 学習可能時間（曜日デフォルト＋当日上書き＋予定控除） |
+| Intent | 学習可能時間（曜日デフォルト＋当日上書き＋予定表示を参考にした手動調整） |
 | Requirements | 4.9-4.12 |
 | Contracts | Service |
 
 **Implementation Notes**
-- Integration: `dayDefaultAvailability` に対し、スプリント内の日付が `Sprint.dayOverrides` に存在する場合はその値で上書き。Calendar 予定は閲覧用のみで学習可能時間の計算には使用しない。
-- Risks: 予定の終日/タイムゾーン処理（表示上の問題のみ）。
+- Integration: `dayDefaultAvailability` を初期値とし、スプリント内の日付が `Sprint.dayOverrides` に存在する場合はその値で上書き。Calendar 予定は表示のみで、学習可能時間の計算には自動反映しない（ユーザー手動入力を優先）。
+- Risks: 予定表示の終日/タイムゾーン処理（表示上の問題のみ）。
 
 #### PomodoroTimer
 | Field | Detail |
