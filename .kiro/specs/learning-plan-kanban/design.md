@@ -380,6 +380,7 @@ interface TaskDialogService {
 - PT のデフォルト作業/休憩時間を設定可能にする（タスク実績には影響させない）。
 - viewMode が readonly の場合は設定変更を禁止し、表示のみ。
 - バックアップ/リストア UI を提供し、BackupService を経由して daily/weekly の取得・復元を実行する（一覧表示→選択→確認→実行）。実行中は pendingQueue 停止と進捗表示を行う。
+- viewMode=readonly の場合、手動バックアップ/復元操作は無効化（表示のみ）とする。
 
 **Dependencies**
 - Outbound: TaskStore (settings 永続) (P0); UpdateManager (バージョン/アップデート状態) (P1)
@@ -550,6 +551,7 @@ type MoveDecision =
 - 復元時の安全策: 現行状態を一時的にローカルへバックアップ（temp slot）し、失敗時はロールバック可能にする。
 - UI 起点: SettingsPanel からバックアップ一覧取得・手動バックアップ・復元を実行する。
 - 手動バックアップ/復元のエラーハンドリング: オフライン時は実行せずエラーを表示（キューに積まないが自動バックアップスケジュールは継続）。Drive 権限不足時はエラーを表示し再認証を促し、ユーザーが許可した場合のみ認証フローを実施して再試行する。
+- viewMode=readonly の場合、手動バックアップ/復元操作は無効化（表示のみ）とする。
 
 #### SyncEngine
 | Field | Detail |
