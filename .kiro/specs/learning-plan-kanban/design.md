@@ -10,7 +10,7 @@
 | カンバンボード | KanbanBoard | UI（View/Board） | 教科×ステータスの固定グリッドを表示するボード View。 |
 | カレンダービュー | CalendarView | UI（View） | 月曜始まりカレンダーと予定/学習時間表示の View。 |
 | 閲覧専用ビュー | ReadOnlyView | UI（View） | 閲覧専用モードの View。 |
-| アラートバー | AlertBar | UI（Bar） | 同期/PT などの非モーダル通知バー。 |
+| アラートバー | AlertToast | UI（Toast） | 同期/PT/過負荷などの非モーダル通知を画面右下のトーストで表示する UI 要素。 |
 | ナビゲーション | Navigation | UI | View 切替のメニュー/タブ。 |
 | チャート | Chart | UI | グラフ可視化要素（バーンダウンなど）。 |
 | View | - | UI | 画面単位の UI。ルーティングで切替。 |
@@ -157,11 +157,11 @@ flowchart TD
   Dashboard[Dashboard]
   Burndown[Burndown Chart]
   Settings[SettingsPanel]
-  AlertBar[AlertBar Global]
+  AlertToast[AlertToast Global]
 
   AppShell --> Nav
   AppShell --> Main
-  AppShell --> AlertBar
+  AppShell --> AlertToast
   Main --> Kanban
   Main --> Calendar
   Main --> Dashboard
@@ -220,7 +220,7 @@ flowchart TD
 | AppBar: [Menu Button] [Logo] [YYYY-MM-DD HH:MM] [Kanban | Dashboard] [sync status] [avatar] |
 +---------------------------------------------------------------------------------------------+
 | Kanban Header: Num of Today/Done Tasks | Estimate/Done Time         +---------------------+ |
-+---------+-------------+-------------+---------------+-------------+ | Pomodoro Time       | +
++---------+-------------+-------------+---------------+-------------+ | Pomodoro Time       |
 |         | Backlog     |    Today    |  InPro        |  OnHold     | |                     | |
 |---------+-------------+-------------+---------------+-------------+ |                     | |
 |         |+-----------+|+-----------+|+-------------+|+-----------+| |                     | |
@@ -240,6 +240,38 @@ flowchart TD
 |---------+-------------+-------------+---------------+-------------+------------+------------|
 |         |+-----------+|             |               |             |            |            |
 | Science ||           ||             |               |             |            |            |
++---------++-----------++-------------+---------------+-------------+------------+------------+
+```
+
+#### KanbanView with Alert
+
+- 同期/過負荷/PT などの通知は、画面右下の `AlertToast` で非モーダル表示する。
+
+```
++---------------------------------------------------------------------------------------------+
+| AppBar: [Menu Button] [Logo] [YYYY-MM-DD HH:MM] [Kanban | Dashboard] [sync status] [avatar] |
++---------------------------------------------------------------------------------------------+
+| Kanban Header: Num of Today/Done tasks | Estimate/Done tasks               [Pomodoro Start] |
++---------+-------------+-------------+---------------+-------------+------------+------------+
+|         | Backlog     |    Today    |  InProgress   |  OnHold     |   Done     | Won't fix  |
+|---------+-------------+-------------+---------------+-------------+------------+------------|
+|         |+-----------+|+-----------+|+-------------+|+-----------+|+----------+|+----------+|
+| English ||TCard      |||           |||             |||           |||          |||          ||
+|         |+-----------+|+-----------+||             ||+-----------+|+----------+|+----------+|
+|         |+-----------+|+-----------+||             ||             |+----------+|            |
+|         ||           |||           |||             ||             ||          ||            |
+|         |+-----------+|+-----------+||             ||             |+----------+|            |
+|         |             |+-----------+||             ||             |            |            |
+|         |     +       ||           |||             ||             |            |            |
+|         |             |+-----------+|+-------------+|             |            |            |
+|---------+-------------+-------------+---------------+-------------+----- +-----+----------+ |
+|         |+-----------+|+-----------+|               |             |      | Alert Toast 1  | |
+| Math    ||           |||           ||               |             |      |                | |
+|         |+-----------+|+-----------+|               |             |      +----------------+ |
+|         |     +       |             |               |             |      +----------------+ |
+|---------+-------------+-------------+---------------+-------------+----- | Alert Toast 2  | |
+|         |+-----------+|             |               |             |      |                | |
+| Science ||           ||             |               |             |      +----------------+ |
 +---------++-----------++-------------+---------------+-------------+------------+------------+
 ```
 
@@ -278,15 +310,36 @@ flowchart TD
 #### TCard
 
 - TCard は縦に複数並ぶので横長で表示する。
-- `Planned/Spent Time` は体力ゲージ風の棒グラフで `■■■□□` のように予定工数と残工数を表示する
-- `Due Day of Week` はタスクの期日を曜日で表示する（期日がなければ表示しない）
-- `[icon]` はカレンダーアイコンで、期日が本日なら赤色で表示する（期日がなければ表示しない）
+- InPro 以外の TCard は、タイトルと期日（曜日）と予定/実績時間のゲージを表示する。
+- `Planned/Spent Time` は体力ゲージ風の棒グラフで `■■■□□` のように予定時間と実績時間を可視化する（残り時間の数値は表示しない）。
+- `Due Day of Week` はタスクの期日を曜日で表示する（期日がなければ表示しない）。
+- `[icon]` はカレンダーアイコンで、期日が本日なら赤色で表示する（期日がなければ表示しない）。
 
 ```
 +----------------------------------------+
 |  Task Title     Planned/Spent Time     |
 |                 [icon] Due Day of Week |
 +----------------------------------------+
+```
+
+#### TCard (InPro)
+
+- InPro の TCard は正方形で表示し、1 件のみ存在する。
+- 中央に 1 分ごとに進行する円状プログレスインジケーターを表示し、円内に経過時間［分］を表示する。
+- 予定/実績ゲージは InPro 用の表示として同じカード内に保持する。
+
+```
++------------------------------+
+|          Task Title          |
+|------------------------------|
+|         ( Circle )           |
+|        Progress Ring         |
+|            25 min            |
+|------------------------------|
+|    Planned/Spent Time        |
+|    ■■■■■□□□□□□    |
+|   [icon] Due Day of Week     |
++------------------------------+
 ```
 
 #### Task Dialog
@@ -430,7 +483,7 @@ flowchart TD
 | 1.9 | 空セルドラッグでスクロール＆ヘッダー固定 | KanbanBoard | - | - |
 | 2.1 | 新規 TDialog で全属性入力保存 | TaskDialog | TaskStore | - |
 | 2.2 | 既存 Task 読込編集保存 | TaskDialog | TaskStore | - |
-| 2.3 | TCard にタイトル/期日/予定/残り/ゲージ | TaskCard | TimeCalc | - |
+| 2.3 | TCard にタイトル/期日/予定/実績/ゲージ | TaskCard | TimeCalc | - |
 | 2.4 | ダイアログでタイトルに初期フォーカス | TaskDialog | - | - |
 | 2.5 | Tab 移動 | TaskDialog | - | - |
 | 2.6 | 保存: Ctrl+Enter/ボタン, Esc/キャンセル | TaskDialog | - | - |
@@ -447,11 +500,11 @@ flowchart TD
 | 3.8 | Today 最優先以外→InPro 禁止 | StatusPolicy | - | タスク移動 |
 | 3.9 | InPro のみ1件、他は OnHold へ自動移動 | StatusPolicy, TaskStore | - | タスク移動 |
 | 3.10 | InPro/OnHold 以外→Done 禁止 | StatusPolicy | - | タスク移動 |
-| 3.11 | Today/InPro/OnHold 残り時間超過で警告 | AlertBar, Availability, TimeCalc | - | - |
+| 3.11 | Today/InPro/OnHold 残り時間超過で警告 | AlertToast, Availability, TimeCalc | - | - |
 | 3.12 | InPro 自動計測＋円形インジケータ | PomodoroTimer, TaskCard | TimeCalc | - |
-| 3.13 | PT 操作と通知 | PomodoroTimer, AlertBar | - | - |
-| 3.14 | PT 終了時アラーム | PomodoroTimer, AlertBar | - | - |
-| 4.1 | Dashboard で週次集計とバージョン表示 | Dashboard | Burndown, UpdateManager | - |
+| 3.13 | PT 操作と通知 | PomodoroTimer, AlertToast | - | - |
+| 3.14 | PT 終了時アラーム | PomodoroTimer, AlertToast | - | - |
+| 4.1 | Dashboard で週次集計を表示 | Dashboard | Burndown | - |
 | 4.2 | 今日期日 Backlog 強調 | KanbanBoard | TimeCalc | - |
 | 4.3 | 期日超過フラグ/リスト | Dashboard | TimeCalc | - |
 | 4.4 | バーンダウンチャート | Dashboard | Burndown | - |
@@ -465,14 +518,14 @@ flowchart TD
 | 4.12 | 当日の予定と、手入力の学習可能時間に基づく残り学習可能時間ゲージ表示 | KanbanBoard | Availability, TimeCalc | - |
 | 4.13 | 教科別完了数/時間の週次サマリ | Dashboard | Burndown, TimeCalc | - |
 | 4.14 | 当日追加タスクのみ表示 | CalendarView | TaskStore | - |
-| 4.15 | ヘルプページ提供 | HelpPage | - | - |
+| 4.15 | ヘルプページ提供（SettingsPanel から起動） | HelpPage, SettingsPanel | Router | - |
 | 4.16 | 予定/実績時間グラフ表示 | CalendarView | TimeCalc | - |
 | 5.1 | PWA インストール、主要ブラウザ対応 | AppShell, ServiceWorker | UpdateManager | - |
 | 5.2 | GitHub Pages 配信 | Build/Hosting | - | - |
 | 5.3 | Google サインインで Drive 保存 | Auth, DriveAdapter | SyncEngine | - |
 | 5.4 | オンライン時ローカルキャッシュ＋随時/定期同期 | TaskStore, SyncEngine | StorageAdapter | 同期フロー |
 | 5.5 | オフライン操作と再接続同期 | TaskStore, SyncEngine | StorageAdapter | 同期フロー |
-| 5.6 | 同期状態の非モーダル通知と再試行 | AlertBar, SyncEngine | - | 同期フロー |
+| 5.6 | 同期状態の非モーダル通知と再試行 | AlertToast, SyncEngine | - | 同期フロー |
 | 5.7 | サーバレス構成（Pages＋Drive） | Architecture | - | - |
 | 5.8 | バージョンチェックと自動アップデート | UpdateManager | ServiceWorker | 更新フロー |
 | 5.9 | 強制アップデート | UpdateManager | ServiceWorker | 更新フロー |
@@ -507,10 +560,10 @@ flowchart TD
 | TaskCard | UI | タスク表示（ゲージ/円形インジケータ） | 2.3,3.6,3.12 | TimeCalc (P0), PomodoroTimer (P1), InProAutoTracker (P0) | State |
 | TaskDialog | UI | 作成/編集/消去と入力制御 | 1.8,2.x | TaskStore (P0) | Service |
 | Dashboard | UI | 週次集計・バーンダウン | 4.1,4.3,4.4,4.13 | Burndown (P0) | State |
-| SettingsPanel | UI | ステータス表示名と言語を設定し、バージョン/アップデート状態と PT デフォルト時間を表示 | 1.5,7.4,5.8,5.9,5.14,3.13 | TaskStore (P0), UpdateManager (P1) | State |
+| SettingsPanel | UI | ステータス表示名と言語を設定し、バージョン/アップデート状態、PT デフォルト時間、手動同期、ヘルプ導線を提供 | 1.5,7.4,5.8,5.9,5.14,3.13,5.6,4.15 | TaskStore (P0), UpdateManager (P1), SyncEngine (P1) | State |
 | CalendarView | UI | 月曜始まりカレンダーと予定/学習時間表示 | 4.5-4.16 | CalendarAdapter (P0), Availability (P0) | State |
 | HelpPage | UI | 操作説明 | 4.15 | - | - |
-| AlertBar | UI | 非モーダル通知（同期/PT） | 3.11,3.13,4.6,5.6,5.8 | SyncEngine (P0), TimeCalc (P0) | State |
+| AlertToast | UI | 非モーダル通知（トースト: 同期/PT/過負荷） | 3.11,3.13,4.6,5.6,5.8 | SyncEngine (P0), TimeCalc (P0) | State |
 | TaskStore | State | タスク/教科/スプリント状態と IndexedDB 永続 | 全般 | StorageAdapter (P0), SyncEngine (P0) | State |
 | StatusPolicy | Domain | ステータス遷移ガードと副作用計算 | 1.4,3.x | TaskStore (P1) | Service |
 | PrioritySorter | Domain | セル内優先度順序 | 3.3,3.4 | TaskStore (P1) | Service |
@@ -518,7 +571,7 @@ flowchart TD
 | TimeCalc | Domain | 残り時間計算と Today 負荷 | 2.3,3.11,4.2,4.12 | TaskStore (P1) | Service |
 | Burndown | Domain | バーンダウン計算と週次サマリ | 4.1,4.4,4.13 | TaskStore (P1) | Service |
 | Availability | Domain | 学習可能時間（予定/上書き/曜日）計算 | 4.6,4.9-4.12 | CalendarAdapter (P1), SettingsStore (P1) | Service |
-| PomodoroTimer | Domain | PT 計測と通知 | 3.12-3.14 | AlertBar (P1) | Service |
+| PomodoroTimer | Domain | PT 計測と通知 | 3.12-3.14 | AlertToast (P1) | Service |
 | SyncEngine | Sync | 変更キューと双方向同期 | 5.3-5.6,6.3 | DriveAdapter (P0), CalendarAdapter (P0), StorageAdapter (P0) | Service |
 | BackupService | Sync | バックアップ取得・保持・復元 | 5.13 | DriveAdapter (P0), StorageAdapter (P0) | Service |
 | DriveAdapter | Integration | Drive API 呼び出し | 5.3,5.10 | Auth (P0) | API |
@@ -556,7 +609,7 @@ flowchart TD
 
 **Implementation Notes**
 - Integration: キーボード pick/drop を専用ハンドラで用意し、マウス/タッチと共存。
-- Validation: ドロップ前に StatusPolicy の結果を確認、警告は AlertBar へ。
+- Validation: ドロップ前に StatusPolicy の結果を確認、警告は AlertToast へ。
 - Risks: 大量カードで描画負荷→縦スクロール主体のため「教科行（row）単位のバーチャライゼーション（仮想スクロール）」を第一候補とする。1 行は「教科名セル＋6 ステータスセルの横並び」をひとかたまりで仮想化し、固定ヘッダー/左列と共存させる。特定教科にカードが偏在する場合のみ、当該行内のステータス列リストの部分バーチャライゼーションを補助的に検討する（DnD 中は対象行/列を非仮想化するフォールバックを許容）。
 
 #### TaskDialog
@@ -604,7 +657,7 @@ interface TaskDialogService {
 - viewMode が readonly の場合は閲覧のみとし、編集/保存操作は提供しない。
 
 **Dependencies**
-- Outbound: Burndown (P0); TimeCalc (P1); UpdateManager (P1); TaskStore (P0)
+- Outbound: Burndown (P0); TimeCalc (P1); TaskStore (P0)
 
 **Implementation Notes**
 - Integration: グラフは日次サマリをキャッシュし、表示時に再計算を避ける。
@@ -634,13 +687,15 @@ interface TaskDialogService {
 #### SettingsPanel
 | Field | Detail |
 |-------|--------|
-| Intent | ステータス表示名と言語設定、バージョン/アップデート状態の確認 |
-| Requirements | 1.5,7.4,5.8,5.9,5.14 |
+| Intent | ステータス表示名と言語設定、バージョン/アップデート状態の確認、手動同期/ヘルプ導線 |
+| Requirements | 1.5,7.4,5.8,5.9,5.14,3.13,5.6,4.15 |
 | Contracts | State |
 
 **Responsibilities & Constraints**
 - 固定ステータス集合を前提に、表示名のみを編集可能（追加/削除/並べ替え不可）。言語切替を提供。
 - バージョン表示とアップデート状態（強制更新含む）を表示し、手動「更新を確認」アクションで UpdateManager.checkForUpdate を起動。新版があれば Service Worker を更新し、強制/通常の別に応じて `skipWaiting`/リロードを制御する。
+- 手動同期のトリガー（例: 「今すぐ同期」ボタン）を提供し、SyncEngine.flush を明示実行できる。
+- HelpPage を開く導線を提供する（SettingsPanel から遷移/ダイアログ表示）。
 - pendingQueue が空でない場合は flush を試行し、成功後にリロード。失敗/オフライン時はリロードを遅延し、ユーザーが明示的に「バックアップして強制リロード」を選んだ場合のみ同期前リロードを許可する。
 - PT のデフォルト作業/休憩時間を設定可能にする（タスク実績には影響させない）。
 - viewMode が readonly の場合は表示専用とし、ステータスラベル/言語/学習可能時間設定/バックアップ/復元などの編集は無効化する。ただし「更新を確認」は許可し、検出時の更新・リロードフローは実行できる。
@@ -786,7 +841,7 @@ type MoveDecision =
 | Contracts | Service |
 
 **Implementation Notes**
-- Integration: AlertBar に開始/終了/休憩状態を通知し、InProAutoTracker と連携せずに独立稼働する（PT の休憩は実績を変えない）。
+- Integration: AlertToast に開始/終了/休憩状態を通知し、InProAutoTracker と連携せずに独立稼働する（PT の休憩は実績を変えない）。
 - Risks: ブラウザスリープ時の精度低下→Service Worker アラームは使用せず、再開時に経過補正。
 
 #### InProAutoTracker
