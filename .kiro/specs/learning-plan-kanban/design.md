@@ -510,7 +510,7 @@ flowchart TD
 ### UI Layer
 
 **View Mode 管理**
-- ソース: AppShell/Router が Auth と閲覧招待トークンを検証し `viewMode: 'editable' | 'readonly'` を決定する（閲覧専用は全画面共通のモード）。
+- ソース: AppShell/Router が Auth 完了後に Google Drive 上の `/LPK/` フォルダの存在と読み取り可否（共有権限）を確認し `viewMode: 'editable' | 'readonly'` を決定する（閲覧専用は全画面共通のモード）。編集権限が無い場合は readonly とする。
 - 伝播: viewMode をコンテキストまたは props で各画面（KanbanBoard/TaskDialog/CalendarView/Dashboard/SettingsPanel/Availability 等）へ渡し、編集操作をガードする。CalendarView での予定追加/更新、Availability の学習可能時間上書き、SettingsPanel のラベル/言語/更新操作も無効化する。
 - 永続化: viewMode は一時的なアクセスモードであり、settings/sprint には保存しない。
 
@@ -864,7 +864,7 @@ interface SyncEngine {
 - 手動チェック: SettingsPanel からの「更新を確認」が UpdateManager.checkForUpdate を呼び出し、上記と同じ検知→更新フローをトリガーする。自動チェックとの衝突を避けるため、実行中は重複チェックを抑止する。
 
 ### Infra/Tooling
-- Auth: Google OAuth（トークンはメモリまたは Session Storage、長期保存しない）。閲覧招待トークンの発行・検証・失効を提供し、AppShell/Router で閲覧専用モードを判定する。
+- Auth: Google OAuth（トークンはメモリまたは Session Storage、長期保存しない）。閲覧専用は Google Drive の共有権限で提供し、AppShell/Router が `/LPK/` の読み取り可否で viewMode を判定する。共有解除で Drive API が 403/404 を返した場合は失効とみなす。
 - DevContainer/CI: VS Code Dev Container 上で実装・ビルド・テストを一貫実行し、CI は test→build→deploy to Pages を自動化。
 - RepoSetupScript: gh API を用いて main 保護（必須チェック/レビュー）、マージ方式（Squash/通常マージ許可, Rebase 無効）、ブランチ自動削除、必要に応じて Pages 設定を適用する。入力: リポジトリ owner/repo; 出力: 設定結果（ログ）。
 
@@ -878,7 +878,6 @@ interface SyncEngine {
   - カレンダー全体の `syncToken` はカレンダーメタとして管理し、イベントごとには持たせない。
 - **Settings**: statusLabels, language (ja/en), dayDefaultAvailability, notifications, currentSprintId, readonlyRefreshIntervalSec (閲覧専用時の定期 pull 間隔・秒、デフォルト 60).
 - **SyncState**: lastSyncedAt, generation, pendingQueue.
-- **ViewerInvite**: token, issuedTo(optional), expiresAt, revokedAt, issuedBy.
 - **BackupSnapshot**: id, createdAt, manifestVersion, files[{name, path, checksum, kind (common|sprints), month (YYYY-MM)?}], retentionSlot (daily/weekly), type (daily/weekly/temp/manual), isoDate, source (local/remote).
 - **BurndownHistoryEntry**: date, remainingMinutes, remainingCount（過去日付のバーンダウン表示用スナップショット）
 
@@ -894,7 +893,7 @@ interface SyncEngine {
 
 - ### Data Contracts & Integration
 - **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, language, currentSprintId 等）、`queue.json`（変更キュー）を保存。ファイル自体はそれぞれ1つを維持し、Drive の Revisions をバックアップとして活用する。リビジョン保持数をローテーション管理し、必要な世代のみ `keepForever`、古いものは削除。復元はリビジョンを取得しローカルへ戻す。settings.json は updatedAt で丸ごと上書き、スプリントファイルはタスク単位で updatedAt マージ＋並びは PrioritySorter で再計算。
-- **Calendar**: 予定は閲覧用に取得・表示のみ行い、学習可能時間の算出には用いない。LPK 起点イベントは source=LPK を付与し二重反映を防止。衝突時はリロード。
+- **Calendar**: 予定は Google Calendar から常に取得し、IndexedDB の `calendarEvents` にキャッシュして表示する。Google Drive の通常同期データには保存しない（バックアップに含める場合のみ `calendarEvents.json` として保存）。学習可能時間の算出には自動反映せず、表示のみとする。LPK 起点イベントは source=LPK を付与し二重反映を防止し、競合時は Google を優先する。
 - **Internal Events**: `SyncStatusChanged`, `UpdateAvailable`, `PomodoroTick` を発行し UI 通知と再計算をトリガ。
 
 ## Error Handling
@@ -920,7 +919,7 @@ interface SyncEngine {
 
 ## Security Considerations
 - Google OAuth トークンは長期保存しない（メモリ/Session Storage）。Drive/Calendar scope を最小限に限定。
-- 閲覧専用リンクはトークン有効期限を持たせ、無効化操作で強制失効。
+- 閲覧専用は Google Drive の共有権限で提供する。共有解除で Drive API が 403/404 を返した場合、失効ダイアログを表示し確認後に IndexedDB のデータを全削除する。
 - Service Worker キャッシュには機密データを含めず、IndexedDB も同様に個人情報を最小化。
 
 ## Performance & Scalability
