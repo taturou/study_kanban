@@ -84,6 +84,12 @@ graph TB
   ServiceWorker --> UpdateManager
 ```
 
+### Thread / Worker Strategy
+- Threads in scope: ブラウザメインスレッド（UI/状態/同期処理）＋ Service Worker（PWA キャッシュとバージョン更新制御）。Web Worker/Shared Worker/Worklet は現時点で不採用。
+- Service Worker で扱うもの: precache/route によるオフラインキャッシュ、バージョン検知と `updatefound/statechange` 監視、`skipWaiting` とクライアントへのリロード要求、簡易なネットワークフェイルオーバー。Push/Periodic Background Sync はサーバレス方針＋Safari 制約のため不採用。
+- メインスレッドで扱うもの: UI/状態管理（React+Zustand）、SyncEngine の enqueue/flush/pull、Drive/Calendar API 呼び出し、InProAutoTracker/Pomodoro の計測と通知、Availability/Calendar/Settings 編集（viewMode=readonly では編集無効化）、BackupService の取得/復元。
+- 採用基準: Service Worker でしかできないキャッシュ/バージョン更新/ネットフェイルオーバーのみ SW へ置き、フォアグラウンド実行が前提の同期・計測・編集ロジックはメインに限定する。バックグラウンドスケジュールやサーバ経由通知が必要になる場合は要件とサーバレス方針を再検討する。
+
 ### Technology Stack
 
 | Layer | Choice / Version | Role in Feature | Notes |
