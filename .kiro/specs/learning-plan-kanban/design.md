@@ -113,12 +113,16 @@ sequenceDiagram
   participant TS as TaskStore
   participant SE as SyncEngine
   U->>KB: Drag TCard to target cell
-  KB->>SP: validateMove(task, from, to)
-  SP-->>KB: result {allowed, sideEffects, reason?}
+  KB->>TS: moveTask(taskId, to, initiator)
+  TS->>SP: validateMove({taskId, from, to, context, initiator})
+  SP-->>TS: decision {allowed, sideEffects, reason?}
   alt allowed
-    KB->>TS: applyMove(task, to, sideEffects)
+    TS->>TS: apply state + sideEffects (atomic)
+    TS->>IDB: persist(stateSnapshot)  %% StorageAdapter 経由
     TS->>SE: enqueueChange(taskDelta)
+    TS-->>KB: ok
   else rejected
+    TS-->>KB: PolicyError(reason)
     KB-->>U: show block reason
   end
 ```
@@ -725,6 +729,12 @@ interface TaskDialogService {
 - 教科順/ステータスラベル/言語設定の保存。
 - viewMode=readonly の場合、編集 API を reject し、pendingQueue への enqueue を禁止する（読み取り専用）。Settings/Availability/Calendar の書き込みリクエストも同様に拒否。
 - InProAutoTracker と連携し、InPro 滞在中のタスクに 1 分刻みで実績を自動加算。バックグラウンド復帰時は経過差分で補正し、退出時（他ステータスへ移動/別タスクが InPro に入る/タブ終了）に最終加算する。実績追加は pendingQueue に enqueue し、オフラインでも蓄積。
+- **moveTask 処理手順（原子性）**
+  1. `MoveInput` を構築する（`from`/`to`/`priority` に加え、`context` を Availability/TimeCalc/現状態から算出）。
+  2. `StatusPolicy.validateMove` を呼び、許可/拒否と `sideEffects` を取得する。
+  3. 許可の場合のみ、同一 reducer 内で「移動後の状態」と `sideEffects` の適用結果を生成する。
+  4. 生成した新状態を 1 トランザクションで `StorageAdapter`（IndexedDB）へ commit する。
+  5. commit 成功後に差分を `pendingQueue` に enqueue し、`SyncEngine` に通知する。拒否の場合は状態変更も enqueue も行わない。
 
 **Dependencies**
 - Outbound: StorageAdapter (P0); SyncEngine (P0); StatusPolicy (P1); PrioritySorter (P1)
@@ -747,6 +757,20 @@ interface TaskStoreActions {
   recordActual(taskId: TaskId, entry: ActualEntry): void; // 実績時間の追記
   setSubjectOrder(subjectIds: SubjectId[]): void; // 教科順の更新
 }
+
+// StatusPolicy から返され、TaskStore が適用する副作用の最小集合
+type SideEffect =
+  | { kind: 'autoMoveToOnHold'; taskId: TaskId } // InPro 置換時の自動退避
+  | { kind: 'startInProTracking'; taskId: TaskId }
+  | { kind: 'stopInProTracking'; taskId: TaskId }
+  | { kind: 'recordActual'; taskId: TaskId; minutes: number; at: ISODateTime }
+  | { kind: 'recomputePriorities'; subjectId: SubjectId; status: Status }
+  | { kind: 'updateBurndown'; date: ISODate };
+type SideEffects = SideEffect[];
+
+// 副作用の適用順序（同一 reducer 内で上から順に実行）
+// 1) autoMoveToOnHold / stopInProTracking → 2) startInProTracking → 3) recordActual
+// → 4) recomputePriorities → 5) updateBurndown
 ```
 
 **Implementation Notes**
