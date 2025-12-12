@@ -10,7 +10,7 @@
 | カンバンボード | KanbanBoard | UI（View/Board） | 教科×ステータスの固定グリッドを表示するボード View。 |
 | カレンダービュー | CalendarView | UI（View） | 月曜始まりカレンダーと予定/学習時間表示の View。 |
 | 閲覧専用ビュー | ReadOnlyView | UI（View） | 閲覧専用モードの View。 |
-| アラートバー | AlertBar | UI（Bar） | 同期/PT/期日などの非モーダル通知バー。 |
+| アラートバー | AlertBar | UI（Bar） | 同期/PT などの非モーダル通知バー。 |
 | ナビゲーション | Navigation | UI | View 切替のメニュー/タブ。 |
 | チャート | Chart | UI | グラフ可視化要素（バーンダウンなど）。 |
 | View | - | UI | 画面単位の UI。ルーティングで切替。 |
@@ -229,11 +229,10 @@ flowchart TD
 | 5.11 | 将来の API 拡張性 | SyncEngine, TaskStore | Ports | - |
 | 5.12 | gh スクリプトで保護/マージ方式/Pages 設定 | RepoSetupScript | GitHub API | - |
 | 5.13 | データバックアップとローテーション | SyncEngine, DriveAdapter, StorageAdapter | - | - |
-| 6.1 | 期日接近リマインド | AlertBar | TimeCalc | - |
-| 6.2 | 閲覧専用リンク/権限 | ReadOnlyView, Auth | Router | - |
-| 6.3 | 閲覧専用 PWA モード | ReadOnlyView | ServiceWorker | - |
-| 6.4 | 閲覧モードの自動更新/オフライン表示 | ReadOnlyView, SyncEngine | StorageAdapter | 同期フロー |
-| 6.5 | 招待無効化で閲覧遮断 | Auth, Router | - | - |
+| 6.1 | 閲覧専用リンク/権限 | ReadOnlyView, Auth | Router | - |
+| 6.2 | 閲覧専用 PWA モード | ReadOnlyView | ServiceWorker | - |
+| 6.3 | 閲覧モードの自動更新/オフライン表示 | ReadOnlyView, SyncEngine | StorageAdapter | 同期フロー |
+| 6.4 | 招待無効化で閲覧遮断 | Auth, Router | - | - |
 | 7.1 | WCAG 2.1 AA 準拠 | 全 UI | A11y API | - |
 | 7.2 | キーボードナビゲーション | KanbanBoard, TaskDialog, CalendarView | A11y API | - |
 | 7.3 | 適切な ARIA 属性 | 全 UI | A11y API | - |
@@ -252,7 +251,7 @@ flowchart TD
 ### Summary Table
 | Component | Domain/Layer | Intent | Req Coverage | Key Dependencies (P0/P1) | Contracts |
 |-----------|--------------|--------|--------------|--------------------------|-----------|
-| AppShell | UI | ルーティングとシェル、閲覧モード切替 | 1.3,6.2,7.4 | Router (P0), ServiceWorker (P1) | State |
+| AppShell | UI | ルーティングとシェル、閲覧モード切替 | 1.3,6.1,7.4 | Router (P0), ServiceWorker (P1) | State |
 | KanbanBoard | UI | 教科×ステータスグリッドと DnD | 1.x,3.x,4.2,4.12 | StatusPolicy (P0), TaskStore (P0), DnD Kit (P1) | State |
 | TaskCard | UI | タスク表示（ゲージ/円形インジケータ） | 2.3,3.6,3.12 | TimeCalc (P0), PomodoroTimer (P1), InProAutoTracker (P0) | State |
 | TaskDialog | UI | 作成/編集/消去と入力制御 | 1.8,2.x | TaskStore (P0) | Service |
@@ -260,7 +259,7 @@ flowchart TD
 | SettingsPanel | UI | ステータス表示名と言語を設定し、バージョン/アップデート状態と PT デフォルト時間を表示 | 1.5,7.4,5.8,5.9,5.14,3.13 | TaskStore (P0), UpdateManager (P1) | State |
 | CalendarView | UI | 月曜始まりカレンダーと予定/学習時間表示 | 4.5-4.16 | CalendarAdapter (P0), Availability (P0) | State |
 | HelpPage | UI | 操作説明 | 4.15 | - | - |
-| AlertBar | UI | 非モーダル通知（同期/PT/期日） | 3.11,3.13,4.6,5.6,5.8 | SyncEngine (P0), TimeCalc (P0) | State |
+| AlertBar | UI | 非モーダル通知（同期/PT） | 3.11,3.13,4.6,5.6,5.8 | SyncEngine (P0), TimeCalc (P0) | State |
 | TaskStore | State | タスク/教科/スプリント状態と IndexedDB 永続 | 全般 | StorageAdapter (P0), SyncEngine (P0) | State |
 | StatusPolicy | Domain | ステータス遷移ガードと副作用計算 | 1.4,3.x | TaskStore (P1) | Service |
 | PrioritySorter | Domain | セル内優先度順序 | 3.3,3.4 | TaskStore (P1) | Service |
@@ -269,13 +268,13 @@ flowchart TD
 | Burndown | Domain | バーンダウン計算と週次サマリ | 4.1,4.4,4.13 | TaskStore (P1) | Service |
 | Availability | Domain | 学習可能時間（予定/上書き/曜日）計算 | 4.6,4.9-4.12 | CalendarAdapter (P1), SettingsStore (P1) | Service |
 | PomodoroTimer | Domain | PT 計測と通知 | 3.12-3.14 | AlertBar (P1) | Service |
-| SyncEngine | Sync | 変更キューと双方向同期 | 5.3-5.6,6.4 | DriveAdapter (P0), CalendarAdapter (P0), StorageAdapter (P0) | Service |
+| SyncEngine | Sync | 変更キューと双方向同期 | 5.3-5.6,6.3 | DriveAdapter (P0), CalendarAdapter (P0), StorageAdapter (P0) | Service |
 | BackupService | Sync | バックアップ取得・保持・復元 | 5.13 | DriveAdapter (P0), StorageAdapter (P0) | Service |
 | DriveAdapter | Integration | Drive API 呼び出し | 5.3,5.10 | Auth (P0) | API |
 | CalendarAdapter | Integration | Calendar API 呼び出し | 4.6-4.12 | Auth (P0) | API |
 | StorageAdapter | Infra | IndexedDB CRUD | 5.4,5.5 | - | Service |
 | UpdateManager | Infra | バージョン検知と強制アップデート | 4.1,5.8,5.9 | ServiceWorker (P0) | Service |
-| Auth | Infra | Google 認証とトークン管理 | 5.3,6.2 | Google OAuth (P0) | Service |
+| Auth | Infra | Google 認証とトークン管理 | 5.3,6.1 | Google OAuth (P0) | Service |
 | DevContainer/CI | Tooling | 開発用コンテナ（ビルド/実装/テストを同一環境で実施）と CI/CD | 8.x,9.x | - | - |
 | RepoSetupScript | Tooling | gh コマンドでブランチ保護・マージ方式・Pages 設定を適用 | 5.12 | GitHub API (P0) | Service |
 
@@ -573,7 +572,7 @@ type MoveDecision =
 | Field | Detail |
 |-------|--------|
 | Intent | ローカル変更キュー管理と Drive/Calendar 双方向同期 |
-| Requirements | 5.3-5.6,6.4,5.10 |
+| Requirements | 5.3-5.6,6.3,5.10 |
 | Contracts | Service |
 
 **Dependencies**
