@@ -84,9 +84,10 @@ graph TB
 ```
 
 ### Thread / Worker Strategy
-- Threads in scope: ブラウザメインスレッド（UI/状態/同期処理）＋ Service Worker（PWA キャッシュとバージョン更新制御）。Web Worker/Shared Worker/Worklet は現時点で不採用。
+- Threads in scope: ブラウザメインスレッド（UI/状態/同期処理）＋ Service Worker（PWA キャッシュとバージョン更新制御）＋ Web Worker（Drive のマージ/差分計算などの CPU 負荷が高い処理）。
 - Service Worker で扱うもの: precache/route によるオフラインキャッシュ、バージョン検知と `updatefound/statechange` 監視、`skipWaiting` とクライアントへのリロード要求、簡易なネットワークフェイルオーバー。Push/Periodic Background Sync はサーバレス方針＋Safari 制約のため不採用。
-- メインスレッドで扱うもの: UI/状態管理（React+Zustand）、SyncEngine の enqueue/flush/pull、Drive/Calendar API 呼び出し、InProAutoTracker/Pomodoro の計測と通知、Availability/Calendar/Settings 編集（viewMode=readonly では編集無効化）、BackupService の取得/復元。
+- メインスレッドで扱うもの: UI/状態管理（React+Zustand）、SyncEngine の enqueue/flush/pull、Drive/Calendar API 呼び出し（トークン失効 UI と連携しやすくする）、InProAutoTracker/Pomodoro の計測と通知、Availability/Calendar/Settings 編集（viewMode=readonly では編集無効化）、BackupService の開始/完了通知と UI 進捗。
+- Web Worker で扱うもの: Drive の remote→local マージ（差分計算、PrioritySorter 再計算、必要なら Burndown 再計算）、バックアップの zip 圧縮/展開（大きい場合）。UI は操作不能なため、Worker は「状態を直接変更」せず「適用可能な patch（差分）」を返す。
 - 採用基準: Service Worker でしかできないキャッシュ/バージョン更新/ネットフェイルオーバーのみ SW へ置き、フォアグラウンド実行が前提の同期・計測・編集ロジックはメインに限定する。バックグラウンドスケジュールやサーバ経由通知が必要になる場合は要件とサーバレス方針を再検討する。
 
 ### Technology Stack
@@ -112,6 +113,7 @@ sequenceDiagram
   participant SP as StatusPolicy
   participant TS as TaskStore
   participant SE as SyncEngine
+  participant IDB as StorageAdapter
   U->>KB: Drag TCard to target cell
   KB->>TS: moveTask(taskId, to, initiator)
   TS->>SP: validateMove({taskId, from, to, context, initiator})
@@ -847,7 +849,8 @@ type MoveDecision =
 | Contracts | Service |
 
 **Implementation Notes**
-- Integration: スプリント開始日時を基点に日次残工数（件/時間）をプロット。
+- Integration: スプリント開始日時を基点に日次残工数（件/見積時間）をプロットする。残工数は原則「`status != Done` のタスクの見積時間合計」とし、Done へ移動した時に減る。WontFix は別集計（線を分ける/注記する）として扱う。
+- 更新タイミング: `moveTask`（Done ⇄ 非 Done）、`updateTask`（見積時間変更）、`applyRemote` のマージ適用後に更新する。Dashboard を表示していない間はリアルタイム描画を不要とし、Dashboard 表示時にスナップショット欠損分のみ再計算して整合を取る。
 - Risks: 途中教科削除不可ルール反映を忘れない。
 
 #### Availability
@@ -923,7 +926,7 @@ type MoveDecision =
 interface SyncEngine {
   enqueue(change: ChangeRecord): void; // 変更をキューに積む
   flush(): Promise<SyncResult>; // キューを送信し同期を実行
-  applyRemote(remote: RemoteSnapshot): MergeResult; // リモート差分をローカルへマージ
+  applyRemote(remote: RemoteSnapshot): Promise<MergeResult>; // リモート差分をローカルへマージ（Web Worker を含むため非同期）
 }
 ```
 - Preconditions: オフライン時は flush をスキップしキューのみ蓄積。
@@ -931,6 +934,7 @@ interface SyncEngine {
 
 **Implementation Notes**
 - Integration: syncToken 失効時のフルリロード、競合時はローカル優先で警告。更新競合は世代ID＋更新時刻で解決し、並び順は PrioritySorter に委譲して「優先度→更新時刻→デバイスID」のタイブレークで再計算し、結果を Subject.taskOrder に反映。キューはサイズ上限でバッチ分割。BackupService を介して日次/週次スナップショットを取得し、復元時は pendingQueue を停止したうえで適用→再同期する。
+- Drive のマージ/差分計算（remote→local）は Web Worker に委譲し、Worker は「適用可能な patch（tasks/subjectsOrder/taskOrder/burndownHistory などの差分）」を返す。SyncEngine は戻り値を TaskStore に適用し、IndexedDB commit と pendingQueue 更新を行う。
 - ステート取得時に Drive から古いリビジョンへ後退しないよう、DriveAdapter の head revision/etag を確認し、世代ID が後退する場合は拒否して再取得する（最新の1版のみを同期対象とし、旧版は BackupService 管理下のスナップショットとして扱う）。
 - Risks: 大きな差分でのパフォーマンス低下→バッチ分割。
 - viewMode=readonly の場合、キューを保持せず enqueue/flush は行わない。Drive/Calendar への書き込みを行わず、設定された間隔（デフォルト 1 分）で pull のみ実行して表示を更新する。
