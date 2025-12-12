@@ -486,7 +486,7 @@ flowchart TD
 | 1.7 | タスクある教科は削除不可 | TaskStore | StatusPolicy | - |
 | 1.8 | Backlog プラスで作成ダイアログ | KanbanBoard, TaskDialog | - | - |
 | 1.9 | 空セルドラッグでスクロール＆ヘッダー固定 | KanbanBoard | - | - |
-| 2.1 | 新規 TDialog で全属性入力保存 | TaskDialog | TaskStore | - |
+| 2.1 | 新規 TDialog で属性入力保存（優先度は D&D で変更） | TaskDialog | TaskStore | - |
 | 2.2 | 既存 Task 読込編集保存 | TaskDialog | TaskStore | - |
 | 2.3 | TCard にタイトル/期日/予定/実績/ゲージ | TaskCard | TimeCalc | - |
 | 2.4 | ダイアログでタイトルに初期フォーカス | TaskDialog | - | - |
@@ -571,7 +571,7 @@ flowchart TD
 | AlertToast | UI | 非モーダル通知（トースト: 同期/PT/過負荷） | 3.11,3.13,4.6,5.6,5.8 | SyncEngine (P0), TimeCalc (P0) | State |
 | TaskStore | State | タスク/教科/スプリント状態と IndexedDB 永続 | 全般 | StorageAdapter (P0), SyncEngine (P0) | State |
 | StatusPolicy | Domain | ステータス遷移ガードと副作用計算 | 1.4,3.x | - | Service |
-| PrioritySorter | Domain | セル内優先度順序 | 3.3,3.4 | TaskStore (P1) | Service |
+| PrioritySorter | Domain | セル内優先度（並び順）正規化 | 3.3,3.4 | TaskStore (P1) | Service |
 | InProAutoTracker | Domain | InPro 滞在中の自動実績反映 | 3.12 | TaskStore (P0) | Service |
 | TimeCalc | Domain | 残り時間計算と Today 負荷 | 2.3,3.11,4.2,4.12 | TaskStore (P1) | Service |
 | Burndown | Domain | バーンダウン計算と週次サマリ | 4.1,4.4,4.13 | TaskStore (P1) | Service |
@@ -609,7 +609,7 @@ flowchart TD
 
 **Dependencies**
 - Inbound: Router — 表示切替 (P2)
-- Outbound: StatusPolicy — 遷移可否/副作用取得 (P0); TaskStore — 状態更新 (P0); PrioritySorter — ソート (P1); TimeCalc — ゲージ/警告 (P1)
+- Outbound: StatusPolicy — 遷移可否/副作用取得 (P0); TaskStore — 状態更新 (P0); PrioritySorter — 優先度（並び順）正規化 (P1); TimeCalc — ゲージ/警告 (P1)
 - External: dnd-kit — DnD 実装 (P1)
 
 **Implementation Notes**
@@ -627,6 +627,7 @@ flowchart TD
 **Responsibilities & Constraints**
 - タイトル初期フォーカス、Tab ナビゲーション、Ctrl+Enter/Enter 保存、Esc/キャンセル。
 - 実績時間は日付別に編集可能、累積表示。
+- 優先度は TaskDialog では変更せず、TCard の D&D でのみ変更する。新規 Task は対象セルの最下位（最低優先度）に追加する。
 - viewMode が readonly の場合は全入力を無効化し表示専用とする。
 - InPro 滞在中の自動実績加算は InProAutoTracker が担い、PomodoroTimer とは独立運用する（Pomodoro は通知・休憩管理に専念）。
 - Backlog から起動する場合は教科が自明なため、教科入力なしで作成する。ダイアログ内で「個別追加（詳細入力）」と「一括追加（複数行テキストで1行=1タスク、タイトルのみ）」を切替でき、選択状態を記憶する。一括作成後の詳細編集は通常の TCard 編集で行う。
@@ -732,7 +733,7 @@ interface TaskDialogService {
 - viewMode=readonly の場合、編集 API を reject し、pendingQueue への enqueue を禁止する（読み取り専用）。Settings/Availability/Calendar の書き込みリクエストも同様に拒否。
 - InProAutoTracker と連携し、InPro 滞在中のタスクに 1 分刻みで実績を自動加算。バックグラウンド復帰時は経過差分で補正し、退出時（他ステータスへ移動/別タスクが InPro に入る/タブ終了）に最終加算する。実績追加は pendingQueue に enqueue し、オフラインでも蓄積。
 - **moveTask 処理手順（原子性）**
-  1. `MoveInput` を構築する（`from`/`to`/`priority` に加え、`context` を Availability/TimeCalc/現状態から算出）。
+  1. `MoveInput` を構築する（`from`/`to`/`priority`/`to.insertIndex` に加え、`context` を Availability/TimeCalc/現状態から算出）。
   2. `StatusPolicy.validateMove` を呼び、許可/拒否と `sideEffects` を取得する。
   3. 許可の場合のみ、同一 reducer 内で「移動後の状態」と `sideEffects` の適用結果を生成する。
   4. 生成した新状態を 1 トランザクションで `StorageAdapter`（IndexedDB）へ commit する。
@@ -746,7 +747,7 @@ interface TaskDialogService {
 // グローバル状態のスナップショット（Sprint に burndownHistory を含む）
 interface TaskStoreState {
   tasks: Record<TaskId, Task>; // タスク本体
-  subjects: Subject[]; // 教科と並び順
+  subjects: Subject[]; // 教科
   sprint: Sprint; // 現在スプリント
   settings: UserSettings; // 表示設定・言語など
   pendingQueue: ChangeRecord[]; // 同期待ちキュー
@@ -754,11 +755,18 @@ interface TaskStoreState {
 // 状態変更のための操作群
 interface TaskStoreActions {
   upsertTask(task: Task): void; // 作成または更新（upsert = update or insert: 存在すれば更新・無ければ作成）
-  moveTask(taskId: TaskId, to: StatusSlot): Result<SideEffects, PolicyError>; // ステータス/教科移動
-  reorderTasks(subjectId: SubjectId, status: Status, order: TaskId[]): void; // セル内並び替え
+  moveTask(taskId: TaskId, to: StatusSlot): Result<SideEffects, PolicyError>; // ステータス/教科移動（ドロップ位置を含む）
+  reorderTasks(subjectId: SubjectId, status: Status, order: TaskId[]): void; // セル内並び替え（優先度更新）
   recordActual(taskId: TaskId, entry: ActualEntry): void; // 実績時間の追記
   setSubjectOrder(subjectIds: SubjectId[]): void; // 教科順の更新
 }
+
+// 目的セル（教科×ステータス）と、挿入位置（ドロップ位置）
+type StatusSlot = {
+  subjectId: SubjectId;
+  status: Status;
+  insertIndex?: number; // 0=最上位。省略時は最下位へ挿入する
+};
 
 // StatusPolicy から返され、TaskStore が適用する副作用の最小集合
 type SideEffect =
@@ -766,13 +774,13 @@ type SideEffect =
   | { kind: 'startInProTracking'; taskId: TaskId }
   | { kind: 'stopInProTracking'; taskId: TaskId }
   | { kind: 'recordActual'; taskId: TaskId; minutes: number; at: ISODateTime }
-  | { kind: 'recomputePriorities'; subjectId: SubjectId; status: Status }
+  | { kind: 'normalizePriorities'; subjectId: SubjectId; status: Status } // セル内順序に合わせて priority をギャップ付きで再採番
   | { kind: 'updateBurndown'; date: ISODate };
 type SideEffects = SideEffect[];
 
 // 副作用の適用順序（同一 reducer 内で上から順に実行）
 // 1) autoMoveToOnHold / stopInProTracking → 2) startInProTracking → 3) recordActual
-// → 4) recomputePriorities → 5) updateBurndown
+// → 4) normalizePriorities → 5) updateBurndown
 ```
 
 **Implementation Notes**
@@ -796,7 +804,7 @@ interface StatusPolicyService {
 type MoveInput = {
   taskId: TaskId;
   from: { subjectId: SubjectId; status: Status; priority: number }; // Today→InPro 判定に優先度を使用（自動 OnHold も Today 時の優先度を保持）
-  to: { subjectId: SubjectId; status: Status }; // 並び順は受け入れ先で PrioritySorter が決定
+  to: { subjectId: SubjectId; status: Status; insertIndex?: number }; // D&D のドロップ位置（0=最上位）。省略時は最下位へ挿入し priority を更新する
   context: {
     hasOtherInPro: boolean; // 既に InPro が存在するか（同時に 1 件のみ）
     todayPlannedMinutes: number; // Today に積まれている予定時間合計
@@ -822,13 +830,14 @@ type MoveDecision =
 #### PrioritySorter
 | Field | Detail |
 |-------|--------|
-| Intent | セル内の優先度ソートとカスタム順維持 |
+| Intent | セル内の優先度（並び順）正規化とソート |
 | Requirements | 3.3,3.4 |
 | Contracts | Service |
 
 **Implementation Notes**
-- Integration: comparator を共通化し、Subject.taskOrder（status 別の TaskId[]）を並び順のソースとする。SyncEngine からのマージ時は優先度→更新時刻→デバイスIDのタイブレークで再計算し、Subject.taskOrder を更新する。
-- Risks: 並び順の競合（他端末更新）→ SyncEngine マージ時に優先度＋更新時刻で解決。
+- Integration: セル内順序のソースは `Task.priority`（ギャップ付き rank）とし、表示は `priority` の降順（同値は `updatedAt`→`taskId`）で決定する。DnD による並び替え/別セル移動（ドロップ位置挿入）では、通常は「移動した 1 件」の `priority` のみを更新する（隣接 2 件の `priority` の中間値、先頭/末尾は `PRIORITY_STEP` の加算/減算で付与）。挿入先でギャップが無い（例: 中間値が作れない）場合や同値が発生した場合は、当該セル内を PrioritySorter で正規化し、上から `0, -PRIORITY_STEP, -2*PRIORITY_STEP...` のようにギャップを再付与する。
+- 定数: `PRIORITY_STEP = 1024`（整数）
+- Risks: 並び順の競合（他端末更新）→ 競合で `priority` が同値になった場合は tie-break で表示を安定化し、同期後に当該セルのみ正規化して同値を解消する。
 
 #### TimeCalc
 | Field | Detail |
@@ -933,8 +942,8 @@ interface SyncEngine {
 - Postconditions: 成功時に lastSyncedAt/世代 ID を更新。失敗時は再試行可能なステータスを返却。
 
 **Implementation Notes**
-- Integration: syncToken 失効時のフルリロード、競合時はローカル優先で警告。更新競合は世代ID＋更新時刻で解決し、並び順は PrioritySorter に委譲して「優先度→更新時刻→デバイスID」のタイブレークで再計算し、結果を Subject.taskOrder に反映。キューはサイズ上限でバッチ分割。BackupService を介して日次/週次スナップショットを取得し、復元時は pendingQueue を停止したうえで適用→再同期する。
-- Drive のマージ/差分計算（remote→local）は Web Worker に委譲し、Worker は「適用可能な patch（tasks/subjectsOrder/taskOrder/burndownHistory などの差分）」を返す。SyncEngine は戻り値を TaskStore に適用し、IndexedDB commit と pendingQueue 更新を行う。
+- Integration: syncToken 失効時のフルリロード、競合時はローカル優先で警告。更新競合は世代ID＋更新時刻で解決し、セル内順序（priority）はタスク単位でマージしつつ、同一セル内で同値（重複）やギャップ不足がある場合は PrioritySorter で正規化する。キューはサイズ上限でバッチ分割。BackupService を介して日次/週次スナップショットを取得し、復元時は pendingQueue を停止したうえで適用→再同期する。
+- Drive のマージ/差分計算（remote→local）は Web Worker に委譲し、Worker は「適用可能な patch（tasks/subjectsOrder/burndownHistory などの差分）」を返す。SyncEngine は戻り値を TaskStore に適用し、IndexedDB commit と pendingQueue 更新を行う。
 - ステート取得時に Drive から古いリビジョンへ後退しないよう、DriveAdapter の head revision/etag を確認し、世代ID が後退する場合は拒否して再取得する（最新の1版のみを同期対象とし、旧版は BackupService 管理下のスナップショットとして扱う）。
 - Risks: 大きな差分でのパフォーマンス低下→バッチ分割。
 - viewMode=readonly の場合、キューを保持せず enqueue/flush は行わない。Drive/Calendar への書き込みを行わず、設定された間隔（デフォルト 1 分）で pull のみ実行して表示を更新する。
@@ -984,8 +993,8 @@ interface SyncEngine {
 ## Data Models
 
 ### Domain Model
-- **Task**: id, title, detail, subjectId, status, priority, estimateMinutes, actuals[{date, minutes}], dueDate, createdAt, updatedAt.
-- **Subject**: id, name, taskOrder: Record<Status, TaskId[]>（教科×ステータスごとの並び順）
+- **Task**: id, title, detail, subjectId, status, priority（ギャップ付き rank。数値が大きいほど上＝高優先度）, estimateMinutes, actuals[{date, minutes}], dueDate, createdAt, updatedAt.
+- **Subject**: id, name.
 - **Sprint**: id (スプリント開始日の ISO 日付を推奨), startDate (Mon), endDate, subjectsOrder (SubjectId[]), dayOverrides[{date, availableMinutes}]（スプリント内の特定日上書き）, burndownHistory: BurndownHistoryEntry[]
 - **CalendarEvent**: id, title, description, start/end, status, source (LPK/Google), etag.
   - カレンダー全体の `syncToken` はカレンダーメタとして管理し、イベントごとには持たせない。
@@ -997,15 +1006,15 @@ interface SyncEngine {
 ### Logical Data Model
 - IndexedDB ストア: `tasks`, `subjects`, `sprints`, `settings`, `syncState`, `calendarEvents`, `pendingQueue`。アプリ起動時にこれらを集約して TaskStoreState に載せる（TaskStoreState とファイルは1対1ではない）。
 - Key: `Task.id` は uuid。`Task` の status は固定 enum。`pendingQueue` は順序付きログ。
-- Consistency: Task と pendingQueue は同一トランザクションで更新。教科削除時はタスク存在チェックで禁止。Subject.taskOrder でセル内順序を保持し、Task 側では並び順を持たない。
+- Consistency: Task と pendingQueue は同一トランザクションで更新。教科削除時はタスク存在チェックで禁止。セル内順序は Task.priority で保持する（上が高優先度、下が低優先度）。
 - BurndownHistory: 過去日付の残工数（件/見積時間）はスプリントファイル内の `burndownHistory` に日次スナップショットとして保持し、過去表示はスナップショットを優先する（欠損時のみ再計算）。
-- updatedAt 運用: ローカル編集時にレコードの updatedAt を現在時刻で更新。並び順再計算（PrioritySorter）で Subject.taskOrder が変わった場合は Subject と関連タスクの updatedAt を揃える。applyRemote で採用したリモートレコードはリモートの updatedAt を保持。ファイル書き出し時にファイル単位の updatedAt も更新する。
+- updatedAt 運用: ローカル編集時にレコードの updatedAt を現在時刻で更新。並び替え（優先度変更）で複数 Task の priority が変わった場合は、同一操作で更新された Task の updatedAt を揃える。applyRemote で採用したリモートレコードはリモートの updatedAt を保持。ファイル書き出し時にファイル単位の updatedAt も更新する。
 - スプリントファイル作成タイミング: カレンダーで未来週を参照しただけでは作成しない。ユーザーが明示的に「スプリントを表示」を確定した時点で `sprint-{sprintId}.json` を新規作成（存在しない場合）。過去スプリントのファイルは削除せず保持し、settings.currentSprintId を更新する。
 - スプリント未開始週の編集: スプリントが未開始の週はカレンダー/Availability を閲覧のみとし、学習可能時間の上書きやスプリントデータの編集は「スプリントを表示」確定後にのみ許可する。
 - バックアップ保存先（Drive 側）: `/LPK/backups/` 配下に `common-{type}-{isoDate}.zip`（settings/queue/calendarEvents/manifest）と `sprints-{type}-{YYYY-MM}-{isoDate}.zip`（開始月ごとのスプリント群）を保存する。バックアップは IndexedDB には格納しない（必要時に Drive からダウンロードして復元）。
 
 - ### Data Contracts & Integration
-- **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, language, currentSprintId 等）、`queue.json`（変更キュー）を保存する。各ファイルは `schemaVersion` と `updatedAt` を持つエンベロープ形式（`{ schemaVersion, updatedAt, data }`）とし、読み込み時に `schemaVersion` を検証してマイグレーションする。ファイル自体はそれぞれ1つを維持し、Drive の Revisions をバックアップとして活用する。リビジョン保持数をローテーション管理し、必要な世代のみ `keepForever`、古いものは削除。復元はリビジョンを取得しローカルへ戻す。settings.json は updatedAt で丸ごと上書き、スプリントファイルはタスク単位で updatedAt マージ＋並びは PrioritySorter で再計算する。
+- **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, language, currentSprintId 等）、`queue.json`（変更キュー）を保存する。各ファイルは `schemaVersion` と `updatedAt` を持つエンベロープ形式（`{ schemaVersion, updatedAt, data }`）とし、読み込み時に `schemaVersion` を検証してマイグレーションする。ファイル自体はそれぞれ1つを維持し、Drive の Revisions をバックアップとして活用する。リビジョン保持数をローテーション管理し、必要な世代のみ `keepForever`、古いものは削除。復元はリビジョンを取得しローカルへ戻す。settings.json は updatedAt で丸ごと上書き、スプリントファイルはタスク単位で updatedAt マージ＋priority をマージし、同一セル内で同値（重複）やギャップ不足が発生した場合は PrioritySorter で正規化する。
 - **Calendar**: 予定は Google Calendar から常に取得し、IndexedDB の `calendarEvents` にキャッシュして表示する。Google Drive の通常同期データには保存しない（バックアップに含める場合のみ `calendarEvents.json` として保存）。学習可能時間の算出には自動反映せず、表示のみとする。LPK 起点イベントは source=LPK を付与し二重反映を防止し、競合時は Google を優先する。
 - **Internal Events**: `SyncStatusChanged`, `UpdateAvailable`, `PomodoroTick` を発行し UI 通知と再計算をトリガ。
 

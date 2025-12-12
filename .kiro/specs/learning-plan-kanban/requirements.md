@@ -42,7 +42,7 @@
 **Objective:** 学習者として、学習内容と締切を正確に登録・更新するために、詳細な TCard を扱いたい。
 
 #### Acceptance Criteria
-1. When 学習者が新規 TDialog を開く, the LPK shall タイトル・詳細・期日・予定時間・実績時間・優先度の入力を受け付け Task として保存する。
+1. When 学習者が新規 TDialog を開く, the LPK shall タイトル・詳細・期日・予定時間・実績時間の入力を受け付け Task として保存する。新規 Task は対象セルの最下位（最低優先度）に追加する。優先度は TCard の D&D で変更し、TDialog では変更しない。
 2. When 学習者が既存 Task を開く, the LPK shall 現在値を TDialog に読込んで編集を可能にし更新内容を Task として保存する。
 3. The LPK shall InPro 以外の TCard にタイトル・期日（曜日）・予定/実績時間を表示し、予定/実績時間は体力ゲージ風の棒グラフで可視化する。残り時間の数値や詳細・実績の内訳は TDialog で表示する。
 4. When TDialog が開く, the LPK shall タイトル入力欄にフォーカスを合わせる。
@@ -56,7 +56,7 @@
 **Objective:** 学習者として、学習順序と時間を適切に制御するために、ドラッグ移動と時間計測を一貫したルールで運用したい。
 
 #### Acceptance Criteria
-1. When 学習者がTCard をステータス列や教科行間でドラッグ移動する, the LPK shall タスクを移動し新しいステータスと教科の紐づけを保存する。
+1. When 学習者が TCard をステータス列や教科行間でドラッグ移動する, the LPK shall 移動先セルのドロップ位置に挿入し、新しいステータスと教科の紐づけおよび優先度（並び順）を保存する。
 2. While TCard をドラッグ中, the LPK shall 有効なドロップセルのみをハイライトし、無効セルではドロップを受け付けず元の位置に戻す。
 3. The LPK shall 各セル内のTCard を優先度の高い順に並べ、優先度変更時に順序を再計算する。
 4. When 学習者が同一セル内で並び替える, the LPK shall カスタム順序を保存し次回表示でも維持する。
