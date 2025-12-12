@@ -71,13 +71,12 @@ graph TB
   KanbanBoard --> TaskStore
   TaskDialog --> TaskStore
   Dashboard --> TaskStore
-  CalendarView --> TaskStore
-  TaskStore --> StatusPolicy
-  StatusPolicy --> TaskStore
-  TaskStore --> TimeCalc
-  TaskStore --> Burndown
-  TaskStore --> Availability
-  TaskStore --> SyncEngine
+	  CalendarView --> TaskStore
+	  TaskStore --> StatusPolicy
+	  TaskStore --> TimeCalc
+	  TaskStore --> Burndown
+	  TaskStore --> Availability
+	  TaskStore --> SyncEngine
   SyncEngine --> StorageAdapter
   SyncEngine --> DriveAdapter
   SyncEngine --> CalendarAdapter
@@ -565,7 +564,7 @@ flowchart TD
 | HelpPage | UI | 操作説明 | 4.15 | - | - |
 | AlertToast | UI | 非モーダル通知（トースト: 同期/PT/過負荷） | 3.11,3.13,4.6,5.6,5.8 | SyncEngine (P0), TimeCalc (P0) | State |
 | TaskStore | State | タスク/教科/スプリント状態と IndexedDB 永続 | 全般 | StorageAdapter (P0), SyncEngine (P0) | State |
-| StatusPolicy | Domain | ステータス遷移ガードと副作用計算 | 1.4,3.x | TaskStore (P1) | Service |
+| StatusPolicy | Domain | ステータス遷移ガードと副作用計算 | 1.4,3.x | - | Service |
 | PrioritySorter | Domain | セル内優先度順序 | 3.3,3.4 | TaskStore (P1) | Service |
 | InProAutoTracker | Domain | InPro 滞在中の自動実績反映 | 3.12 | TaskStore (P0) | Service |
 | TimeCalc | Domain | 残り時間計算と Today 負荷 | 2.3,3.11,4.2,4.12 | TaskStore (P1) | Service |
@@ -765,13 +764,19 @@ interface TaskStoreActions {
 ```typescript
 // ステータス遷移の可否と副作用を判定
 interface StatusPolicyService {
-  validateMove(input: MoveInput): MoveDecision; // 許可/拒否と副作用を返す
+  validateMove(input: MoveInput): MoveDecision; // 許可/拒否と副作用を返す（純粋判定）
 }
-// タスク移動の入力（優先度/元セルの並び情報を渡す）
+// タスク移動の入力（TaskStore から必要なコンテキストを明示的に渡す）
 type MoveInput = {
   taskId: TaskId;
   from: { subjectId: SubjectId; status: Status; priority: number }; // Today→InPro 判定に優先度を使用（自動 OnHold も Today 時の優先度を保持）
   to: { subjectId: SubjectId; status: Status }; // 並び順は受け入れ先で PrioritySorter が決定
+  context: {
+    hasOtherInPro: boolean; // 既に InPro が存在するか（同時に 1 件のみ）
+    todayPlannedMinutes: number; // Today に積まれている予定時間合計
+    availableMinutesToday: number; // 本日の学習可能時間（Availability 結果）
+    dueAt?: ISODate; // 期日（Done/WontFix ガードなどに利用）
+  };
   initiator?: 'mouse' | 'touch' | 'keyboard';
 };
 type MoveDecision =
@@ -783,7 +788,7 @@ type MoveDecision =
 
 **Dependencies**
 - Inbound: KanbanBoard (P0)
-- Outbound: TaskStore (P1) for context read
+- Outbound: なし（TaskStore 依存を持たない純粋サービス）
 
 **Implementation Notes**
 - Risks: ポリシー更新時のリグレッション→ユニットテスト必須。
