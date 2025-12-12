@@ -113,6 +113,8 @@
 12. GitHub で CI/CD を運用するにあたり、ブランチ保護・マージ方式・Pages 設定を gh コマンドで適用するスクリプトを作成し、実行手順を用意する（例: main の保護、必須チェック、Squash/通常マージ許可、Pages を Actions ソースに設定）。
 13. データのバックアップとローテーションをサポートし、バックアップの取得・保持数・復元手順を備える。
 14. The LPK shall 設定画面で新バージョンの有無を手動チェックし、存在する場合はバージョンアップを適用する。
+15. Where the LPK reads JSON データ from Google Drive, the LPK shall `schemaVersion` を含むスキーマバージョンを検証し、古い `schemaVersion` のデータを段階的にマイグレーションして最新仕様へ変換できる。
+16. If `schemaVersion` が未知である、またはマイグレーションに失敗する, the LPK shall 同期を停止し、Google Drive のリビジョンまたはバックアップからの復元手段を提供する。
 
 ### Requirement 6: 通知・フィルター・閲覧モード
 **Objective:** 学習者・保護者として、重要情報を見逃さず安全に共有するために、通知・フィルター・閲覧専用ビューを使いたい。

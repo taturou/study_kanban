@@ -948,6 +948,8 @@ interface SyncEngine {
 
 **Implementation Notes**
 - Drive: JSON ファイルを専用ディレクトリに保存（tasks.json 等）、`If-Match` を用いた楽観ロックを検討。`files.get` で head revision/etag を取得し、ローカルより古いリビジョンをダウンロードしない防御を入れる。バックアップは `/LPK/backups/` 配下に分離し、通常同期ファイルとは混在させない。バックアップ格納は zip 前提（`common-{type}-{isoDate}.zip` と `sprints-{type}-{YYYY-MM}-{isoDate}.zip`）で、アップロード/ダウンロードはファイル単位のフル転送。部分取得は不可のためクライアントで unzip して使用する。
+  - Drive 同期用 JSON には `schemaVersion` を必須フィールドとして含める（例: `{ schemaVersion: 3, updatedAt: ISODateTime, data: {...} }`）。アプリ再インストールや更新で仕様差分がある場合でも、読み込み時に `schemaVersion` を検証して段階的にマイグレーションする。
+  - マイグレーション: `schemaVersion < currentSchemaVersion` の場合、`vN → vN+1` の migrator を順に適用し、ローカル（IndexedDB）へ commit 後に Drive 側も最新 `schemaVersion` で上書きする（書き戻し前に Drive の Revisions（またはバックアップ）で 1 世代確保）。未知の `schemaVersion` またはマイグレーション失敗時は同期を停止し、リビジョン選択またはバックアップ復元を促す。
 - Calendar: syncToken で差分取得、ETag と updated を比較して競合を検出し、競合時は Google を優先（LPK 側の同一イベント変更は破棄して Google の内容を採用）。同期対象フィールドは `summary`, `description`, `start`, `end`, `status`, `source` に限定し、それ以外は読み取り専用または非対象。削除は tombstone として伝播し、LPK 起点の削除も Google 起点の削除も双方へ反映する。recurrence は同期対象外で読み取りのみ（繰り返し予定は表示専用）。失効時は full sync。
 - Risks: レートリミット→指数バックオフと MSW でテスト。
 
@@ -960,6 +962,7 @@ interface SyncEngine {
 
 **Implementation Notes**
 - バージョン管理しマイグレーションで互換維持。トランザクションはタスク＋キューを同一バッチで保存。
+- IndexedDB のスキーマバージョンと Drive の `schemaVersion` は別管理とする。起動時は「(1) IndexedDB マイグレーション → (2) Drive から取得した JSON の `schemaVersion` マイグレーション → (3) TaskStoreState へ集約」の順で整合を取る。
 
 #### UpdateManager / ServiceWorker
 | Field | Detail |
@@ -1002,7 +1005,7 @@ interface SyncEngine {
 - バックアップ保存先（Drive 側）: `/LPK/backups/` 配下に `common-{type}-{isoDate}.zip`（settings/queue/calendarEvents/manifest）と `sprints-{type}-{YYYY-MM}-{isoDate}.zip`（開始月ごとのスプリント群）を保存する。バックアップは IndexedDB には格納しない（必要時に Drive からダウンロードして復元）。
 
 - ### Data Contracts & Integration
-- **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, language, currentSprintId 等）、`queue.json`（変更キュー）を保存。ファイル自体はそれぞれ1つを維持し、Drive の Revisions をバックアップとして活用する。リビジョン保持数をローテーション管理し、必要な世代のみ `keepForever`、古いものは削除。復元はリビジョンを取得しローカルへ戻す。settings.json は updatedAt で丸ごと上書き、スプリントファイルはタスク単位で updatedAt マージ＋並びは PrioritySorter で再計算。
+- **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, language, currentSprintId 等）、`queue.json`（変更キュー）を保存する。各ファイルは `schemaVersion` と `updatedAt` を持つエンベロープ形式（`{ schemaVersion, updatedAt, data }`）とし、読み込み時に `schemaVersion` を検証してマイグレーションする。ファイル自体はそれぞれ1つを維持し、Drive の Revisions をバックアップとして活用する。リビジョン保持数をローテーション管理し、必要な世代のみ `keepForever`、古いものは削除。復元はリビジョンを取得しローカルへ戻す。settings.json は updatedAt で丸ごと上書き、スプリントファイルはタスク単位で updatedAt マージ＋並びは PrioritySorter で再計算する。
 - **Calendar**: 予定は Google Calendar から常に取得し、IndexedDB の `calendarEvents` にキャッシュして表示する。Google Drive の通常同期データには保存しない（バックアップに含める場合のみ `calendarEvents.json` として保存）。学習可能時間の算出には自動反映せず、表示のみとする。LPK 起点イベントは source=LPK を付与し二重反映を防止し、競合時は Google を優先する。
 - **Internal Events**: `SyncStatusChanged`, `UpdateAvailable`, `PomodoroTick` を発行し UI 通知と再計算をトリガ。
 
