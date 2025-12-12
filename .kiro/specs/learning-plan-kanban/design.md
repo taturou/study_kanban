@@ -282,7 +282,7 @@ flowchart TD
 
 **View Mode 管理**
 - ソース: AppShell/Router が Auth と閲覧招待トークンを検証し `viewMode: 'editable' | 'readonly'` を決定する（閲覧専用は全画面共通のモード）。
-- 伝播: viewMode をコンテキストまたは props で各画面（KanbanBoard/TaskDialog/CalendarView/Dashboard/SettingsPanel 等）へ渡し、編集操作をガードする。
+- 伝播: viewMode をコンテキストまたは props で各画面（KanbanBoard/TaskDialog/CalendarView/Dashboard/SettingsPanel/Availability 等）へ渡し、編集操作をガードする。CalendarView での予定追加/更新、Availability の学習可能時間上書き、SettingsPanel のラベル/言語/更新操作も無効化する。
 - 永続化: viewMode は一時的なアクセスモードであり、settings/sprint には保存しない。
 
 #### KanbanBoard
@@ -296,7 +296,7 @@ flowchart TD
 - ステータス列と教科行を固定し、スクロール時もヘッダー/左列をピン留め。
 - DnD は StatusPolicy の判定結果に従い、ドラッグ中に有効セルのみをハイライトし、無効セルではドロップを受け付けず元の位置に戻す。
 - 空セルドラッグでスクロール補助、Backlog プラスから TaskDialog を起動。
-- viewMode が readonly の場合は DnD/ダイアログ起動など編集操作を無効化し、表示のみとする。
+- viewMode が readonly の場合は DnD/ダイアログ起動など編集操作を無効化し、表示のみとする。Subject 行の並べ替え/追加/削除も禁止。
 
 **Dependencies**
 - Inbound: Router — 表示切替 (P2)
@@ -370,7 +370,7 @@ interface TaskDialogService {
 - 特定日ビューで実施/期日/追加タスクを表示。
 - Google Calendar 予定を取得して表示し、ユーザーが dayDefaultAvailability/当日上書き値を手動調整する際の参考情報として提示（自動控除はしない）。
 - LPK 側の予定追加/更新を CalendarAdapter 経由で同期。
-- viewMode が readonly の場合は予定追加/編集を無効化し、閲覧のみとする。
+- viewMode が readonly の場合は予定追加/編集を無効化し、閲覧のみとする。CalendarAdapter への書き込み API は呼ばない。
 
 **Dependencies**
 - Outbound: CalendarAdapter (P0); Availability (P0); TaskStore (P0); SyncEngine (P1)
@@ -392,7 +392,7 @@ interface TaskDialogService {
 - バージョン表示とアップデート状態（強制更新含む）を表示し、手動「更新を確認」アクションで UpdateManager.checkForUpdate を起動。新版があれば Service Worker を更新し、強制/通常の別に応じて `skipWaiting`/リロードを制御する。
 - pendingQueue が空でない場合は flush を試行し、成功後にリロード。失敗/オフライン時はリロードを遅延し、ユーザーが明示的に「バックアップして強制リロード」を選んだ場合のみ同期前リロードを許可する。
 - PT のデフォルト作業/休憩時間を設定可能にする（タスク実績には影響させない）。
-- viewMode が readonly の場合は設定変更を禁止し、表示のみ。
+- viewMode が readonly の場合は表示専用とし、ステータスラベル/言語/学習可能時間設定/バックアップ/復元などの編集は無効化する。ただし「更新を確認」は許可し、検出時の更新・リロードフローは実行できる。
 - バックアップ/リストア UI を提供し、BackupService を経由して daily/weekly の取得・復元を実行する（一覧表示→選択→確認→実行）。実行中は pendingQueue 停止と進捗表示を行う。
 - viewMode=readonly の場合、手動バックアップ/復元操作は無効化（表示のみ）とする。
 - 閲覧専用モードの自動更新間隔（Drive/Calendar からの pull）を設定可能にする（デフォルト 1 分）。編集不可のためローカルキューは持たず、pull のみを行う。
@@ -418,6 +418,7 @@ interface TaskDialogService {
 **Responsibilities & Constraints**
 - ローカル状態と IndexedDB 永続、変更キュー生成。
 - 教科順/ステータスラベル/言語設定の保存。
+- viewMode=readonly の場合、編集 API を reject し、pendingQueue への enqueue を禁止する（読み取り専用）。Settings/Availability/Calendar の書き込みリクエストも同様に拒否。
 - InProAutoTracker と連携し、InPro 滞在中のタスクに 1 分刻みで実績を自動加算。バックグラウンド復帰時は経過差分で補正し、退出時（他ステータスへ移動/別タスクが InPro に入る/タブ終了）に最終加算する。実績追加は pendingQueue に enqueue し、オフラインでも蓄積。
 
 **Dependencies**
@@ -524,6 +525,7 @@ type MoveDecision =
 **Implementation Notes**
 - Integration: `dayDefaultAvailability` を初期値とし、スプリント内の日付が `Sprint.dayOverrides` に存在する場合はその値で上書き。Calendar 予定は表示のみで、学習可能時間の計算には自動反映しない（ユーザー手動入力を優先）。
 - Risks: 予定表示の終日/タイムゾーン処理（表示上の問題のみ）。
+- viewMode=readonly の場合、学習可能時間の上書きは受け付けず、読み取りのみとする。
 
 #### PomodoroTimer
 | Field | Detail |
@@ -547,6 +549,7 @@ type MoveDecision =
 - InPro 退出（他ステータスへ移動、または別タスクが InPro へ入る）時に計測を停止し、最終加算を行う。タブ終了時は Beacon/Fallback で最終書き込みを試行。
 - PomodoroTimer とは独立（Pomodoro は通知と休憩管理のみ）。Pomodoro が停止中でも計測は継続し、休憩は実績に影響させない。
 - オフラインでも加算を続け、pendingQueue に ChangeRecord を enqueue。同期後に Drive/Calendar 反映。
+- viewMode=readonly の場合は計測を開始せず、既存の実績を書き換えない。
 
 #### BackupService
 | Field | Detail |
@@ -595,6 +598,7 @@ interface SyncEngine {
 - Integration: syncToken 失効時のフルリロード、競合時はローカル優先で警告。更新競合は世代ID＋更新時刻で解決し、並び順は PrioritySorter に委譲して「優先度→更新時刻→デバイスID」のタイブレークで再計算し、結果を Subject.taskOrder に反映。キューはサイズ上限でバッチ分割。BackupService を介して日次/週次スナップショットを取得し、復元時は pendingQueue を停止したうえで適用→再同期する。
 - ステート取得時に Drive から古いリビジョンへ後退しないよう、DriveAdapter の head revision/etag を確認し、世代ID が後退する場合は拒否して再取得する（最新の1版のみを同期対象とし、旧版は BackupService 管理下のスナップショットとして扱う）。
 - Risks: 大きな差分でのパフォーマンス低下→バッチ分割。
+- viewMode=readonly の場合、キューを保持せず enqueue/flush は行わない。Drive/Calendar への書き込みを行わず、設定された間隔（デフォルト 1 分）で pull のみ実行して表示を更新する。
 
 #### DriveAdapter / CalendarAdapter
 | Field | Detail |
