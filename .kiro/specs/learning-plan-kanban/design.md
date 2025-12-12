@@ -384,12 +384,13 @@ interface TaskDialogService {
 | Field | Detail |
 |-------|--------|
 | Intent | ステータス表示名と言語設定、バージョン/アップデート状態の確認 |
-| Requirements | 1.5,7.4,5.8,5.9 |
+| Requirements | 1.5,7.4,5.8,5.9,5.14 |
 | Contracts | State |
 
 **Responsibilities & Constraints**
 - 固定ステータス集合を前提に、表示名のみを編集可能（追加/削除/並べ替え不可）。言語切替を提供。
-- バージョン表示とアップデート状態（強制更新含む）を表示し、手動で新バージョンチェックを実行して、存在する場合は即時バージョンアップを適用する（Service Worker の停止→更新→再起動を含む）。
+- バージョン表示とアップデート状態（強制更新含む）を表示し、手動「更新を確認」アクションで UpdateManager.checkForUpdate を起動。新版があれば Service Worker を更新し、強制/通常の別に応じて `skipWaiting`/リロードを制御する。
+- pendingQueue が空でない場合は flush を試行し、成功後にリロード。失敗/オフライン時はリロードを遅延し、ユーザーが明示的に「バックアップして強制リロード」を選んだ場合のみ同期前リロードを許可する。
 - PT のデフォルト作業/休憩時間を設定可能にする（タスク実績には影響させない）。
 - viewMode が readonly の場合は設定変更を禁止し、表示のみ。
 - バックアップ/リストア UI を提供し、BackupService を経由して daily/weekly の取得・復元を実行する（一覧表示→選択→確認→実行）。実行中は pendingQueue 停止と進捗表示を行う。
@@ -621,12 +622,13 @@ interface SyncEngine {
 | Field | Detail |
 |-------|--------|
 | Intent | バージョン検知と強制アップデート、オフラインキャッシュ |
-| Requirements | 4.1,5.8,5.9 |
+| Requirements | 4.1,5.8,5.9,5.14 |
 | Contracts | Service |
 
 **Implementation Notes**
 - 新バージョン検知: `version.json`（ビルド時に埋め込んだ appVersion）を fetch してローカル版と比較し、新版なら Service Worker `registration.update()` を実行。`updatefound/statechange` で完了を監視し、強制更新時は `skipWaiting` → クライアントに `postMessage` でリロード要求。未同期変更がある場合は同期完了までリロード遅延。
 - 強制更新時の優先順位: 未同期の `pendingQueue` が空になるまで `skipWaiting` しない。キューがあれば即座に `flush` を試行し、成功後に `skipWaiting`。失敗/オフライン時は pendingQueue をローカルに temp バックアップして更新を保留し、オンライン復帰後の flush 成功で `skipWaiting` を実行。ユーザーが明示的に「バックアップして強制リロード」を選んだ場合のみ同期前リロードを許可する。
+- 手動チェック: SettingsPanel からの「更新を確認」が UpdateManager.checkForUpdate を呼び出し、上記と同じ検知→更新フローをトリガーする。自動チェックとの衝突を避けるため、実行中は重複チェックを抑止する。
 
 ### Infra/Tooling
 - Auth: Google OAuth（トークンはメモリまたは Session Storage、長期保存しない）。閲覧招待トークンの発行・検証・失効を提供し、AppShell/Router で閲覧専用モードを判定する。
