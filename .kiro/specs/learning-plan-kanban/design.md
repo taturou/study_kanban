@@ -707,6 +707,7 @@ interface TaskDialogService {
 - HelpPage を開く導線を提供する（SettingsPanel から遷移/ダイアログ表示）。
 - `syncState.dirty` の場合は `SyncEngine.sync()` を試行し、成功後にリロード。失敗/オフライン時はリロードを遅延し、ユーザーが明示的に「ローカルに temp スナップショットを作って強制リロード」を選んだ場合のみ同期前リロードを許可する。
 - PT のデフォルト作業/休憩時間を設定可能にする（タスク実績には影響させない）。
+- `deviceId` （端末ローカル識別子）を表示する。
 - viewMode が readonly の場合は表示専用とし、ステータスラベル/言語/学習可能時間設定/バックアップ/復元などの編集は無効化する。ただし「更新を確認」は許可し、検出時の更新・リロードフローは実行できる。
 - バックアップ/リストア UI を提供し、BackupService を経由して daily/weekly の取得・復元を実行する（一覧表示→選択→確認→実行）。実行中は SyncEngine の自動同期を一時停止し、進捗表示を行う。
 - viewMode=readonly の場合、手動バックアップ/復元操作は無効化（表示のみ）とする。
@@ -929,13 +930,14 @@ type MoveDecision =
 
 **Implementation Notes**
 - トリガー: 日次と週次で snapshot を作成（自動スケジュールは常時有効で、アプリ稼働中かつオンラインなら SyncEngine が実行）。必要に応じて UI から手動実行も可能にする。
-- 保持ポリシー: retention スロットを日次/週次で管理（例: daily=7 件, weekly=4 件）。新規作成時にスロット上限を超えた古い snapshot を削除/上書き。
+- 保持ポリシー: retention スロットを日次/週次で管理（例: daily=7 件, weekly=4 件）。`deviceId` ごとに世代管理し、削除は「同一 `deviceId` の同一 type」だけを対象にする（別端末のバックアップは削除しない）。
 - スコープ: daily は「現行スプリント + settings（+calendarEvents 必要なら）」のみを保存。weekly は「全スプリント + settings（+calendarEvents 必要なら）」を保存。新規スプリント確定直後の最初の daily/weekly で必ず当該スプリントを含める。temp/manual はデフォルト daily 同等スコープだが、オプションで全スプリントを含められる。
 - 格納形式（zip 分割）: Drive の `/LPK/backups/` に以下を保存する。  
-- `common-{type}-{isoDate}.zip`: settings.json, calendarEvents.json（必要なら）, manifest.json（全体ハッシュ/ファイルリスト/必要な月一覧/世代ID/type）を同梱。type ごとに retention（daily=7, weekly=4 など）で世代を保持し、上限超過時に古い順から削除。  
-  - `sprints-{type}-{YYYY-MM}-{isoDate}.zip`: 当該月に開始した週次スプリントの sprint-{id}.json をまとめた zip。type（daily/weekly/temp/manual）ごとに月単位で世代管理し、各 type×月で retention 上限（daily=7, weekly=4 など）を超えた古い世代は削除。現在の月はバックアップ時に毎回新規生成、過去月は世代保持のみで内容は不変（週次が必ず1週単位なので月跨ぎは開始月に所属させる）。  
-  - `{type}` は daily/weekly/temp（必要に応じて manual 追加）。weekly は最新 common に加え、必要な月の `sprints-{type}-{YYYY-MM}-{isoDate}.zip` を取得。daily は現行スプリントが属する月の `sprints-{type}-{YYYY-MM}-{isoDate}.zip` のみ更新/取得する。
-- 復元フロー: UI で一覧→選択→復元確認→ SyncEngine の自動同期を一時停止。`common-*.zip` をダウンロードして manifest を検証し、manifest が指す月の `sprints-{type}-{YYYY-MM}-{isoDate}.zip` を順次ダウンロードして展開。StorageAdapter 経由で settings/sprint-* をトランザクション適用→ `syncState.dirty=true` にして復元完了→ 自動同期を再開→ オンライン時に `SyncEngine.sync()` で再同期する。
+- `common-{type}-{deviceId}-{isoDate}.zip`: settings.json, calendarEvents.json（必要なら）, manifest.json を同梱する。manifest.json には `createdAt`, `type`, `deviceId`, `schemaVersion`, `appVersion`, `driveHeads`（バックアップ取得時点の Drive head 情報）と、各ファイルの checksum/一覧を含める。type ごとに retention（daily=7, weekly=4 など）で世代を保持し、上限超過時に古い順から削除する（同一 `deviceId` のみ）。  
+  - `sprints-{type}-{YYYY-MM}-{deviceId}-{isoDate}.zip`: 当該月に開始した週次スプリントの `sprint-{id}.json` をまとめた zip。type（daily/weekly/temp/manual）ごとに月単位で世代管理し、各 type×月で retention 上限（daily=7, weekly=4 など）を超えた古い世代は削除する（同一 `deviceId` のみ）。現在の月はバックアップ時に毎回新規生成、過去月は世代保持のみで内容は不変（週次が必ず 1 週単位なので月跨ぎは開始月に所属させる）。  
+  - `{type}` は daily/weekly/temp（必要に応じて manual 追加）。weekly は最新 common に加え、必要な月の `sprints-{type}-{YYYY-MM}-{deviceId}-{isoDate}.zip` を取得する。daily は現行スプリントが属する月の `sprints-{type}-{YYYY-MM}-{deviceId}-{isoDate}.zip` のみ更新/取得する。
+- 復元で複数端末のバックアップが存在する場合は、`deviceId` ごとにグルーピングして一覧表示する（表示は `deviceId` の短縮表示で十分とする）。推奨の選択は「(1) manifest 検証 OK（checksum/展開/対応 `schemaVersion`）」「(2) `createdAt` が最新」「(3) `driveHeads` が現在の Drive head に最も近い」を優先し、最終的な採用はユーザーが選択する。
+- 復元フロー: UI で一覧→選択→復元確認→ SyncEngine の自動同期を一時停止。選択した `common-*.zip` をダウンロードして manifest を検証し、manifest が指す `sprints-*.zip` を順次ダウンロードして展開する。StorageAdapter 経由で settings/sprint-* をトランザクション適用→ `syncState.dirty=true` にして復元完了→ 自動同期を再開→ オンライン時に `SyncEngine.sync()` で再同期する。
 - 復元時の安全策: 現行状態を一時的にローカルへバックアップ（temp slot）し、失敗時はロールバック可能にする。
 - UI 起点: SettingsPanel からバックアップ一覧取得・手動バックアップ・復元を実行する。
 - 手動バックアップ/復元のエラーハンドリング: オフライン時は実行せずエラーを表示（後で自動再試行しない）。ただし自動バックアップスケジュールは継続する。Drive 権限不足時はエラーを表示し再認証を促し、ユーザーが許可した場合のみ認証フローを実施して再試行する。
@@ -979,7 +981,7 @@ interface SyncEngine {
 | Contracts | API |
 
 **Implementation Notes**
-- Drive: JSON ファイルを専用ディレクトリに保存（`settings.json`, `sprint-{sprintId}.json`）、`If-Match` を用いた楽観ロックを前提にする。`files.get` で head revision/etag を取得し、ローカルより古いリビジョンをダウンロードしない防御を入れる。バックアップは `/LPK/backups/` 配下に分離し、通常同期ファイルとは混在させない。バックアップ格納は zip 前提（`common-{type}-{isoDate}.zip` と `sprints-{type}-{YYYY-MM}-{isoDate}.zip`）で、アップロード/ダウンロードはファイル単位のフル転送。部分取得は不可のためクライアントで unzip して使用する。
+- Drive: JSON ファイルを専用ディレクトリに保存（`settings.json`, `sprint-{sprintId}.json`）、`If-Match` を用いた楽観ロックを前提にする。`files.get` で head revision/etag を取得し、ローカルより古いリビジョンをダウンロードしない防御を入れる。バックアップは `/LPK/backups/` 配下に分離し、通常同期ファイルとは混在させない。バックアップ格納は zip 前提（`common-{type}-{deviceId}-{isoDate}.zip` と `sprints-{type}-{YYYY-MM}-{deviceId}-{isoDate}.zip`）で、アップロード/ダウンロードはファイル単位のフル転送。部分取得は不可のためクライアントで unzip して使用する。
   - Drive 同期用 JSON には `schemaVersion` を必須フィールドとして含める（例: `{ schemaVersion: 3, updatedAt: ISODateTime, data: {...} }`）。アプリ再インストールや更新で仕様差分がある場合でも、読み込み時に `schemaVersion` を検証して段階的にマイグレーションする。
   - マイグレーション: `schemaVersion < currentSchemaVersion` の場合、`vN → vN+1` の migrator を順に適用し、ローカル（IndexedDB）へ commit 後に Drive 側も最新 `schemaVersion` で上書きする（書き戻し前に Drive の Revisions（またはバックアップ）で 1 世代確保）。未知の `schemaVersion` またはマイグレーション失敗時は同期を停止し、リビジョン選択またはバックアップ復元を促す。
 - Calendar: syncToken で差分取得、ETag と updated を比較して競合を検出し、競合時は Google を優先（LPK 側の同一イベント変更は破棄して Google の内容を採用）。同期対象フィールドは `summary`, `description`, `start`, `end`, `status`, `source` に限定し、それ以外は読み取り専用または非対象。削除は tombstone として伝播し、LPK 起点の削除も Google 起点の削除も双方へ反映する。recurrence は同期対象外で読み取りのみ（繰り返し予定は表示専用）。失効時は full sync。
@@ -1023,21 +1025,21 @@ interface SyncEngine {
 - **CalendarEvent**: id, title, description, start/end, status, source (LPK/Google), etag.
   - カレンダー全体の `syncToken` はカレンダーメタとして管理し、イベントごとには持たせない。
 - **Settings**: statusLabels, language (ja/en), dayDefaultAvailability, notifications, currentSprintId.
-- **UiSettings（ローカル専用）**: readonlyRefreshIntervalSec（閲覧専用時の定期 pull 間隔・秒、デフォルト 60).
+- **UiSettings（ローカル専用）**: deviceId （初回起動時に `crypto.randomUUID()` で生成した端末ローカル識別子）, readonlyRefreshIntervalSec（閲覧専用時の定期 pull 間隔・秒、デフォルト 60).
 - **SyncState**: dirty（未同期変更の有無）, lastSyncedAt, localGeneration（ローカル commit の単調増加カウンタ）, driveHeads（`settings.json` と各 `sprint-{sprintId}.json` の `{ etag, updatedAt }`）, calendarSyncToken（差分取得用、必要なら）。
-- **BackupSnapshot**: id, createdAt, manifestVersion, files[{name, path, checksum, kind (common|sprints), month (YYYY-MM)?}], retentionSlot (daily/weekly), type (daily/weekly/temp/manual), isoDate, source (local/remote).
+- **BackupSnapshot**: id, createdAt, deviceId, manifestVersion, files[{name, path, checksum, kind (common|sprints), month (YYYY-MM)?}], retentionSlot (daily/weekly), type (daily/weekly/temp/manual), isoDate, source (local/remote).
 - **BurndownHistoryEntry**: at, remainingMinutes, remainingCount（過去日付のバーンダウン表示用スナップショット。00:00:00 を使用）
 
 ### Logical Data Model
 - IndexedDB ストア: `tasks`, `subjects`, `sprints`, `settings`, `syncState`, `calendarEvents`。アプリ起動時にこれらを集約して TaskStoreState に載せる（TaskStoreState とファイルは1対1ではない）。
-- IndexedDB ストア（ローカル UI）: `uiSettings`。閲覧者の自動更新間隔など、Drive と同期しない設定を保持する。
+- IndexedDB ストア（ローカル UI）: `uiSettings`。`deviceId` と閲覧者の自動更新間隔など、Drive と同期しない設定を保持する。
 - Key: `Task.id` は uuid。`Task` の status は固定 enum。
 - Consistency: Task/Subject/Sprint/Settings と `syncState` は同一トランザクションで更新する。教科削除時はタスク存在チェックで禁止。セル内順序は Task.priority で保持する（上が高優先度、下が低優先度）。
 - BurndownHistory: 過去日付の残工数（件/見積時間）はスプリントファイル内の `burndownHistory` に日次スナップショットとして保持し、過去表示はスナップショットを優先する（欠損時のみ再計算）。
 - updatedAt 運用: ローカル編集時にレコードの updatedAt を現在時刻で更新。並び替え（優先度変更）で複数 Task の priority が変わった場合は、同一操作で更新された Task の updatedAt を揃える。applyRemote で採用したリモートレコードはリモートの updatedAt を保持。ファイル書き出し時にファイル単位の updatedAt も更新する。
 - スプリントファイル作成タイミング: カレンダーで未来週を参照しただけでは作成しない。ユーザーが明示的に「スプリントを表示」を確定した時点で `sprint-{sprintId}.json` を新規作成（存在しない場合）。過去スプリントのファイルは削除せず保持し、settings.currentSprintId を更新する。
 - スプリント未開始週の編集: スプリントが未開始の週はカレンダー/Availability を閲覧のみとし、学習可能時間の上書きやスプリントデータの編集は「スプリントを表示」確定後にのみ許可する。
-- バックアップ保存先（Drive 側）: `/LPK/backups/` 配下に `common-{type}-{isoDate}.zip`（settings/calendarEvents/manifest）と `sprints-{type}-{YYYY-MM}-{isoDate}.zip`（開始月ごとのスプリント群）を保存する。バックアップは IndexedDB には格納しない（必要時に Drive からダウンロードして復元）。
+- バックアップ保存先（Drive 側）: `/LPK/backups/` 配下に `common-{type}-{deviceId}-{isoDate}.zip`（settings/calendarEvents/manifest）と `sprints-{type}-{YYYY-MM}-{deviceId}-{isoDate}.zip`（開始月ごとのスプリント群）を保存する。バックアップは IndexedDB には格納しない（必要時に Drive からダウンロードして復元）。
 
 ### Data Contracts & Integration
 - **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, language, currentSprintId 等）を保存する。各ファイルは `schemaVersion` と `updatedAt` を持つエンベロープ形式（`{ schemaVersion, updatedAt, data }`）とし、読み込み時に `schemaVersion` を検証してマイグレーションする。更新は `If-Match` （etag）で楽観ロックし、競合時は pull→merge→push で解決する。settings.json は `updatedAt` で解決（必要なら上書き前に警告）、スプリントファイルはタスク単位で `updatedAt` と priority をマージし、同一セル内で同値（重複）やギャップ不足が発生した場合は PrioritySorter で正規化する。`SyncState` はローカル専用で Drive には保存しない。
