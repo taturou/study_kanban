@@ -741,8 +741,8 @@ interface TaskDialogService {
   1. `MoveInput` を構築する（`from`/`to`/`priority`/`to.insertIndex` に加え、`context` を Availability/TimeCalc/現状態から算出）。
   2. `StatusPolicy.validateMove` を呼び、許可/拒否と `sideEffects` を取得する。
   3. 許可の場合のみ、同一 reducer 内で「移動後の状態」と `sideEffects` の適用結果を生成する。
-  4. 生成した新状態を 1 トランザクションで `StorageAdapter`（IndexedDB）へ commit する。
-  5. commit 成功後に「未同期の変更あり（dirty）」として `SyncEngine` に通知する。拒否の場合は状態変更を行わない。
+  4. 生成した新状態と `syncState`（`dirty=true`, `localGeneration++` など）を、1 トランザクションで `StorageAdapter`（IndexedDB）へ commit する。
+  5. commit 成功後に `SyncEngine` へ通知し、オンライン時に `SyncEngine.sync()` を実行できるようにする。拒否の場合は状態変更を行わない。
 
 **Dependencies**
 - Outbound: StorageAdapter (P0); SyncEngine (P0); StatusPolicy (P1); PrioritySorter (P1)
