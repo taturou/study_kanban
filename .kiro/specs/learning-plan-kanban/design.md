@@ -543,11 +543,8 @@ flowchart TD
 | 6.2 | 閲覧専用 PWA モード | ReadOnlyView | ServiceWorker | - |
 | 6.3 | 閲覧モードの自動更新/オフライン表示 | ReadOnlyView, SyncEngine | StorageAdapter | 同期フロー |
 | 6.4 | 招待無効化で閲覧遮断 | Auth, Router | - | - |
-| 7.1 | WCAG 2.1 AA 準拠 | 全 UI | A11y API | - |
-| 7.2 | キーボードナビゲーション | KanbanBoard, TaskDialog, CalendarView | A11y API | - |
-| 7.3 | 適切な ARIA 属性 | 全 UI | A11y API | - |
-| 7.4 | 言語切替（JA/EN） | AppShell, i18n | - | - |
-| 7.5 | 設定永続 | SettingsStore | StorageAdapter | - |
+| 7.1 | 言語切替（JA/EN） | AppShell, i18n | - | - |
+| 7.2 | 設定永続 | SettingsStore | StorageAdapter | - |
 | 8.1 | main push で自動テスト | CI | - | - |
 | 8.2 | テスト成功でビルド | CI | - | - |
 | 8.3 | ビルド成功で Pages デプロイ | CI | - | - |
@@ -561,12 +558,12 @@ flowchart TD
 ### Summary Table
 | Component | Domain/Layer | Intent | Req Coverage | Key Dependencies (P0/P1) | Contracts |
 |-----------|--------------|--------|--------------|--------------------------|-----------|
-| AppShell | UI | ルーティングとシェル、閲覧モード切替 | 1.3,6.1,7.4 | Router (P0), ServiceWorker (P1) | State |
+| AppShell | UI | ルーティングとシェル、閲覧モード切替 | 1.3,6.1,7.1 | Router (P0), ServiceWorker (P1) | State |
 | KanbanBoard | UI | 教科×ステータスグリッドと DnD | 1.x,3.x,4.2,4.12 | StatusPolicy (P0), TaskStore (P0), DnD Kit (P1) | State |
 | TaskCard | UI | タスク表示（ゲージ/円形インジケータ） | 2.3,3.6,3.12 | TimeCalc (P0), PomodoroTimer (P1), InProAutoTracker (P0) | State |
 | TaskDialog | UI | 作成/編集/消去と入力制御 | 1.8,2.x | TaskStore (P0) | Service |
 | Dashboard | UI | 週次集計・バーンダウン | 4.1,4.3,4.4,4.13 | Burndown (P0) | State |
-| SettingsPanel | UI | ステータス表示名と言語を設定し、バージョン/アップデート状態、PT デフォルト時間、手動同期、ヘルプ導線を提供 | 1.5,7.4,5.8,5.9,5.14,3.13,5.6,4.15 | TaskStore (P0), UpdateManager (P1), SyncEngine (P1) | State |
+| SettingsPanel | UI | ステータス表示名と言語を設定し、バージョン/アップデート状態、PT デフォルト時間、手動同期、ヘルプ導線を提供 | 1.5,7.1,5.8,5.9,5.14,3.13,5.6,4.15 | TaskStore (P0), UpdateManager (P1), SyncEngine (P1) | State |
 | CalendarView | UI | 月曜始まりカレンダーと予定/学習時間表示 | 4.5-4.16 | CalendarAdapter (P0), Availability (P0) | State |
 | HelpPage | UI | 操作説明 | 4.15 | - | - |
 | AlertToast | UI | 非モーダル通知（トースト: 同期/PT/過負荷） | 3.11,3.13,4.6,5.6,5.8 | SyncEngine (P0), TimeCalc (P0) | State |
@@ -697,7 +694,7 @@ interface TaskDialogService {
 | Field | Detail |
 |-------|--------|
 | Intent | ステータス表示名と言語設定、バージョン/アップデート状態の確認、手動同期/ヘルプ導線 |
-| Requirements | 1.5,7.4,5.8,5.9,5.14,3.13,5.6,4.15 |
+| Requirements | 1.5,7.1,5.8,5.9,5.14,3.13,5.6,4.15 |
 | Contracts | State |
 
 **Responsibilities & Constraints**
