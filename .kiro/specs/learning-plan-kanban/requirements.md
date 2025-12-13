@@ -116,8 +116,8 @@
 15. Where the LPK reads JSON データ from Google Drive, the LPK shall `schemaVersion` を含むスキーマバージョンを検証し、古い `schemaVersion` のデータを段階的にマイグレーションして最新仕様へ変換できる。
 16. If `schemaVersion` が未知である、またはマイグレーションに失敗する, the LPK shall 同期を停止し、復元できない旨を明記したダイアログを表示する（復元は試みない）。`schemaVersion` が未知の場合は「バックアップが存在しない」旨を表示し、マイグレーション失敗の場合は障害としてサポートに問い合わせる導線を表示する。
 
-### Requirement 6: 通知・フィルター・閲覧モード
-**Objective:** 学習者・保護者として、重要情報を見逃さず安全に共有するために、通知・フィルター・閲覧専用ビューを使いたい。
+### Requirement 6: 通知・閲覧モード
+**Objective:** 学習者・保護者として、重要情報を見逃さず安全に共有するために、通知・閲覧専用ビューを使いたい。
 
 #### Acceptance Criteria
 1. When 学習者が閲覧招待を発行する, the LPK shall Google Drive の LPK フォルダの共有リンク（閲覧者）を発行し、そのリンクを共有することで編集不可の閲覧を提供する。
