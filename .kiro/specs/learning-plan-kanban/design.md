@@ -710,7 +710,7 @@ interface TaskDialogService {
 - viewMode が readonly の場合は表示専用とし、ステータスラベル/言語/学習可能時間設定/バックアップ/復元などの編集は無効化する。ただし「更新を確認」は許可し、検出時の更新・リロードフローは実行できる。
 - バックアップ/リストア UI を提供し、BackupService を経由して daily/weekly の取得・復元を実行する（一覧表示→選択→確認→実行）。実行中は SyncEngine の自動同期を一時停止し、進捗表示を行う。
 - viewMode=readonly の場合、手動バックアップ/復元操作は無効化（表示のみ）とする。
-- 閲覧専用モードの自動更新間隔（Drive/Calendar からの pull）を設定可能にする（デフォルト 1 分）。編集不可のため書き込みは行わず、pull のみを行う。
+- 閲覧専用モードの自動更新間隔（Drive/Calendar からの pull）を設定可能にする（デフォルト 1 分）。この設定は閲覧者ごとのローカル専用（Drive 同期対象外）とし、viewMode=readonly でも変更を許可する。
 - 閲覧招待の発行: Google Drive の LPK フォルダを「リンクを知っている全員（閲覧者）」として共有し、共有リンクをコピーできるようにする（招待リンクの実体は Drive の共有リンク）。
 - 招待無効化: 上記のリンク共有を解除し、共有リンク経由の閲覧を遮断する。
 
@@ -1014,13 +1014,15 @@ interface SyncEngine {
 - **Sprint**: id (スプリント開始日の ISO 日付を推奨), startDate (Mon), endDate, subjectsOrder (SubjectId[]), dayOverrides[{date, availableMinutes}]（スプリント内の特定日上書き）, burndownHistory: BurndownHistoryEntry[]
 - **CalendarEvent**: id, title, description, start/end, status, source (LPK/Google), etag.
   - カレンダー全体の `syncToken` はカレンダーメタとして管理し、イベントごとには持たせない。
-- **Settings**: statusLabels, language (ja/en), dayDefaultAvailability, notifications, currentSprintId, readonlyRefreshIntervalSec (閲覧専用時の定期 pull 間隔・秒、デフォルト 60).
+- **Settings**: statusLabels, language (ja/en), dayDefaultAvailability, notifications, currentSprintId.
+- **UiSettings（ローカル専用）**: readonlyRefreshIntervalSec（閲覧専用時の定期 pull 間隔・秒、デフォルト 60).
 - **SyncState**: dirty（未同期変更の有無）, lastSyncedAt, localGeneration（ローカル commit の単調増加カウンタ）, driveHeads（`settings.json` と各 `sprint-{sprintId}.json` の `{ etag, updatedAt }`）, calendarSyncToken（差分取得用、必要なら）。
 - **BackupSnapshot**: id, createdAt, manifestVersion, files[{name, path, checksum, kind (common|sprints), month (YYYY-MM)?}], retentionSlot (daily/weekly), type (daily/weekly/temp/manual), isoDate, source (local/remote).
 - **BurndownHistoryEntry**: date, remainingMinutes, remainingCount（過去日付のバーンダウン表示用スナップショット）
 
 ### Logical Data Model
 - IndexedDB ストア: `tasks`, `subjects`, `sprints`, `settings`, `syncState`, `calendarEvents`。アプリ起動時にこれらを集約して TaskStoreState に載せる（TaskStoreState とファイルは1対1ではない）。
+- IndexedDB ストア（ローカル UI）: `uiSettings`。閲覧者の自動更新間隔など、Drive と同期しない設定を保持する。
 - Key: `Task.id` は uuid。`Task` の status は固定 enum。
 - Consistency: Task/Subject/Sprint/Settings と `syncState` は同一トランザクションで更新する。教科削除時はタスク存在チェックで禁止。セル内順序は Task.priority で保持する（上が高優先度、下が低優先度）。
 - BurndownHistory: 過去日付の残工数（件/見積時間）はスプリントファイル内の `burndownHistory` に日次スナップショットとして保持し、過去表示はスナップショットを優先する（欠損時のみ再計算）。
