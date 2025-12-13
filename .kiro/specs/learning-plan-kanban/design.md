@@ -1005,6 +1005,7 @@ interface SyncEngine {
 
 **Implementation Notes**
 - 新バージョン検知: `version.json`（ビルド時に埋め込んだ appVersion）を fetch してローカル版と比較し、新版なら Service Worker `registration.update()` を実行。`updatefound/statechange` で完了を監視し、強制更新時は `skipWaiting` → クライアントに `postMessage` でリロード要求。未同期変更がある場合は同期完了までリロード遅延。
+- `version.json` は更新検知の単一信頼ソースであるため、Service Worker の precache/HTTP キャッシュに取り込まれないようにする（`@vite-pwa/plugin`/Workbox の設定で precache 対象から除外し、`/version.json` は NetworkOnly で取得する）。
 - 強制更新時の優先順位: `syncState.dirty` が true の場合は `skipWaiting` を遅延し、即座に `SyncEngine.sync()` を試行する。成功後に `skipWaiting`。失敗/オフライン時は更新を保留し、ユーザーが明示的に「ローカルに temp スナップショットを作って強制リロード」を選んだ場合のみ同期前リロードを許可する。
 - 手動チェック: SettingsPanel からの「更新を確認」が UpdateManager.checkForUpdate を呼び出し、上記と同じ検知→更新フローをトリガーする。自動チェックとの衝突を避けるため、実行中は重複チェックを抑止する。
 
