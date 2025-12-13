@@ -1002,7 +1002,7 @@ interface SyncEngine {
 - 手動チェック: SettingsPanel からの「更新を確認」が UpdateManager.checkForUpdate を呼び出し、上記と同じ検知→更新フローをトリガーする。自動チェックとの衝突を避けるため、実行中は重複チェックを抑止する。
 
 ### Infra/Tooling
-- Auth: Google OAuth（トークンはメモリまたは Session Storage、長期保存しない）。閲覧専用は Google Drive の LPK フォルダ共有リンク（閲覧者）で提供し、AppShell/Router が対象 `dataFolderId` の読み取り可否で viewMode を判定する。共有解除で Drive API が 403/404 を返した場合は失効とみなす。
+- Auth: Google OAuth（トークンはメモリまたは Session Storage、長期保存しない）。閲覧専用は Google Drive の LPK フォルダ共有リンク（閲覧者）で提供し、AppShell/Router が対象 `dataFolderId` の読み取り可否で viewMode を判定する。Drive API の 401/403/404 は「認証切れ/権限不足/リンク無効/一時障害」を区別して扱い、再試行・再認証・リンク再入力（別フォルダで開く）へ誘導する。ローカルデータの削除は自動では行わず、ユーザーの明示操作でのみ実行する。
 - DevContainer/CI: VS Code Dev Container 上で実装・ビルド・テストを一貫実行し、CI は test→build→deploy to Pages を自動化。
 - RepoSetupScript: gh API を用いて main 保護（必須チェック/レビュー）、マージ方式（Squash/通常マージ許可, Rebase 無効）、ブランチ自動削除、必要に応じて Pages 設定を適用する。入力: リポジトリ owner/repo; 出力: 設定結果（ログ）。
 
@@ -1059,7 +1059,7 @@ interface SyncEngine {
 
 ## Security Considerations
 - Google OAuth トークンは長期保存しない（メモリ/Session Storage）。Drive/Calendar scope を最小限に限定。
-- 閲覧専用は Google Drive の共有権限で提供する。共有解除で Drive API が 403/404 を返した場合、失効ダイアログを表示し確認後に IndexedDB のデータを全削除する。
+- 閲覧専用は Google Drive の共有権限で提供する。共有解除や権限変更で Drive API が 403/404 を返す場合があるが、トークン失効や一時障害等でも起こりうるため、失効扱いでの自動削除はしない。失敗時は再試行・再認証・リンク再入力の導線を提示し、「ローカルデータを消去する」はユーザーが意図して選択した場合のみ実行する。
 - Service Worker キャッシュには機密データを含めず、IndexedDB も同様に個人情報を最小化。
 
 ## Performance & Scalability
