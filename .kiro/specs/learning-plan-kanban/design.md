@@ -590,7 +590,9 @@ flowchart TD
 ### UI Layer
 
 **View Mode 管理**
-- ソース: AppShell/Router が Auth 完了後に Google Drive 上の `/LPK/` フォルダの存在と読み取り可否（共有権限）を確認し `viewMode: 'editable' | 'readonly'` を決定する（閲覧専用は全画面共通のモード）。編集権限が無い場合は readonly とする。
+- ソース: AppShell/Router が Auth 完了後に対象データフォルダ（`dataFolderId`）への権限を確認し `viewMode: 'editable' | 'readonly'` を決定する（閲覧専用は全画面共通のモード）。
+  - `sharedFolderId` が指定されている場合（学習者が発行した Google Drive の LPK フォルダ共有リンク由来）、`dataFolderId = sharedFolderId` として読み取り専用（readonly）で開く。
+  - 指定が無い場合は、ユーザー自身の Google Drive 上で `/LPK/` フォルダ（アプリ専用ディレクトリ）を解決し、読み書き可能なら editable とする。読み取りのみの場合は readonly とする。
 - 伝播: viewMode をコンテキストまたは props で各画面（KanbanBoard/TaskDialog/CalendarView/Dashboard/SettingsPanel/Availability 等）へ渡し、編集操作をガードする。CalendarView での予定追加/更新、Availability の学習可能時間上書き、SettingsPanel のラベル/言語/更新操作も無効化する。
 - 永続化: viewMode は一時的なアクセスモードであり、settings/sprint には保存しない。
 
@@ -708,6 +710,8 @@ interface TaskDialogService {
 - バックアップ/リストア UI を提供し、BackupService を経由して daily/weekly の取得・復元を実行する（一覧表示→選択→確認→実行）。実行中は pendingQueue 停止と進捗表示を行う。
 - viewMode=readonly の場合、手動バックアップ/復元操作は無効化（表示のみ）とする。
 - 閲覧専用モードの自動更新間隔（Drive/Calendar からの pull）を設定可能にする（デフォルト 1 分）。編集不可のためローカルキューは持たず、pull のみを行う。
+- 閲覧招待の発行: Google Drive の LPK フォルダを「リンクを知っている全員（閲覧者）」として共有し、共有リンクをコピーできるようにする（招待リンクの実体は Drive の共有リンク）。
+- 招待無効化: 上記のリンク共有を解除し、共有リンク経由の閲覧を遮断する。
 
 **Dependencies**
 - Outbound: TaskStore (settings 永続) (P0); UpdateManager (バージョン/アップデート状態) (P1)
@@ -986,7 +990,7 @@ interface SyncEngine {
 - 手動チェック: SettingsPanel からの「更新を確認」が UpdateManager.checkForUpdate を呼び出し、上記と同じ検知→更新フローをトリガーする。自動チェックとの衝突を避けるため、実行中は重複チェックを抑止する。
 
 ### Infra/Tooling
-- Auth: Google OAuth（トークンはメモリまたは Session Storage、長期保存しない）。閲覧専用は Google Drive の共有権限で提供し、AppShell/Router が `/LPK/` の読み取り可否で viewMode を判定する。共有解除で Drive API が 403/404 を返した場合は失効とみなす。
+- Auth: Google OAuth（トークンはメモリまたは Session Storage、長期保存しない）。閲覧専用は Google Drive の LPK フォルダ共有リンク（閲覧者）で提供し、AppShell/Router が対象 `dataFolderId` の読み取り可否で viewMode を判定する。共有解除で Drive API が 403/404 を返した場合は失効とみなす。
 - DevContainer/CI: VS Code Dev Container 上で実装・ビルド・テストを一貫実行し、CI は test→build→deploy to Pages を自動化。
 - RepoSetupScript: gh API を用いて main 保護（必須チェック/レビュー）、マージ方式（Squash/通常マージ許可, Rebase 無効）、ブランチ自動削除、必要に応じて Pages 設定を適用する。入力: リポジトリ owner/repo; 出力: 設定結果（ログ）。
 

@@ -120,7 +120,7 @@
 **Objective:** 学習者・保護者として、重要情報を見逃さず安全に共有するために、通知・フィルター・閲覧専用ビューを使いたい。
 
 #### Acceptance Criteria
-1. When 学習者が閲覧招待を発行する, the LPK shall 編集不可の閲覧専用リンクまたはGoogle アカウント権限で閲覧を提供する。
+1. When 学習者が閲覧招待を発行する, the LPK shall Google Drive の LPK フォルダの共有リンク（閲覧者）を発行し、そのリンクを共有することで編集不可の閲覧を提供する。
 2. The LPK shall 閲覧専用PWA モードをPC（Chrome/Edge）、iPad Safari、主要スマートフォンブラウザで利用可能にする。
 3. While 閲覧モードにある, the LPK shall リアルタイムまたは一定間隔で自動更新し、オフライン時は最後のキャッシュを表示して再接続時に自動更新する。
 4. If 学習者が閲覧招待を無効化する, the LPK shall 招待先からの閲覧を遮断する。
