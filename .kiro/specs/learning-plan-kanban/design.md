@@ -374,7 +374,7 @@ flowchart TD
 | | |Day & Time        | | |
 | | +------------------+ | |
 | |----------------------| |
-| | dueDate              | |
+| | dueAt                | |
 | +----------------------+ |
 | +---+    +--------+----+ |
 | |Del|    | Cancel | OK | |
@@ -778,6 +778,12 @@ type SyncState = {
   calendarSyncToken?: string; // Calendar 差分取得用（必要なら）
 };
 
+// 実績時間の記録（分単位、タイムゾーンオフセット付き）
+// - すべての日時は ISO8601 拡張形式の ISODateTime（例: `2025-12-02T08:45:53+09:00`）で保持する。
+// - 日付しか情報が無い場合は、その日の 00:00:00 を ISODateTime で記録する。
+// - 集計（日次/週次）は `at` をパースし、`at` が表すローカル日付（YYYY-MM-DD）でバケット化する。
+type ActualEntry = { at: ISODateTime; minutes: number };
+
 // 目的セル（教科×ステータス）と、挿入位置（ドロップ位置）
 type StatusSlot = {
   subjectId: SubjectId;
@@ -792,7 +798,7 @@ type SideEffect =
   | { kind: 'stopInProTracking'; taskId: TaskId }
   | { kind: 'recordActual'; taskId: TaskId; minutes: number; at: ISODateTime }
   | { kind: 'normalizePriorities'; subjectId: SubjectId; status: Status } // セル内順序に合わせて priority をギャップ付きで再採番
-  | { kind: 'updateBurndown'; date: ISODate };
+  | { kind: 'updateBurndown'; at: ISODateTime }; // 日次スナップショットは 00:00:00 を使用
 type SideEffects = SideEffect[];
 
 // 副作用の適用順序（同一 reducer 内で上から順に実行）
@@ -826,7 +832,7 @@ type MoveInput = {
     hasOtherInPro: boolean; // 既に InPro が存在するか（同時に 1 件のみ）
     todayPlannedMinutes: number; // Today に積まれている予定時間合計
     availableMinutesToday: number; // 本日の学習可能時間（Availability 結果）
-    dueAt?: ISODate; // 期日（Done/WontFix ガードなどに利用）
+    dueAt?: ISODateTime; // 期日（Done/WontFix ガードなどに利用。日付のみの場合は 00:00:00）
   };
   initiator?: 'mouse' | 'touch' | 'keyboard';
 };
@@ -909,7 +915,7 @@ type MoveDecision =
 | Contracts | Service |
 
 **Implementation Notes**
-- InPro 入室時に計測開始し、1 分刻みで Task.actuals に追記。バックグラウンド復帰時は経過差分を算出して一括加算し、計測ずれを補正。
+- InPro 入室時に計測開始し、1 分刻みで `Task.actuals` に `ActualEntry { at: ISODateTime, minutes }` を追記する（丸めは分単位）。バックグラウンド復帰時は経過差分を算出して一括加算し、計測ずれを補正。
 - InPro 退出（他ステータスへ移動、または別タスクが InPro へ入る）時に計測を停止し、最終加算を行う。タブ終了時は Beacon/Fallback で最終書き込みを試行。
 - PomodoroTimer とは独立（Pomodoro は通知と休憩管理のみ）。Pomodoro が停止中でも計測は継続し、休憩は実績に影響させない。
 - オフラインでも加算を続け、`Task.actuals` をローカルへ永続して `syncState.dirty` を true にする。オンライン復帰時にスナップショット同期で Drive へ反映する（Calendar の参照・更新はオンライン時のみ）。
@@ -1010,16 +1016,16 @@ interface SyncEngine {
 ## Data Models
 
 ### Domain Model
-- **Task**: id, title, detail, subjectId, status, priority（ギャップ付き rank。数値が大きいほど上＝高優先度）, estimateMinutes, actuals[{date, minutes}], dueDate, createdAt, updatedAt.
+- **Task**: id, title, detail, subjectId, status, priority（ギャップ付き rank。数値が大きいほど上＝高優先度）, estimateMinutes, actuals[{at, minutes}], dueAt, createdAt, updatedAt.
 - **Subject**: id, name.
-- **Sprint**: id (スプリント開始日の ISO 日付を推奨), startDate (Mon), endDate, subjectsOrder (SubjectId[]), dayOverrides[{date, availableMinutes}]（スプリント内の特定日上書き）, burndownHistory: BurndownHistoryEntry[]
+- **Sprint**: id (スプリント開始の ISODateTime を推奨), startAt (Mon 00:00:00), endAt, subjectsOrder (SubjectId[]), dayOverrides[{at, availableMinutes}]（スプリント内の特定日上書き。00:00:00 を使用）, burndownHistory: BurndownHistoryEntry[]
 - **CalendarEvent**: id, title, description, start/end, status, source (LPK/Google), etag.
   - カレンダー全体の `syncToken` はカレンダーメタとして管理し、イベントごとには持たせない。
 - **Settings**: statusLabels, language (ja/en), dayDefaultAvailability, notifications, currentSprintId.
 - **UiSettings（ローカル専用）**: readonlyRefreshIntervalSec（閲覧専用時の定期 pull 間隔・秒、デフォルト 60).
 - **SyncState**: dirty（未同期変更の有無）, lastSyncedAt, localGeneration（ローカル commit の単調増加カウンタ）, driveHeads（`settings.json` と各 `sprint-{sprintId}.json` の `{ etag, updatedAt }`）, calendarSyncToken（差分取得用、必要なら）。
 - **BackupSnapshot**: id, createdAt, manifestVersion, files[{name, path, checksum, kind (common|sprints), month (YYYY-MM)?}], retentionSlot (daily/weekly), type (daily/weekly/temp/manual), isoDate, source (local/remote).
-- **BurndownHistoryEntry**: date, remainingMinutes, remainingCount（過去日付のバーンダウン表示用スナップショット）
+- **BurndownHistoryEntry**: at, remainingMinutes, remainingCount（過去日付のバーンダウン表示用スナップショット。00:00:00 を使用）
 
 ### Logical Data Model
 - IndexedDB ストア: `tasks`, `subjects`, `sprints`, `settings`, `syncState`, `calendarEvents`。アプリ起動時にこれらを集約して TaskStoreState に載せる（TaskStoreState とファイルは1対1ではない）。
