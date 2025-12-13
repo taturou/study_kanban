@@ -983,7 +983,10 @@ interface SyncEngine {
 **Implementation Notes**
 - Drive: JSON ファイルを専用ディレクトリに保存（`settings.json`, `sprint-{sprintId}.json`）、`If-Match` を用いた楽観ロックを前提にする。`files.get` で head revision/etag を取得し、ローカルより古いリビジョンをダウンロードしない防御を入れる。バックアップは `/LPK/backups/` 配下に分離し、通常同期ファイルとは混在させない。バックアップ格納は zip 前提（`common-{type}-{deviceId}-{isoDate}.zip` と `sprints-{type}-{YYYY-MM}-{deviceId}-{isoDate}.zip`）で、アップロード/ダウンロードはファイル単位のフル転送。部分取得は不可のためクライアントで unzip して使用する。
   - Drive 同期用 JSON には `schemaVersion` を必須フィールドとして含める（例: `{ schemaVersion: 3, updatedAt: ISODateTime, data: {...} }`）。アプリ再インストールや更新で仕様差分がある場合でも、読み込み時に `schemaVersion` を検証して段階的にマイグレーションする。
-  - マイグレーション: `schemaVersion < currentSchemaVersion` の場合、`vN → vN+1` の migrator を順に適用し、ローカル（IndexedDB）へ commit 後に Drive 側も最新 `schemaVersion` で上書きする（書き戻し前に Drive の Revisions（またはバックアップ）で 1 世代確保）。未知の `schemaVersion` またはマイグレーション失敗時は同期を停止し、リビジョン選択またはバックアップ復元を促す。
+  - マイグレーション: `schemaVersion < currentSchemaVersion` の場合、`vN → vN+1` の migrator を順に適用し、ローカル（IndexedDB）へ commit 後に Drive 側も最新 `schemaVersion` で上書きする（書き戻し前に Drive の Revisions（またはバックアップ）で 1 世代確保）。
+  - 失敗時の扱い:
+    - `schemaVersion` が未知（`> currentSchemaVersion` など）: 復元不能として同期を停止し、「バックアップが存在しない」旨と復元できない旨を明記したダイアログを表示する（復元は試みない）。
+    - マイグレーションに失敗: 障害として同期を停止し、復元できない旨を明記したうえでサポートに問い合わせる導線を表示する（復元は試みない）。
 - Calendar: syncToken で差分取得、ETag と updated を比較して競合を検出し、競合時は Google を優先（LPK 側の同一イベント変更は破棄して Google の内容を採用）。同期対象フィールドは `summary`, `description`, `start`, `end`, `status`, `source` に限定し、それ以外は読み取り専用または非対象。削除は tombstone として伝播し、LPK 起点の削除も Google 起点の削除も双方へ反映する。recurrence は同期対象外で読み取りのみ（繰り返し予定は表示専用）。失効時は full sync。
 - Risks: レートリミット→指数バックオフと MSW でテスト。
 
@@ -1057,6 +1060,7 @@ interface SyncEngine {
 - User Errors: フィールド未入力/形式不正 → フィールドエラー表示; ポリシー違反（Today→InPro など）→ Toast で理由表示。
 - System Errors: Drive/Calendar API 失敗 → 再試行可能通知; IndexedDB 失敗 → 再読み込みを促し、データ保護のため同期を停止。
 - Business Logic Errors: Done 遷移禁止条件、InPro 複数禁止 → ポリシー拒否を返し UI で提示。
+- Data Compatibility Errors: `schemaVersion` が未知、またはマイグレーション失敗 → 同期を停止し、復元できない旨を明記したダイアログを表示（未知の場合は「バックアップが存在しない」、失敗の場合はサポート問い合わせ導線）。
 
 ### Monitoring
 - Service Worker/同期エラーをコンソールと UI に surfaced。将来の遠隔ロギングはインターフェースを残すが実装は後続。
