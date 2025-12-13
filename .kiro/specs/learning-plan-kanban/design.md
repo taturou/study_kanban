@@ -18,7 +18,7 @@
 | Mode | - | 概念 | 機能/表示の切替状態（viewMode: editable/readonly、TaskDialog 入力モード: 個別/一括 など）。 |
 
 ## Overview
-学習計画カンバン（LPK）はブラウザ完結の PWA として、教科×ステータスの固定グリッド上でタスクを運用し、オフラインでも編集・計測・同期を継続する。Google Drive を主ストレージ、Google Calendar を予定連携に用い、週次スプリントの計画と日次運用、週次レビューを一貫して支援する。
+学習計画カンバン（LPK）はブラウザ完結の PWA として、教科×ステータスの固定グリッド上でタスクを運用し、オフラインでも編集・計測を継続し、オンライン復帰時に同期する。Google Drive を主ストレージ、Google Calendar を予定連携に用い、週次スプリントの計画と日次運用、週次レビューを一貫して支援する。
 
 ### Goals
 - 固定ステータス列と教科行による2次元カンバンで、ドラッグ操作とダイアログ編集を安全に提供する。
@@ -36,7 +36,7 @@
 新規実装（既存コードなし）。ステアリングのスタック方針（React + Vite + TanStack Router + Zustand、PWA、Google API）を前提に設計する。
 
 ### Architecture Pattern & Boundary Map
-採用: クライアントサイド Clean（Ports/Adapters）＋ローカルストア／同期キュー分離。
+採用: クライアントサイド Clean（Ports/Adapters）＋ローカルストア／同期エンジン分離。
 
 ```mermaid
 graph TB
@@ -86,7 +86,7 @@ graph TB
 ### Thread / Worker Strategy
 - Threads in scope: ブラウザメインスレッド（UI/状態/同期処理）＋ Service Worker（PWA キャッシュとバージョン更新制御）＋ Web Worker（Drive のマージ/差分計算などの CPU 負荷が高い処理）。
 - Service Worker で扱うもの: precache/route によるオフラインキャッシュ、バージョン検知と `updatefound/statechange` 監視、`skipWaiting` とクライアントへのリロード要求、簡易なネットワークフェイルオーバー。Push/Periodic Background Sync はサーバレス方針＋Safari 制約のため不採用。
-- メインスレッドで扱うもの: UI/状態管理（React+Zustand）、SyncEngine の enqueue/flush/pull、Drive/Calendar API 呼び出し（トークン失効 UI と連携しやすくする）、InProAutoTracker/Pomodoro の計測と通知、Availability/Calendar/Settings 編集（viewMode=readonly では編集無効化）、BackupService の開始/完了通知と UI 進捗。
+- メインスレッドで扱うもの: UI/状態管理（React+Zustand）、SyncEngine の `sync()`（pull→merge→push）、Drive/Calendar API 呼び出し（トークン失効 UI と連携しやすくする）、InProAutoTracker/Pomodoro の計測と通知、Availability/Calendar/Settings 編集（viewMode=readonly では編集無効化）、BackupService の開始/完了通知と UI 進捗。
 - Web Worker で扱うもの: Drive の remote→local マージ（差分計算、PrioritySorter 再計算、必要なら Burndown 再計算）、バックアップの zip 圧縮/展開（大きい場合）。UI は操作不能なため、Worker は「状態を直接変更」せず「適用可能な patch（差分）」を返す。
 - 採用基準: Service Worker でしかできないキャッシュ/バージョン更新/ネットフェイルオーバーのみ SW へ置き、フォアグラウンド実行が前提の同期・計測・編集ロジックはメインに限定する。バックグラウンドスケジュールやサーバ経由通知が必要になる場合は要件とサーバレス方針を再検討する。
 
@@ -98,7 +98,7 @@ graph TB
 | State | Zustand | グローバル状態とローカルキャッシュ | ミドル状態を hooks で提供 |
 | Routing | TanStack Router | 画面遷移（カンバン/カレンダー/ヘルプ/閲覧専用） | 型安全ルーティング |
 | UI | MUI + dnd-kit | コンポーネントと DnD | アクセシビリティ対応前提 |
-| Data Store | IndexedDB | オフライン永続と変更キュー保持 | StorageAdapter で抽象化 |
+| Data Store | IndexedDB | オフライン永続（状態＋同期状態） | StorageAdapter で抽象化 |
 | Sync | Google Drive API / Google Calendar API | 主データ／予定の双方向同期 | Drive は JSON ファイル、Calendar は syncToken 差分 |
 | PWA | Service Worker + @vite-pwa/plugin | オフラインキャッシュと強制アップデート | 非モーダル通知で更新 |
 | Testing | Vitest + RTL + MSW + Playwright | 単体/統合/E2E | Steering/testing に準拠 |
@@ -121,7 +121,7 @@ sequenceDiagram
   alt allowed
     TS->>TS: apply state + sideEffects (atomic)
     TS->>IDB: persist(stateSnapshot)  %% StorageAdapter 経由
-    TS->>SE: enqueueChange(taskDelta)
+    TS->>SE: markDirty()
     TS-->>KB: ok
   else rejected
     TS-->>KB: PolicyError(reason)
@@ -139,13 +139,14 @@ sequenceDiagram
   participant CA as CalendarAdapter
   participant IDB as StorageAdapter
   loop periodic/online
-    TS->>SE: flushQueuedChanges()
-    SE->>DA: upload(taskChanges)
-    SE->>CA: applyCalendarChanges()
-    DA-->>SE: remoteChanges
+    TS->>SE: sync()
+    SE->>DA: pullHeads/pullSnapshots
+    SE->>CA: pullCalendarDiff (online only)
+    DA-->>SE: remoteSnapshots
     CA-->>SE: calendarDiff
-    SE->>TS: merge(remoteChanges, calendarDiff)
-    SE->>IDB: persist(stateSnapshot, queueState)
+    SE->>TS: applyRemote(remoteSnapshots, calendarDiff)
+    SE->>DA: pushSnapshots (if dirty)
+    SE->>IDB: persist(stateSnapshot, syncState)
   end
 ```
 Key: syncToken 失効時はフル再取得、競合時は保守的マージ＋ユーザー通知。
@@ -577,7 +578,7 @@ flowchart TD
 | Burndown | Domain | バーンダウン計算と週次サマリ | 4.1,4.4,4.13 | TaskStore (P1) | Service |
 | Availability | Domain | 学習可能時間（予定/上書き/曜日）計算 | 4.6,4.9-4.12 | CalendarAdapter (P1), SettingsStore (P1) | Service |
 | PomodoroTimer | Domain | PT 計測と通知 | 3.12-3.14 | AlertToast (P1) | Service |
-| SyncEngine | Sync | 変更キューと双方向同期 | 5.3-5.6,6.3 | DriveAdapter (P0), CalendarAdapter (P0), StorageAdapter (P0) | Service |
+| SyncEngine | Sync | スナップショットの双方向同期 | 5.3-5.6,6.3 | DriveAdapter (P0), CalendarAdapter (P0), StorageAdapter (P0) | Service |
 | BackupService | Sync | バックアップ取得・保持・復元 | 5.13 | DriveAdapter (P0), StorageAdapter (P0) | Service |
 | DriveAdapter | Integration | Drive API 呼び出し | 5.3,5.10 | Auth (P0) | API |
 | CalendarAdapter | Integration | Calendar API 呼び出し | 4.6-4.12 | Auth (P0) | API |
@@ -647,7 +648,7 @@ interface TaskDialogService {
 }
 ```
 - Preconditions: 必須フィールド（タイトル、期日、教科、ステータス）を検証。
-- Postconditions: TaskStore に反映し、必要なら同期キューへ enqueue。
+- Postconditions: TaskStore に反映し、必要なら `syncState.dirty` を true にする（オンライン時に SyncEngine が `sync()` を実行）。
 
 **Implementation Notes**
 - Integration: フォーカストラップと aria-modal、aria-labelledby を設定。
@@ -681,7 +682,7 @@ interface TaskDialogService {
 **Responsibilities & Constraints**
 - 特定日ビューで実施/期日/追加タスクを表示。
 - Google Calendar 予定を取得して表示し、ユーザーが dayDefaultAvailability/当日上書き値を手動調整する際の参考情報として提示（自動控除はしない）。
-- LPK 側の予定追加/更新を CalendarAdapter 経由で同期。
+- LPK 側の予定追加/更新はオンライン時のみ CalendarAdapter 経由で同期する（オフライン時は追加/更新を受け付けず、再試行を促す）。
 - viewMode が readonly の場合は予定追加/編集を無効化し、閲覧のみとする。CalendarAdapter への書き込み API は呼ばない。
 
 **Dependencies**
@@ -702,14 +703,14 @@ interface TaskDialogService {
 **Responsibilities & Constraints**
 - 固定ステータス集合を前提に、表示名のみを編集可能（追加/削除/並べ替え不可）。言語切替を提供。
 - バージョン表示とアップデート状態（強制更新含む）を表示し、手動「更新を確認」アクションで UpdateManager.checkForUpdate を起動。新版があれば Service Worker を更新し、強制/通常の別に応じて `skipWaiting`/リロードを制御する。
-- 手動同期のトリガー（例: 「今すぐ同期」ボタン）を提供し、SyncEngine.flush を明示実行できる。
+- 手動同期のトリガー（例: 「今すぐ同期」ボタン）を提供し、SyncEngine.sync を明示実行できる。
 - HelpPage を開く導線を提供する（SettingsPanel から遷移/ダイアログ表示）。
-- pendingQueue が空でない場合は flush を試行し、成功後にリロード。失敗/オフライン時はリロードを遅延し、ユーザーが明示的に「バックアップして強制リロード」を選んだ場合のみ同期前リロードを許可する。
+- `syncState.dirty` の場合は `SyncEngine.sync()` を試行し、成功後にリロード。失敗/オフライン時はリロードを遅延し、ユーザーが明示的に「ローカルに temp スナップショットを作って強制リロード」を選んだ場合のみ同期前リロードを許可する。
 - PT のデフォルト作業/休憩時間を設定可能にする（タスク実績には影響させない）。
 - viewMode が readonly の場合は表示専用とし、ステータスラベル/言語/学習可能時間設定/バックアップ/復元などの編集は無効化する。ただし「更新を確認」は許可し、検出時の更新・リロードフローは実行できる。
-- バックアップ/リストア UI を提供し、BackupService を経由して daily/weekly の取得・復元を実行する（一覧表示→選択→確認→実行）。実行中は pendingQueue 停止と進捗表示を行う。
+- バックアップ/リストア UI を提供し、BackupService を経由して daily/weekly の取得・復元を実行する（一覧表示→選択→確認→実行）。実行中は SyncEngine の自動同期を一時停止し、進捗表示を行う。
 - viewMode=readonly の場合、手動バックアップ/復元操作は無効化（表示のみ）とする。
-- 閲覧専用モードの自動更新間隔（Drive/Calendar からの pull）を設定可能にする（デフォルト 1 分）。編集不可のためローカルキューは持たず、pull のみを行う。
+- 閲覧専用モードの自動更新間隔（Drive/Calendar からの pull）を設定可能にする（デフォルト 1 分）。編集不可のため書き込みは行わず、pull のみを行う。
 - 閲覧招待の発行: Google Drive の LPK フォルダを「リンクを知っている全員（閲覧者）」として共有し、共有リンクをコピーできるようにする（招待リンクの実体は Drive の共有リンク）。
 - 招待無効化: 上記のリンク共有を解除し、共有リンク経由の閲覧を遮断する。
 
@@ -718,7 +719,7 @@ interface TaskDialogService {
 
 **Implementation Notes**
 - Integration: 入力バリデーション（空/重複不可）。固定集合から外れる更新は拒否。
-- Risks: 設定変更と同期競合→ settings を queue に反映し、競合時は更新時刻で解決。
+- Risks: 設定変更と同期競合→ settings は `updatedAt` で解決し、解決結果をスナップショットとして push する。
 
 
 
@@ -732,16 +733,16 @@ interface TaskDialogService {
 | Contracts | State |
 
 **Responsibilities & Constraints**
-- ローカル状態と IndexedDB 永続、変更キュー生成。
+- ローカル状態と IndexedDB 永続、同期状態（dirty）の更新。
 - 教科順/ステータスラベル/言語設定の保存。
-- viewMode=readonly の場合、編集 API を reject し、pendingQueue への enqueue を禁止する（読み取り専用）。Settings/Availability/Calendar の書き込みリクエストも同様に拒否。
-- InProAutoTracker と連携し、InPro 滞在中のタスクに 1 分刻みで実績を自動加算。バックグラウンド復帰時は経過差分で補正し、退出時（他ステータスへ移動/別タスクが InPro に入る/タブ終了）に最終加算する。実績追加は pendingQueue に enqueue し、オフラインでも蓄積。
+- viewMode=readonly の場合、編集 API を reject する（読み取り専用）。Settings/Availability/Calendar の書き込みリクエストも同様に拒否。
+- InProAutoTracker と連携し、InPro 滞在中のタスクに 1 分刻みで実績を自動加算。バックグラウンド復帰時は経過差分で補正し、退出時（他ステータスへ移動/別タスクが InPro に入る/タブ終了）に最終加算する。
 - **moveTask 処理手順（原子性）**
   1. `MoveInput` を構築する（`from`/`to`/`priority`/`to.insertIndex` に加え、`context` を Availability/TimeCalc/現状態から算出）。
   2. `StatusPolicy.validateMove` を呼び、許可/拒否と `sideEffects` を取得する。
   3. 許可の場合のみ、同一 reducer 内で「移動後の状態」と `sideEffects` の適用結果を生成する。
   4. 生成した新状態を 1 トランザクションで `StorageAdapter`（IndexedDB）へ commit する。
-  5. commit 成功後に差分を `pendingQueue` に enqueue し、`SyncEngine` に通知する。拒否の場合は状態変更も enqueue も行わない。
+  5. commit 成功後に「未同期の変更あり（dirty）」として `SyncEngine` に通知する。拒否の場合は状態変更を行わない。
 
 **Dependencies**
 - Outbound: StorageAdapter (P0); SyncEngine (P0); StatusPolicy (P1); PrioritySorter (P1)
@@ -754,7 +755,7 @@ interface TaskStoreState {
   subjects: Subject[]; // 教科
   sprint: Sprint; // 現在スプリント
   settings: UserSettings; // 表示設定・言語など
-  pendingQueue: ChangeRecord[]; // 同期待ちキュー
+  syncState: SyncState; // 同期状態（dirty/世代など）
 }
 // 状態変更のための操作群
 interface TaskStoreActions {
@@ -764,6 +765,18 @@ interface TaskStoreActions {
   recordActual(taskId: TaskId, entry: ActualEntry): void; // 実績時間の追記
   setSubjectOrder(subjectIds: SubjectId[]): void; // 教科順の更新
 }
+
+type DriveHead = {
+  etag: string;
+  updatedAt: ISODateTime;
+};
+type SyncState = {
+  dirty: boolean; // 未同期のローカル変更がある
+  lastSyncedAt?: ISODateTime;
+  localGeneration: number; // ローカル commit の単調増加カウンタ
+  driveHeads: Record<string, DriveHead>; // `settings.json` と `sprint-{sprintId}.json` の head 情報
+  calendarSyncToken?: string; // Calendar 差分取得用（必要なら）
+};
 
 // 目的セル（教科×ステータス）と、挿入位置（ドロップ位置）
 type StatusSlot = {
@@ -899,7 +912,7 @@ type MoveDecision =
 - InPro 入室時に計測開始し、1 分刻みで Task.actuals に追記。バックグラウンド復帰時は経過差分を算出して一括加算し、計測ずれを補正。
 - InPro 退出（他ステータスへ移動、または別タスクが InPro へ入る）時に計測を停止し、最終加算を行う。タブ終了時は Beacon/Fallback で最終書き込みを試行。
 - PomodoroTimer とは独立（Pomodoro は通知と休憩管理のみ）。Pomodoro が停止中でも計測は継続し、休憩は実績に影響させない。
-- オフラインでも加算を続け、pendingQueue に ChangeRecord を enqueue。同期後に Drive/Calendar 反映。
+- オフラインでも加算を続け、`Task.actuals` をローカルへ永続して `syncState.dirty` を true にする。オンライン復帰時にスナップショット同期で Drive へ反映する（Calendar の参照・更新はオンライン時のみ）。
 - viewMode=readonly の場合は計測を開始せず、既存の実績を書き換えない。
 
 #### BackupService
@@ -911,22 +924,22 @@ type MoveDecision =
 **Implementation Notes**
 - トリガー: 日次と週次で snapshot を作成（自動スケジュールは常時有効で、アプリ稼働中かつオンラインなら SyncEngine が実行）。必要に応じて UI から手動実行も可能にする。
 - 保持ポリシー: retention スロットを日次/週次で管理（例: daily=7 件, weekly=4 件）。新規作成時にスロット上限を超えた古い snapshot を削除/上書き。
-- スコープ: daily は「現行スプリント + settings + queue（+calendarEvents 必要なら）」のみを保存。weekly は「全スプリント + settings + queue」を保存。新規スプリント確定直後の最初の daily/weekly で必ず当該スプリントを含める。temp/manual はデフォルト daily 同等スコープだが、オプションで全スプリントを含められる。
+- スコープ: daily は「現行スプリント + settings（+calendarEvents 必要なら）」のみを保存。weekly は「全スプリント + settings（+calendarEvents 必要なら）」を保存。新規スプリント確定直後の最初の daily/weekly で必ず当該スプリントを含める。temp/manual はデフォルト daily 同等スコープだが、オプションで全スプリントを含められる。
 - 格納形式（zip 分割）: Drive の `/LPK/backups/` に以下を保存する。  
-  - `common-{type}-{isoDate}.zip`: settings.json, queue.json, calendarEvents.json（必要なら）, manifest.json（全体ハッシュ/ファイルリスト/必要な月一覧/世代ID/type）を同梱。type ごとに retention（daily=7, weekly=4 など）で世代を保持し、上限超過時に古い順から削除。  
+- `common-{type}-{isoDate}.zip`: settings.json, calendarEvents.json（必要なら）, manifest.json（全体ハッシュ/ファイルリスト/必要な月一覧/世代ID/type）を同梱。type ごとに retention（daily=7, weekly=4 など）で世代を保持し、上限超過時に古い順から削除。  
   - `sprints-{type}-{YYYY-MM}-{isoDate}.zip`: 当該月に開始した週次スプリントの sprint-{id}.json をまとめた zip。type（daily/weekly/temp/manual）ごとに月単位で世代管理し、各 type×月で retention 上限（daily=7, weekly=4 など）を超えた古い世代は削除。現在の月はバックアップ時に毎回新規生成、過去月は世代保持のみで内容は不変（週次が必ず1週単位なので月跨ぎは開始月に所属させる）。  
   - `{type}` は daily/weekly/temp（必要に応じて manual 追加）。weekly は最新 common に加え、必要な月の `sprints-{type}-{YYYY-MM}-{isoDate}.zip` を取得。daily は現行スプリントが属する月の `sprints-{type}-{YYYY-MM}-{isoDate}.zip` のみ更新/取得する。
-- 復元フロー: UI で一覧→選択→復元確認→ pendingQueue を一時停止。`common-*.zip` をダウンロードして manifest を検証し、manifest が指す月の `sprints-{type}-{YYYY-MM}-{isoDate}.zip` を順次ダウンロードして展開。StorageAdapter 経由で settings/queue/sprint-* をトランザクション適用→ pendingQueue 再開→ SyncEngine が Drive/Calendar と再同期。Drive/Calendar との差分は SyncEngine のマージルールで再同期。
+- 復元フロー: UI で一覧→選択→復元確認→ SyncEngine の自動同期を一時停止。`common-*.zip` をダウンロードして manifest を検証し、manifest が指す月の `sprints-{type}-{YYYY-MM}-{isoDate}.zip` を順次ダウンロードして展開。StorageAdapter 経由で settings/sprint-* をトランザクション適用→ `syncState.dirty=true` にして復元完了→ 自動同期を再開→ オンライン時に `SyncEngine.sync()` で再同期する。
 - 復元時の安全策: 現行状態を一時的にローカルへバックアップ（temp slot）し、失敗時はロールバック可能にする。
 - UI 起点: SettingsPanel からバックアップ一覧取得・手動バックアップ・復元を実行する。
-- 手動バックアップ/復元のエラーハンドリング: オフライン時は実行せずエラーを表示（キューに積まないが自動バックアップスケジュールは継続）。Drive 権限不足時はエラーを表示し再認証を促し、ユーザーが許可した場合のみ認証フローを実施して再試行する。
+- 手動バックアップ/復元のエラーハンドリング: オフライン時は実行せずエラーを表示（後で自動再試行しない）。ただし自動バックアップスケジュールは継続する。Drive 権限不足時はエラーを表示し再認証を促し、ユーザーが許可した場合のみ認証フローを実施して再試行する。
 - viewMode=readonly の場合、手動バックアップ/復元操作は無効化（表示のみ）とする。
-- viewMode=readonly の場合、SyncEngine はローカルキューを持たず（enqueue しない）、設定された間隔（デフォルト 1 分）で Drive/Calendar から pull して表示を更新する。オフライン時は最終スナップショットを表示し、オンライン復帰時に即時 pull する。
+- viewMode=readonly の場合、SyncEngine は Drive/Calendar への書き込みを行わず、設定された間隔（デフォルト 1 分）で pull のみ実行して表示を更新する。オフライン時は最終スナップショットを表示し、オンライン復帰時に即時 pull する。
 
 #### SyncEngine
 | Field | Detail |
 |-------|--------|
-| Intent | ローカル変更キュー管理と Drive/Calendar 双方向同期 |
+| Intent | ローカル状態と Drive/Calendar の双方向同期 |
 | Requirements | 5.3-5.6,6.3,5.10 |
 | Contracts | Service |
 
@@ -935,22 +948,21 @@ type MoveDecision =
 
 **Contracts**: Service [x]
 ```typescript
-// ローカル変更キューの管理と Drive/Calendar との同期を司る
+// Drive/Calendar との同期（スナップショット pull/merge/push）を司る
 interface SyncEngine {
-  enqueue(change: ChangeRecord): void; // 変更をキューに積む
-  flush(): Promise<SyncResult>; // キューを送信し同期を実行
+  sync(): Promise<SyncResult>; // pull→merge→push（必要な場合のみ）
   applyRemote(remote: RemoteSnapshot): Promise<MergeResult>; // リモート差分をローカルへマージ（Web Worker を含むため非同期）
 }
 ```
-- Preconditions: オフライン時は flush をスキップしキューのみ蓄積。
-- Postconditions: 成功時に lastSyncedAt/世代 ID を更新。失敗時は再試行可能なステータスを返却。
+- Preconditions: オフライン時は push を行わず、pull も必要時のみ行う。
+- Postconditions: 成功時に lastSyncedAt/世代 ID を更新し、dirty を false にする。失敗時は再試行可能なステータスを返却。
 
 **Implementation Notes**
-- Integration: syncToken 失効時のフルリロード、競合時はローカル優先で警告。更新競合は世代ID＋更新時刻で解決し、セル内順序（priority）はタスク単位でマージしつつ、同一セル内で同値（重複）やギャップ不足がある場合は PrioritySorter で正規化する。キューはサイズ上限でバッチ分割。BackupService を介して日次/週次スナップショットを取得し、復元時は pendingQueue を停止したうえで適用→再同期する。
-- Drive のマージ/差分計算（remote→local）は Web Worker に委譲し、Worker は「適用可能な patch（tasks/subjectsOrder/burndownHistory などの差分）」を返す。SyncEngine は戻り値を TaskStore に適用し、IndexedDB commit と pendingQueue 更新を行う。
+- Integration: syncToken 失効時のフルリロード、競合時はローカル優先で警告。更新競合は世代ID＋更新時刻で解決し、セル内順序（priority）はタスク単位でマージしつつ、同一セル内で同値（重複）やギャップ不足がある場合は PrioritySorter で正規化する。BackupService を介して日次/週次スナップショットを取得し、復元時は同期を一時停止したうえで適用→再同期する。
+- Drive のマージ/差分計算（remote→local）は Web Worker に委譲し、Worker は「適用可能な patch（tasks/subjectsOrder/burndownHistory などの差分）」を返す。SyncEngine は戻り値を TaskStore に適用し、IndexedDB commit と `syncState` 更新を行う。
 - ステート取得時に Drive から古いリビジョンへ後退しないよう、DriveAdapter の head revision/etag を確認し、世代ID が後退する場合は拒否して再取得する（最新の1版のみを同期対象とし、旧版は BackupService 管理下のスナップショットとして扱う）。
 - Risks: 大きな差分でのパフォーマンス低下→バッチ分割。
-- viewMode=readonly の場合、キューを保持せず enqueue/flush は行わない。Drive/Calendar への書き込みを行わず、設定された間隔（デフォルト 1 分）で pull のみ実行して表示を更新する。
+- viewMode=readonly の場合、Drive/Calendar への書き込みを行わず、設定された間隔（デフォルト 1 分）で pull のみ実行して表示を更新する。
 
 #### DriveAdapter / CalendarAdapter
 | Field | Detail |
@@ -960,7 +972,7 @@ interface SyncEngine {
 | Contracts | API |
 
 **Implementation Notes**
-- Drive: JSON ファイルを専用ディレクトリに保存（tasks.json 等）、`If-Match` を用いた楽観ロックを検討。`files.get` で head revision/etag を取得し、ローカルより古いリビジョンをダウンロードしない防御を入れる。バックアップは `/LPK/backups/` 配下に分離し、通常同期ファイルとは混在させない。バックアップ格納は zip 前提（`common-{type}-{isoDate}.zip` と `sprints-{type}-{YYYY-MM}-{isoDate}.zip`）で、アップロード/ダウンロードはファイル単位のフル転送。部分取得は不可のためクライアントで unzip して使用する。
+- Drive: JSON ファイルを専用ディレクトリに保存（`settings.json`, `sprint-{sprintId}.json`）、`If-Match` を用いた楽観ロックを前提にする。`files.get` で head revision/etag を取得し、ローカルより古いリビジョンをダウンロードしない防御を入れる。バックアップは `/LPK/backups/` 配下に分離し、通常同期ファイルとは混在させない。バックアップ格納は zip 前提（`common-{type}-{isoDate}.zip` と `sprints-{type}-{YYYY-MM}-{isoDate}.zip`）で、アップロード/ダウンロードはファイル単位のフル転送。部分取得は不可のためクライアントで unzip して使用する。
   - Drive 同期用 JSON には `schemaVersion` を必須フィールドとして含める（例: `{ schemaVersion: 3, updatedAt: ISODateTime, data: {...} }`）。アプリ再インストールや更新で仕様差分がある場合でも、読み込み時に `schemaVersion` を検証して段階的にマイグレーションする。
   - マイグレーション: `schemaVersion < currentSchemaVersion` の場合、`vN → vN+1` の migrator を順に適用し、ローカル（IndexedDB）へ commit 後に Drive 側も最新 `schemaVersion` で上書きする（書き戻し前に Drive の Revisions（またはバックアップ）で 1 世代確保）。未知の `schemaVersion` またはマイグレーション失敗時は同期を停止し、リビジョン選択またはバックアップ復元を促す。
 - Calendar: syncToken で差分取得、ETag と updated を比較して競合を検出し、競合時は Google を優先（LPK 側の同一イベント変更は破棄して Google の内容を採用）。同期対象フィールドは `summary`, `description`, `start`, `end`, `status`, `source` に限定し、それ以外は読み取り専用または非対象。削除は tombstone として伝播し、LPK 起点の削除も Google 起点の削除も双方へ反映する。recurrence は同期対象外で読み取りのみ（繰り返し予定は表示専用）。失効時は full sync。
@@ -969,12 +981,12 @@ interface SyncEngine {
 #### StorageAdapter (IndexedDB)
 | Field | Detail |
 |-------|--------|
-| Intent | ローカル永続（状態＋キュー） |
+| Intent | ローカル永続（状態＋同期状態） |
 | Requirements | 5.4,5.5 |
 | Contracts | Service |
 
 **Implementation Notes**
-- バージョン管理しマイグレーションで互換維持。トランザクションはタスク＋キューを同一バッチで保存。
+- バージョン管理しマイグレーションで互換維持。トランザクションはタスク＋設定＋ `syncState` を同一バッチで保存する。
 - IndexedDB のスキーマバージョンと Drive の `schemaVersion` は別管理とする。起動時は「(1) IndexedDB マイグレーション → (2) Drive から取得した JSON の `schemaVersion` マイグレーション → (3) TaskStoreState へ集約」の順で整合を取る。
 
 #### UpdateManager / ServiceWorker
@@ -986,7 +998,7 @@ interface SyncEngine {
 
 **Implementation Notes**
 - 新バージョン検知: `version.json`（ビルド時に埋め込んだ appVersion）を fetch してローカル版と比較し、新版なら Service Worker `registration.update()` を実行。`updatefound/statechange` で完了を監視し、強制更新時は `skipWaiting` → クライアントに `postMessage` でリロード要求。未同期変更がある場合は同期完了までリロード遅延。
-- 強制更新時の優先順位: 未同期の `pendingQueue` が空になるまで `skipWaiting` しない。キューがあれば即座に `flush` を試行し、成功後に `skipWaiting`。失敗/オフライン時は pendingQueue をローカルに temp バックアップして更新を保留し、オンライン復帰後の flush 成功で `skipWaiting` を実行。ユーザーが明示的に「バックアップして強制リロード」を選んだ場合のみ同期前リロードを許可する。
+- 強制更新時の優先順位: `syncState.dirty` が true の場合は `skipWaiting` を遅延し、即座に `SyncEngine.sync()` を試行する。成功後に `skipWaiting`。失敗/オフライン時は更新を保留し、ユーザーが明示的に「ローカルに temp スナップショットを作って強制リロード」を選んだ場合のみ同期前リロードを許可する。
 - 手動チェック: SettingsPanel からの「更新を確認」が UpdateManager.checkForUpdate を呼び出し、上記と同じ検知→更新フローをトリガーする。自動チェックとの衝突を避けるため、実行中は重複チェックを抑止する。
 
 ### Infra/Tooling
@@ -1003,22 +1015,22 @@ interface SyncEngine {
 - **CalendarEvent**: id, title, description, start/end, status, source (LPK/Google), etag.
   - カレンダー全体の `syncToken` はカレンダーメタとして管理し、イベントごとには持たせない。
 - **Settings**: statusLabels, language (ja/en), dayDefaultAvailability, notifications, currentSprintId, readonlyRefreshIntervalSec (閲覧専用時の定期 pull 間隔・秒、デフォルト 60).
-- **SyncState**: lastSyncedAt, generation, pendingQueue.
+- **SyncState**: dirty（未同期変更の有無）, lastSyncedAt, localGeneration（ローカル commit の単調増加カウンタ）, driveHeads（`settings.json` と各 `sprint-{sprintId}.json` の `{ etag, updatedAt }`）, calendarSyncToken（差分取得用、必要なら）。
 - **BackupSnapshot**: id, createdAt, manifestVersion, files[{name, path, checksum, kind (common|sprints), month (YYYY-MM)?}], retentionSlot (daily/weekly), type (daily/weekly/temp/manual), isoDate, source (local/remote).
 - **BurndownHistoryEntry**: date, remainingMinutes, remainingCount（過去日付のバーンダウン表示用スナップショット）
 
 ### Logical Data Model
-- IndexedDB ストア: `tasks`, `subjects`, `sprints`, `settings`, `syncState`, `calendarEvents`, `pendingQueue`。アプリ起動時にこれらを集約して TaskStoreState に載せる（TaskStoreState とファイルは1対1ではない）。
-- Key: `Task.id` は uuid。`Task` の status は固定 enum。`pendingQueue` は順序付きログ。
-- Consistency: Task と pendingQueue は同一トランザクションで更新。教科削除時はタスク存在チェックで禁止。セル内順序は Task.priority で保持する（上が高優先度、下が低優先度）。
+- IndexedDB ストア: `tasks`, `subjects`, `sprints`, `settings`, `syncState`, `calendarEvents`。アプリ起動時にこれらを集約して TaskStoreState に載せる（TaskStoreState とファイルは1対1ではない）。
+- Key: `Task.id` は uuid。`Task` の status は固定 enum。
+- Consistency: Task/Subject/Sprint/Settings と `syncState` は同一トランザクションで更新する。教科削除時はタスク存在チェックで禁止。セル内順序は Task.priority で保持する（上が高優先度、下が低優先度）。
 - BurndownHistory: 過去日付の残工数（件/見積時間）はスプリントファイル内の `burndownHistory` に日次スナップショットとして保持し、過去表示はスナップショットを優先する（欠損時のみ再計算）。
 - updatedAt 運用: ローカル編集時にレコードの updatedAt を現在時刻で更新。並び替え（優先度変更）で複数 Task の priority が変わった場合は、同一操作で更新された Task の updatedAt を揃える。applyRemote で採用したリモートレコードはリモートの updatedAt を保持。ファイル書き出し時にファイル単位の updatedAt も更新する。
 - スプリントファイル作成タイミング: カレンダーで未来週を参照しただけでは作成しない。ユーザーが明示的に「スプリントを表示」を確定した時点で `sprint-{sprintId}.json` を新規作成（存在しない場合）。過去スプリントのファイルは削除せず保持し、settings.currentSprintId を更新する。
 - スプリント未開始週の編集: スプリントが未開始の週はカレンダー/Availability を閲覧のみとし、学習可能時間の上書きやスプリントデータの編集は「スプリントを表示」確定後にのみ許可する。
-- バックアップ保存先（Drive 側）: `/LPK/backups/` 配下に `common-{type}-{isoDate}.zip`（settings/queue/calendarEvents/manifest）と `sprints-{type}-{YYYY-MM}-{isoDate}.zip`（開始月ごとのスプリント群）を保存する。バックアップは IndexedDB には格納しない（必要時に Drive からダウンロードして復元）。
+- バックアップ保存先（Drive 側）: `/LPK/backups/` 配下に `common-{type}-{isoDate}.zip`（settings/calendarEvents/manifest）と `sprints-{type}-{YYYY-MM}-{isoDate}.zip`（開始月ごとのスプリント群）を保存する。バックアップは IndexedDB には格納しない（必要時に Drive からダウンロードして復元）。
 
-- ### Data Contracts & Integration
-- **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, language, currentSprintId 等）、`queue.json`（変更キュー）を保存する。各ファイルは `schemaVersion` と `updatedAt` を持つエンベロープ形式（`{ schemaVersion, updatedAt, data }`）とし、読み込み時に `schemaVersion` を検証してマイグレーションする。ファイル自体はそれぞれ1つを維持し、Drive の Revisions をバックアップとして活用する。リビジョン保持数をローテーション管理し、必要な世代のみ `keepForever`、古いものは削除。復元はリビジョンを取得しローカルへ戻す。settings.json は updatedAt で丸ごと上書き、スプリントファイルはタスク単位で updatedAt マージ＋priority をマージし、同一セル内で同値（重複）やギャップ不足が発生した場合は PrioritySorter で正規化する。
+### Data Contracts & Integration
+- **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, language, currentSprintId 等）を保存する。各ファイルは `schemaVersion` と `updatedAt` を持つエンベロープ形式（`{ schemaVersion, updatedAt, data }`）とし、読み込み時に `schemaVersion` を検証してマイグレーションする。更新は `If-Match` （etag）で楽観ロックし、競合時は pull→merge→push で解決する。settings.json は `updatedAt` で解決（必要なら上書き前に警告）、スプリントファイルはタスク単位で `updatedAt` と priority をマージし、同一セル内で同値（重複）やギャップ不足が発生した場合は PrioritySorter で正規化する。`SyncState` はローカル専用で Drive には保存しない。
 - **Calendar**: 予定は Google Calendar から常に取得し、IndexedDB の `calendarEvents` にキャッシュして表示する。Google Drive の通常同期データには保存しない（バックアップに含める場合のみ `calendarEvents.json` として保存）。学習可能時間の算出には自動反映せず、表示のみとする。LPK 起点イベントは source=LPK を付与し二重反映を防止し、競合時は Google を優先する。
 - **Internal Events**: `SyncStatusChanged`, `UpdateAvailable`, `PomodoroTick` を発行し UI 通知と再計算をトリガ。
 
@@ -1038,7 +1050,7 @@ interface SyncEngine {
 - Service Worker/同期エラーをコンソールと UI に surfaced。将来の遠隔ロギングはインターフェースを残すが実装は後続。
 
 ## Testing Strategy
-- Unit: StatusPolicy（遷移ガード、副作用）、TimeCalc（残り時間/負荷/期日）、Availability（予定控除と上書き）、Burndown 計算、SyncEngine キュー処理。
+- Unit: StatusPolicy（遷移ガード、副作用）、TimeCalc（残り時間/負荷/期日）、Availability（予定控除と上書き）、Burndown 計算、SyncEngine のマージ/競合処理。
 - Integration: KanbanBoard+Dnd キーボード/マウス、TaskDialog フォーカストラップ、SyncEngine と StorageAdapter の永続、CalendarAdapter の syncToken リカバリ。
 - E2E (Playwright): タスク作成→InPro への移動ガード、Today 過負荷警告、オフライン操作→再接続同期、閲覧専用モード表示。
 - Performance: 200 タスク・10 教科での DnD/スクロール応答、同期時のバッチ処理時間。
@@ -1050,7 +1062,7 @@ interface SyncEngine {
 
 ## Performance & Scalability
 - Board 描画はバーチャライゼーションを前提に拡張可能な構造で実装する。縦スクロールの支配的コストを下げるため、教科行単位のバーチャライゼーションを優先し、必要に応じて行内の列リストを部分的に仮想化する。TimeCalc/Burndown はメモ化。
-- 同期は差分キュー＋バッチ送信、Calendar 差分取得で通信量を抑制。
+- 同期はスナップショットの pull→merge→push とし、`syncState.dirty` の場合のみ push する。Calendar は差分取得で通信量を抑制。
 - 強制アップデート時の再ロード前に同期を完了させ、データ損失を防止。
 
 ## Supporting References
