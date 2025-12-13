@@ -128,7 +128,7 @@ sequenceDiagram
     KB-->>U: show block reason
   end
 ```
-Key: ポリシーは Today→InPro 制約、Done 遷移条件、InPro 唯一性、自動 OnHold を返す。
+Key: ローカル操作ではポリシーが Today→InPro 制約、Done 遷移条件、InPro 唯一性、自動 OnHold を返す。端末間同期のマージ後に不整合（InPro 複数）が混入した場合は SyncEngine 側で正規化する（SyncEngine の Implementation Notes「Invariant 正規化（マージ後）」を参照）。
 
 ### オフライン同期サイクル（Drive/Calendar）
 ```mermaid
@@ -959,6 +959,7 @@ interface SyncEngine {
 
 **Implementation Notes**
 - Integration: syncToken 失効時のフルリロード、競合時はローカル優先で警告。更新競合は世代ID＋更新時刻で解決し、セル内順序（priority）はタスク単位でマージしつつ、同一セル内で同値（重複）やギャップ不足がある場合は PrioritySorter で正規化する。BackupService を介して日次/週次スナップショットを取得し、復元時は同期を一時停止したうえで適用→再同期する。
+- Invariant 正規化（マージ後）: リモート取り込み/競合解決の結果、`status=InPro` が複数存在する場合は、それらをすべて `OnHold` に移動し、画面右下の `AlertToast` でユーザーへ通知する（自動計測中の場合は停止する）。
 - Drive のマージ/差分計算（remote→local）は Web Worker に委譲し、Worker は「適用可能な patch（tasks/subjectsOrder/burndownHistory などの差分）」を返す。SyncEngine は戻り値を TaskStore に適用し、IndexedDB commit と `syncState` 更新を行う。
 - ステート取得時に Drive から古いリビジョンへ後退しないよう、DriveAdapter の head revision/etag を確認し、世代ID が後退する場合は拒否して再取得する（最新の1版のみを同期対象とし、旧版は BackupService 管理下のスナップショットとして扱う）。
 - Risks: 大きな差分でのパフォーマンス低下→バッチ分割。
