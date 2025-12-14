@@ -36,7 +36,10 @@
 6. While 学習者が設定で教科の並び順を変更するとき, the LPK shall スプリント単位で新しい教科行順を保存しボードに反映する。
 7. If 学習者がタスクを含む教科行を削除しようとする, the LPK shall 削除を禁止し理由を通知する。
 8. When 学習者がBacklog セルのプラス操作を行う, the LPK shall タスク作成ダイアログ（TaskDialog）を開き、個別追加モード（詳細入力）と一括追加モード（複数行テキストで1行=1タスク）を選択できるようにする。Backlog の教科列から起動するため教科入力は不要とする。
-9. When 学習者が空セルや余白をドラッグする, the LPK shall ボードをスクロールしつつステータスヘッダー行と教科名の左端列を固定表示する。
+9. When 学習者が空セルや余白をドラッグする, the LPK shall ボードをスクロールしつつステータス行（Backlog、Today、InPro、OnHold、Done、WontFix）と教科名の左端列を固定表示する。
+10. Where 端末の横幅が全ステータス列の表示に不足する, the LPK shall KanbanView のボード領域で横スクロールして全ステータス列にアクセスできるようにする（AppBar と Kanban Header は固定幅で横スクロールしない）。各ステータス列には最小幅を設け、TCard にタイトル 10 文字程度を表示し（入り切らない部分は省略）、予定/実績時間と期日を省略せずに表示できる幅を確保する。
+11. The LPK shall KanbanView を `[Header][Container]` に分離し、`Container` のみを縦横にスクロール可能にする（AppBar と Kanban Header は固定）。`Container` 内ではステータス行を上に、教科列を左にピン留めして表示する。
+12. The LPK shall KanbanView の性能受け入れ基準として「教科 14（学校 9 教科 + 塾 5 教科）、各セル 35 件の TCard」が存在する状態でも、縦横スクロール、TCard の D&D、挿入プレビュー表示が破綻せず操作可能であること。
 
 ### Requirement 2: タスクカード作成と編集
 **Objective:** 学習者として、学習内容と締切を正確に登録・更新するために、詳細な TCard を扱いたい。
