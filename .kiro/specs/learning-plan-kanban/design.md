@@ -634,7 +634,11 @@ flowchart TD
 
 **Responsibilities & Constraints**
 - タイトル初期フォーカス、Tab ナビゲーション、Ctrl+Enter/Enter 保存、Esc/キャンセル。
-- 実績時間は日付別に編集可能、累積表示。
+- 実績時間は `TaskActual` の一覧として扱い、以下を提供する:
+  - 追加: `startedAt`（開始時刻）と `durationMinutes`（勉強時間）を入力して新規作成する。
+  - 変更: 既存レコードの `startedAt` と `durationMinutes` を更新できる（`updatedAt` と `updatedByDeviceId` を更新する）。
+  - 削除: 既存レコードを削除できる（`deletedAt` を設定して tombstone とし、同期で伝播する）。
+  - 表示: `startedAt` が古い順にソートして表示する（同一 `startedAt` は `createdAt` の古い順）。
 - 優先度は TaskDialog では変更せず、TCard の D&D でのみ変更する。新規 Task は対象セルの最下位（最低優先度）に追加する。
 - viewMode が readonly の場合は、ドメインデータ（タスク/スプリント/設定/予定）への書き込みに関わる入力を無効化し表示専用とする（例外: `UiSettings` の変更、スプリントの選択、更新間隔設定などの端末ローカル UI 設定は許可）。
 - InPro 滞在中の自動実績加算は InProAutoTracker が担い、PomodoroTimer とは独立運用する（Pomodoro は通知・休憩管理に専念）。
@@ -772,7 +776,8 @@ interface TaskStoreActions {
   upsertTask(task: Task): void; // 作成または更新（upsert = update or insert: 存在すれば更新・無ければ作成）
   moveTask(taskId: TaskId, to: StatusSlot): Result<SideEffects, PolicyError>; // ステータス/教科移動（ドロップ位置を含む）
   reorderTasks(subjectId: SubjectId, status: Status, order: TaskId[]): void; // セル内並び替え（優先度更新）
-  recordActual(taskId: TaskId, entry: ActualEntry): void; // 実績時間の追記（自動/手動）
+  upsertActual(taskId: TaskId, actual: TaskActual): void; // 実績レコードの追加/更新
+  deleteActual(taskId: TaskId, actualId: TaskActualId): void; // 実績レコードの削除（tombstone）
   setSubjectOrder(subjectIds: SubjectId[]): void; // 教科順の更新
 }
 
@@ -788,14 +793,22 @@ type SyncState = {
   calendarSyncToken?: string; // Calendar 差分取得用（必要なら）
 };
 
-// 実績時間の記録（分単位、日次で集計）
-// - 実績（actual）を「端末×日付」で分解し、同期時に安全にマージできる形にする（実績データを死守する）。
-// - 集計（日次/週次）は `at` をパースし、`at` が表すローカル日付（YYYY-MM-DD）でバケット化する。
-type ISODate = string; // YYYY-MM-DD
+// 実績時間の記録
+// - 自動計測（InPro 滞在）も、TDialog での追記も、同一の「実績レコード」として扱う（区別しない）。
+// - 同一タスクは複数の実績レコードを持てる（同日/別日、分割学習を表現する）。
+// - Dashboard で「日ごとの実績」「時間ごとの実績」を表示するため、同日の実績も集約せずレコードとして保持する。
+// - Drive 競合時は「レコード ID ベースの union」でマージし、編集/削除も反映できるようにする。
+type TaskActualId = string; // uuid
 type DeviceId = string;
-type ActualEntry =
-  | { kind: 'auto'; at: ISODateTime; deltaMinutes: number; deviceId: DeviceId }
-  | { kind: 'manualOverride'; at: ISODateTime; minutes: number; deviceId: DeviceId };
+type TaskActual = {
+  id: TaskActualId;
+  startedAt: ISODateTime; // 記録の開始（時間帯集計の基準）
+  durationMinutes: number; // 0 より大きい整数（分）
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+  updatedByDeviceId: DeviceId;
+  deletedAt?: ISODateTime; // 削除は tombstone（同期で伝播する）
+};
 
 // 目的セル（教科×ステータス）と、挿入位置（ドロップ位置）
 type StatusSlot = {
@@ -809,13 +822,13 @@ type SideEffect =
   | { kind: 'autoMoveToOnHold'; taskId: TaskId } // InPro 置換時の自動退避
   | { kind: 'startInProTracking'; taskId: TaskId }
   | { kind: 'stopInProTracking'; taskId: TaskId }
-  | { kind: 'recordActual'; taskId: TaskId; entry: ActualEntry }
+  | { kind: 'upsertActual'; taskId: TaskId; actual: TaskActual }
   | { kind: 'normalizePriorities'; subjectId: SubjectId; status: Status } // セル内順序に合わせて priority をギャップ付きで再採番
   | { kind: 'updateBurndown'; at: ISODateTime }; // 日次スナップショットは 00:00:00 を使用
 type SideEffects = SideEffect[];
 
 // 副作用の適用順序（同一 reducer 内で上から順に実行）
-// 1) autoMoveToOnHold / stopInProTracking → 2) startInProTracking → 3) recordActual
+// 1) autoMoveToOnHold / stopInProTracking → 2) startInProTracking → 3) upsertActual
 // → 4) normalizePriorities → 5) updateBurndown
 ```
 
@@ -928,10 +941,10 @@ type MoveDecision =
 | Contracts | Service |
 
 **Implementation Notes**
-- InPro 入室時に計測開始し、1 分刻みで `ActualEntry.kind='auto'` を `TaskStore.recordActual` に渡して反映する（丸めは分単位）。Task 側の保持は「日付×端末」の合計分（例: `Task.actualsByDay[YYYY-MM-DD].autoByDevice[deviceId]`）として持ち、同期時は key ごとに `max` を取り **二重加算を防ぎつつ実績を死守**する。
+- InPro 入室時に計測開始し、InPro 滞在を 1 つの `TaskActual` として記録する（毎分の新規レコード追加は行わず、同一 `id` の `durationMinutes` を更新して伸ばす）。退出時に最終値を確定する。
 - InPro 退出（他ステータスへ移動、または別タスクが InPro へ入る）時に計測を停止し、最終加算を行う。タブ終了時は Beacon/Fallback で最終書き込みを試行。
 - PomodoroTimer とは独立（Pomodoro は通知と休憩管理のみ）。Pomodoro が停止中でも計測は継続し、休憩は実績に影響させない。
-- オフラインでも加算を続け、実績（Task の `actualsByDay`）をローカルへ永続して `syncState.dirty` を true にする。オンライン復帰時にスナップショット同期で Drive へ反映する（Calendar の参照・更新はオンライン時のみ）。
+- オフラインでも加算を続け、実績（Task の `actuals`）をローカルへ永続して `syncState.dirty` を true にする。オンライン復帰時にスナップショット同期で Drive へ反映する（Calendar の参照・更新はオンライン時のみ）。
 - viewMode=readonly の場合は計測を開始せず、既存の実績を書き換えない。
 
 #### BackupService
@@ -1034,7 +1047,7 @@ interface SyncEngine {
 ## Data Models
 
 ### Domain Model
-- **Task**: id, title, detail, subjectId, status, priority（ギャップ付き rank。数値が大きいほど上＝高優先度）, estimateMinutes, actualsByDay（`YYYY-MM-DD -> { autoByDevice[deviceId]=totalMinutes, manualOverride? }`）, dueAt, createdAt, updatedAt.
+- **Task**: id, title, detail, subjectId, status, priority（ギャップ付き rank。数値が大きいほど上＝高優先度）, estimateMinutes, actuals: TaskActual[], dueAt, createdAt, updatedAt.
 - **Subject**: id, name.
 - **Sprint**: id (スプリント開始の ISODateTime を推奨), startAt (Mon 00:00:00), endAt, subjectsOrder (SubjectId[]), dayOverrides[{at, availableMinutes}]（スプリント内の特定日上書き。00:00:00 を使用）, burndownHistory: BurndownHistoryEntry[]
 - **CalendarEvent**: id, title, description, start/end, status, source (LPK/Google), etag.
@@ -1058,7 +1071,7 @@ interface SyncEngine {
 - バックアップ保存先（Drive 側）: `/LPK/backups/` 配下に `common-{type}-{deviceId}-{isoDate}.zip`（settings/calendarEvents/manifest）と `sprints-{type}-{YYYY-MM}-{deviceId}-{isoDate}.zip`（開始月ごとのスプリント群）を保存する。バックアップは IndexedDB には格納しない（必要時に Drive からダウンロードして復元）。
 
 ### Data Contracts & Integration
-- **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, dayDefaultAvailability, viewerPermissionIds 等）を保存する。各ファイルは `schemaVersion` と `updatedAt` を持つエンベロープ形式（`{ schemaVersion, updatedAt, data }`）とし、読み込み時に `schemaVersion` を検証してマイグレーションする。更新は `If-Match` （etag）で楽観ロックし、競合時は pull→merge→push で解決する。settings.json の競合解決は `updatedAt` を基準にしつつ、リモート値で上書きするかどうかを項目単位でモーダル確認する（チェックボックスで「この項目をリモート値で上書きする」を選択し、未選択はローカルを維持）。スプリントファイルはタスク単位で `updatedAt` と priority をマージし、同一セル内で同値（重複）やギャップ不足が発生した場合は PrioritySorter で正規化する。実績（`Task.actualsByDay`）は「日付×端末」の key ごとに `max` を取り、自動計測の **二重加算を避けつつ実績を死守**する。`SyncState` はローカル専用で Drive には保存しない。
+- **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, dayDefaultAvailability, viewerPermissionIds 等）を保存する。各ファイルは `schemaVersion` と `updatedAt` を持つエンベロープ形式（`{ schemaVersion, updatedAt, data }`）とし、読み込み時に `schemaVersion` を検証してマイグレーションする。更新は `If-Match` （etag）で楽観ロックし、競合時は pull→merge→push で解決する。settings.json の競合解決は `updatedAt` を基準にしつつ、リモート値で上書きするかどうかを項目単位でモーダル確認する（チェックボックスで「この項目をリモート値で上書きする」を選択し、未選択はローカルを維持）。スプリントファイルはタスク単位で `updatedAt` と priority をマージし、同一セル内で同値（重複）やギャップ不足が発生した場合は PrioritySorter で正規化する。実績（`Task.actuals`）は `TaskActual.id` をキーとして **union マージ**し、片側にしか存在しないレコードは追加する。両側に同一 `id` が存在する場合は `updatedAt` を比較して新しい方を採用し、同値の場合は `updatedByDeviceId` の辞書順で tie-break する。削除は `deletedAt` tombstone を同期で伝播し、`deletedAt` が存在するレコードは UI 集計から除外する。`SyncState` はローカル専用で Drive には保存しない。
 - **Calendar**: 予定は Google Calendar から常に取得し、IndexedDB の `calendarEvents` にキャッシュして表示する。Google Drive の通常同期データには保存しない（バックアップに含める場合のみ `calendarEvents.json` として保存）。学習可能時間の算出には自動反映せず、表示のみとする。LPK 起点イベントは source=LPK を付与し二重反映を防止し、競合時は Google を優先する。
 - **Internal Events**: `SyncStatusChanged`, `UpdateAvailable`, `PomodoroTick`, `InProConflictDetected` を発行し UI 通知と再計算をトリガ。
 
