@@ -1032,8 +1032,8 @@ interface SyncEngine {
 - **Sprint**: id (スプリント開始の ISODateTime を推奨), startAt (Mon 00:00:00), endAt, subjectsOrder (SubjectId[]), dayOverrides[{at, availableMinutes}]（スプリント内の特定日上書き。00:00:00 を使用）, burndownHistory: BurndownHistoryEntry[]
 - **CalendarEvent**: id, title, description, start/end, status, source (LPK/Google), etag.
   - カレンダー全体の `syncToken` はカレンダーメタとして管理し、イベントごとには持たせない。
-- **Settings**: statusLabels, dayDefaultAvailability, currentSprintId.
-- **UiSettings（ローカル専用）**: deviceId （初回起動時に `crypto.randomUUID()` で生成した端末ローカル識別子）, readonlyRefreshIntervalSec（閲覧専用時の定期 pull 間隔・秒、デフォルト 60).
+- **Settings**: statusLabels, dayDefaultAvailability.
+- **UiSettings（ローカル専用）**: deviceId （初回起動時に `crypto.randomUUID()` で生成した端末ローカル識別子）, readonlyRefreshIntervalSec（閲覧専用時の定期 pull 間隔・秒、デフォルト 60), currentSprintId（現在表示中のスプリント。バックアップ/同期対象外）。
 - **SyncState**: dirty（未同期変更の有無）, lastSyncedAt, localGeneration（ローカル commit の単調増加カウンタ）, driveHeads（`settings.json` と各 `sprint-{sprintId}.json` の `{ etag, updatedAt }`）, calendarSyncToken（差分取得用、必要なら）。
 - **BackupSnapshot**: id, createdAt, deviceId, manifestVersion, files[{name, path, checksum, kind (common|sprints), month (YYYY-MM)?}], retentionSlot (daily/weekly), type (daily/weekly/temp/manual), isoDate, source (local/remote).
 - **BurndownHistoryEntry**: at, remainingMinutes, remainingCount（過去日付のバーンダウン表示用スナップショット。00:00:00 を使用）
@@ -1045,12 +1045,12 @@ interface SyncEngine {
 - Consistency: Task/Subject/Sprint/Settings と `syncState` は同一トランザクションで更新する。教科削除時はタスク存在チェックで禁止。セル内順序は Task.priority で保持する（上が高優先度、下が低優先度）。
 - BurndownHistory: 過去日付の残工数（件/見積時間）はスプリントファイル内の `burndownHistory` に日次スナップショットとして保持し、過去表示はスナップショットを優先する（欠損時のみ再計算）。
 - updatedAt 運用: ローカル編集時にレコードの updatedAt を現在時刻で更新。並び替え（優先度変更）で複数 Task の priority が変わった場合は、同一操作で更新された Task の updatedAt を揃える。applyRemote で採用したリモートレコードはリモートの updatedAt を保持。ファイル書き出し時にファイル単位の updatedAt も更新する。
-- スプリントファイル作成タイミング: カレンダーで未来週を参照しただけでは作成しない。ユーザーが明示的に「スプリントを表示」を確定した時点で `sprint-{sprintId}.json` を新規作成（存在しない場合）。過去スプリントのファイルは削除せず保持し、settings.currentSprintId を更新する。
+- スプリントファイル作成タイミング: カレンダーで未来週を参照しただけでは作成しない。ユーザーが明示的に「スプリントを表示」を確定した時点で `sprint-{sprintId}.json` を新規作成（存在しない場合）。過去スプリントのファイルは削除せず保持する。現在表示中のスプリントは `UiSettings.currentSprintId` に保持する（バックアップ/同期対象外）。
 - スプリント未開始週の編集: スプリントが未開始の週はカレンダー/Availability を閲覧のみとし、学習可能時間の上書きやスプリントデータの編集は「スプリントを表示」確定後にのみ許可する。
 - バックアップ保存先（Drive 側）: `/LPK/backups/` 配下に `common-{type}-{deviceId}-{isoDate}.zip`（settings/calendarEvents/manifest）と `sprints-{type}-{YYYY-MM}-{deviceId}-{isoDate}.zip`（開始月ごとのスプリント群）を保存する。バックアップは IndexedDB には格納しない（必要時に Drive からダウンロードして復元）。
 
 ### Data Contracts & Integration
-- **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, dayDefaultAvailability, currentSprintId 等）を保存する。各ファイルは `schemaVersion` と `updatedAt` を持つエンベロープ形式（`{ schemaVersion, updatedAt, data }`）とし、読み込み時に `schemaVersion` を検証してマイグレーションする。更新は `If-Match` （etag）で楽観ロックし、競合時は pull→merge→push で解決する。settings.json の競合解決は `updatedAt` を基準にしつつ、リモート値で上書きするかどうかを項目単位でモーダル確認する（チェックボックスで「この項目をリモート値で上書きする」を選択し、未選択はローカルを維持）。スプリントファイルはタスク単位で `updatedAt` と priority をマージし、同一セル内で同値（重複）やギャップ不足が発生した場合は PrioritySorter で正規化する。`SyncState` はローカル専用で Drive には保存しない。
+- **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, dayDefaultAvailability 等）を保存する。各ファイルは `schemaVersion` と `updatedAt` を持つエンベロープ形式（`{ schemaVersion, updatedAt, data }`）とし、読み込み時に `schemaVersion` を検証してマイグレーションする。更新は `If-Match` （etag）で楽観ロックし、競合時は pull→merge→push で解決する。settings.json の競合解決は `updatedAt` を基準にしつつ、リモート値で上書きするかどうかを項目単位でモーダル確認する（チェックボックスで「この項目をリモート値で上書きする」を選択し、未選択はローカルを維持）。スプリントファイルはタスク単位で `updatedAt` と priority をマージし、同一セル内で同値（重複）やギャップ不足が発生した場合は PrioritySorter で正規化する。`SyncState` はローカル専用で Drive には保存しない。
 - **Calendar**: 予定は Google Calendar から常に取得し、IndexedDB の `calendarEvents` にキャッシュして表示する。Google Drive の通常同期データには保存しない（バックアップに含める場合のみ `calendarEvents.json` として保存）。学習可能時間の算出には自動反映せず、表示のみとする。LPK 起点イベントは source=LPK を付与し二重反映を防止し、競合時は Google を優先する。
 - **Internal Events**: `SyncStatusChanged`, `UpdateAvailable`, `PomodoroTick` を発行し UI 通知と再計算をトリガ。
 
