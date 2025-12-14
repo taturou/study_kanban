@@ -98,6 +98,7 @@ graph TB
 | State | Zustand | グローバル状態とローカルキャッシュ | ミドル状態を hooks で提供 |
 | Routing | TanStack Router | 画面遷移（カンバン/カレンダー/ヘルプ/閲覧専用） | 型安全ルーティング |
 | UI | MUI + dnd-kit | コンポーネントと DnD | アクセシビリティ対応前提 |
+| i18n | i18next + react-i18next | UI 文字列管理（将来の多言語対応） | `lang` は `ja-JP` 固定、言語切替 UI は提供しない |
 | Data Store | IndexedDB | オフライン永続（状態＋同期状態） | StorageAdapter で抽象化 |
 | Sync | Google Drive API / Google Calendar API | 主データ／予定の双方向同期 | Drive は JSON ファイル、Calendar は syncToken 差分 |
 | PWA | Service Worker + @vite-pwa/plugin | オフラインキャッシュと強制アップデート | 非モーダル通知で更新 |
@@ -543,7 +544,7 @@ flowchart TD
 | 6.2 | 閲覧専用 PWA モード | ReadOnlyView | ServiceWorker | - |
 | 6.3 | 閲覧モードの自動更新/オフライン表示 | ReadOnlyView, SyncEngine | StorageAdapter | 同期フロー |
 | 6.4 | 招待無効化で閲覧遮断 | Auth, Router | - | - |
-| 7.1 | 言語切替（JA/EN） | AppShell, i18n | - | - |
+| 7.1 | i18n 基盤（`ja-JP` 固定） | AppShell, i18n | - | - |
 | 7.2 | 設定永続 | SettingsStore | StorageAdapter | - |
 | 8.1 | main push で自動テスト | CI | - | - |
 | 8.2 | テスト成功でビルド | CI | - | - |
@@ -563,7 +564,7 @@ flowchart TD
 | TaskCard | UI | タスク表示（ゲージ/円形インジケータ） | 2.3,3.6,3.12 | TimeCalc (P0), PomodoroTimer (P1), InProAutoTracker (P0) | State |
 | TaskDialog | UI | 作成/編集/消去と入力制御 | 1.8,2.x | TaskStore (P0) | Service |
 | Dashboard | UI | 週次集計・バーンダウン | 4.1,4.3,4.4,4.13 | Burndown (P0) | State |
-| SettingsPanel | UI | ステータス表示名と言語を設定し、バージョン/アップデート状態、PT デフォルト時間、手動同期、ヘルプ導線を提供 | 1.5,7.1,5.8,5.9,5.14,3.13,5.6,4.15 | TaskStore (P0), UpdateManager (P1), SyncEngine (P1) | State |
+| SettingsPanel | UI | ステータス表示名を設定し、バージョン/アップデート状態、PT デフォルト時間、手動同期、ヘルプ導線を提供 | 1.5,5.8,5.9,5.14,3.13,5.6,4.15 | TaskStore (P0), UpdateManager (P1), SyncEngine (P1) | State |
 | CalendarView | UI | 月曜始まりカレンダーと予定/学習時間表示 | 4.5-4.16 | CalendarAdapter (P0), Availability (P0) | State |
 | HelpPage | UI | 操作説明 | 4.15 | - | - |
 | AlertToast | UI | 非モーダル通知（トースト: 同期/PT/過負荷） | 3.11,3.13,4.6,5.6,5.8 | SyncEngine (P0), TimeCalc (P0) | State |
@@ -591,7 +592,7 @@ flowchart TD
 - ソース: AppShell/Router が Auth 完了後に対象データフォルダ（`dataFolderId`）への権限を確認し `viewMode: 'editable' | 'readonly'` を決定する（閲覧専用は全画面共通のモード）。
   - `sharedFolderId` が指定されている場合（学習者が発行した Google Drive の LPK フォルダ共有リンク由来）、`dataFolderId = sharedFolderId` として読み取り専用（readonly）で開く。
   - 指定が無い場合は、ユーザー自身の Google Drive 上で `/LPK/` フォルダ（アプリ専用ディレクトリ）を解決し、読み書き可能なら editable とする。読み取りのみの場合は readonly とする。
-- 伝播: viewMode をコンテキストまたは props で各画面（KanbanBoard/TaskDialog/CalendarView/Dashboard/SettingsPanel/Availability 等）へ渡し、編集操作をガードする。CalendarView での予定追加/更新、Availability の学習可能時間上書き、SettingsPanel のラベル/言語/更新操作も無効化する。
+- 伝播: viewMode をコンテキストまたは props で各画面（KanbanBoard/TaskDialog/CalendarView/Dashboard/SettingsPanel/Availability 等）へ渡し、編集操作をガードする。CalendarView での予定追加/更新、Availability の学習可能時間上書き、SettingsPanel のラベル/更新操作も無効化する。
 - 永続化: viewMode は一時的なアクセスモードであり、settings/sprint には保存しない。
 
 #### KanbanBoard
@@ -699,12 +700,12 @@ interface TaskDialogService {
 #### SettingsPanel
 | Field | Detail |
 |-------|--------|
-| Intent | ステータス表示名と言語設定、バージョン/アップデート状態の確認、手動同期/ヘルプ導線 |
+| Intent | ステータス表示名設定、バージョン/アップデート状態の確認、手動同期/ヘルプ導線 |
 | Requirements | 1.5,7.1,5.8,5.9,5.14,3.13,5.6,4.15 |
 | Contracts | State |
 
 **Responsibilities & Constraints**
-- 固定ステータス集合を前提に、表示名のみを編集可能（追加/削除/並べ替え不可）。言語切替を提供。
+- 固定ステータス集合を前提に、表示名のみを編集可能（追加/削除/並べ替え不可）。
 - バージョン表示とアップデート状態（強制更新含む）を表示し、手動「更新を確認」アクションで UpdateManager.checkForUpdate を起動。新版があれば Service Worker を更新し、強制/通常の別に応じて `skipWaiting`/リロードを制御する。
 - 手動同期のトリガー（例: 「今すぐ同期」ボタン）を提供し、SyncEngine.sync を明示実行できる。
 - HelpPage を開く導線を提供する（SettingsPanel から遷移/ダイアログ表示）。
@@ -712,7 +713,7 @@ interface TaskDialogService {
 - PT のデフォルト作業/休憩時間を設定可能にする（タスク実績には影響させない）。
 - `deviceId` （端末ローカル識別子）を表示する。
 - 通知は常時有効とし、ON/OFF を切り替える設定は提供しない。
-- viewMode が readonly の場合は表示専用とし、ステータスラベル/言語/学習可能時間設定/バックアップ/復元などの編集は無効化する。ただし「更新を確認」は許可し、検出時の更新・リロードフローは実行できる。
+- viewMode が readonly の場合は表示専用とし、ステータスラベル/学習可能時間設定/バックアップ/復元などの編集は無効化する。ただし「更新を確認」は許可し、検出時の更新・リロードフローは実行できる。
 - バックアップ/リストア UI を提供し、BackupService を経由して daily/weekly の取得・復元を実行する（一覧表示→選択→確認→実行）。実行中は SyncEngine の自動同期を一時停止し、進捗表示を行う。
 - viewMode=readonly の場合、手動バックアップ/復元操作は無効化（表示のみ）とする。
 - 閲覧専用モードの自動更新間隔（Drive/Calendar からの pull）を設定可能にする（デフォルト 1 分）。この設定は閲覧者ごとのローカル専用（Drive 同期対象外）とし、viewMode=readonly でも変更を許可する。
@@ -739,7 +740,7 @@ interface TaskDialogService {
 
 **Responsibilities & Constraints**
 - ローカル状態と IndexedDB 永続、同期状態（dirty）の更新。
-- 教科順/ステータスラベル/言語設定の保存。
+- 教科順/ステータスラベル設定の保存。
 - viewMode=readonly の場合、編集 API を reject する（読み取り専用）。Settings/Availability/Calendar の書き込みリクエストも同様に拒否。
 - InProAutoTracker と連携し、InPro 滞在中のタスクに 1 分刻みで実績を自動加算。バックグラウンド復帰時は経過差分で補正し、退出時（他ステータスへ移動/別タスクが InPro に入る/タブ終了）に最終加算する。
 - **moveTask 処理手順（原子性）**
@@ -759,7 +760,7 @@ interface TaskStoreState {
   tasks: Record<TaskId, Task>; // タスク本体
   subjects: Subject[]; // 教科
   sprint: Sprint; // 現在スプリント
-  settings: UserSettings; // 表示設定・言語など
+	settings: UserSettings; // 表示設定など
   syncState: SyncState; // 同期状態（dirty/世代など）
 }
 // 状態変更のための操作群
@@ -1031,7 +1032,7 @@ interface SyncEngine {
 - **Sprint**: id (スプリント開始の ISODateTime を推奨), startAt (Mon 00:00:00), endAt, subjectsOrder (SubjectId[]), dayOverrides[{at, availableMinutes}]（スプリント内の特定日上書き。00:00:00 を使用）, burndownHistory: BurndownHistoryEntry[]
 - **CalendarEvent**: id, title, description, start/end, status, source (LPK/Google), etag.
   - カレンダー全体の `syncToken` はカレンダーメタとして管理し、イベントごとには持たせない。
-- **Settings**: statusLabels, language (ja/en), dayDefaultAvailability, currentSprintId.
+- **Settings**: statusLabels, dayDefaultAvailability, currentSprintId.
 - **UiSettings（ローカル専用）**: deviceId （初回起動時に `crypto.randomUUID()` で生成した端末ローカル識別子）, readonlyRefreshIntervalSec（閲覧専用時の定期 pull 間隔・秒、デフォルト 60).
 - **SyncState**: dirty（未同期変更の有無）, lastSyncedAt, localGeneration（ローカル commit の単調増加カウンタ）, driveHeads（`settings.json` と各 `sprint-{sprintId}.json` の `{ etag, updatedAt }`）, calendarSyncToken（差分取得用、必要なら）。
 - **BackupSnapshot**: id, createdAt, deviceId, manifestVersion, files[{name, path, checksum, kind (common|sprints), month (YYYY-MM)?}], retentionSlot (daily/weekly), type (daily/weekly/temp/manual), isoDate, source (local/remote).
@@ -1049,7 +1050,7 @@ interface SyncEngine {
 - バックアップ保存先（Drive 側）: `/LPK/backups/` 配下に `common-{type}-{deviceId}-{isoDate}.zip`（settings/calendarEvents/manifest）と `sprints-{type}-{YYYY-MM}-{deviceId}-{isoDate}.zip`（開始月ごとのスプリント群）を保存する。バックアップは IndexedDB には格納しない（必要時に Drive からダウンロードして復元）。
 
 ### Data Contracts & Integration
-- **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, language, dayDefaultAvailability, currentSprintId 等）を保存する。各ファイルは `schemaVersion` と `updatedAt` を持つエンベロープ形式（`{ schemaVersion, updatedAt, data }`）とし、読み込み時に `schemaVersion` を検証してマイグレーションする。更新は `If-Match` （etag）で楽観ロックし、競合時は pull→merge→push で解決する。settings.json の競合解決は `updatedAt` を基準にしつつ、リモート値で上書きするかどうかを項目単位でモーダル確認する（チェックボックスで「この項目をリモート値で上書きする」を選択し、未選択はローカルを維持）。スプリントファイルはタスク単位で `updatedAt` と priority をマージし、同一セル内で同値（重複）やギャップ不足が発生した場合は PrioritySorter で正規化する。`SyncState` はローカル専用で Drive には保存しない。
+- **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, dayDefaultAvailability, currentSprintId 等）を保存する。各ファイルは `schemaVersion` と `updatedAt` を持つエンベロープ形式（`{ schemaVersion, updatedAt, data }`）とし、読み込み時に `schemaVersion` を検証してマイグレーションする。更新は `If-Match` （etag）で楽観ロックし、競合時は pull→merge→push で解決する。settings.json の競合解決は `updatedAt` を基準にしつつ、リモート値で上書きするかどうかを項目単位でモーダル確認する（チェックボックスで「この項目をリモート値で上書きする」を選択し、未選択はローカルを維持）。スプリントファイルはタスク単位で `updatedAt` と priority をマージし、同一セル内で同値（重複）やギャップ不足が発生した場合は PrioritySorter で正規化する。`SyncState` はローカル専用で Drive には保存しない。
 - **Calendar**: 予定は Google Calendar から常に取得し、IndexedDB の `calendarEvents` にキャッシュして表示する。Google Drive の通常同期データには保存しない（バックアップに含める場合のみ `calendarEvents.json` として保存）。学習可能時間の算出には自動反映せず、表示のみとする。LPK 起点イベントは source=LPK を付与し二重反映を防止し、競合時は Google を優先する。
 - **Internal Events**: `SyncStatusChanged`, `UpdateAvailable`, `PomodoroTick` を発行し UI 通知と再計算をトリガ。
 
