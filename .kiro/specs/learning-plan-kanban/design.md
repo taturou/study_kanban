@@ -592,7 +592,7 @@ flowchart TD
 - ソース: AppShell/Router が Auth 完了後に対象データフォルダ（`dataFolderId`）への権限を確認し `viewMode: 'editable' | 'readonly'` を決定する（閲覧専用は全画面共通のモード）。
   - `sharedFolderId` が指定されている場合（学習者が発行した Google Drive の LPK フォルダ共有リンク由来）、`dataFolderId = sharedFolderId` として読み取り専用（readonly）で開く。
   - 指定が無い場合は、ユーザー自身の Google Drive 上で `/LPK/` フォルダ（アプリ専用ディレクトリ）を解決し、読み書き可能なら editable とする。読み取りのみの場合は readonly とする。
-- 伝播: viewMode をコンテキストまたは props で各画面（KanbanBoard/TaskDialog/CalendarView/Dashboard/SettingsPanel/Availability 等）へ渡し、編集操作をガードする。CalendarView での予定追加/更新、Availability の学習可能時間上書き、SettingsPanel のラベル/更新操作も無効化する。
+- 伝播: viewMode をコンテキストまたは props で各画面（KanbanBoard/TaskDialog/CalendarView/Dashboard/SettingsPanel/Availability 等）へ渡し、編集操作をガードする。CalendarView での予定追加/更新、Availability の学習可能時間上書き、SettingsPanel のラベル/更新操作も無効化する。一方で、閲覧者の UI 操作としての「スプリント選択（`UiSettings.currentSprintId` の更新）」は許可する（Drive への書き込みは行わない）。
 - 永続化: viewMode は一時的なアクセスモードであり、settings/sprint には保存しない。
 
 #### KanbanBoard
@@ -635,7 +635,7 @@ flowchart TD
 - タイトル初期フォーカス、Tab ナビゲーション、Ctrl+Enter/Enter 保存、Esc/キャンセル。
 - 実績時間は日付別に編集可能、累積表示。
 - 優先度は TaskDialog では変更せず、TCard の D&D でのみ変更する。新規 Task は対象セルの最下位（最低優先度）に追加する。
-- viewMode が readonly の場合は全入力を無効化し表示専用とする。
+- viewMode が readonly の場合は、ドメインデータ（タスク/スプリント/設定/予定）への書き込みに関わる入力を無効化し表示専用とする（例外: `UiSettings` の変更、スプリントの選択、更新間隔設定などの端末ローカル UI 設定は許可）。
 - InPro 滞在中の自動実績加算は InProAutoTracker が担い、PomodoroTimer とは独立運用する（Pomodoro は通知・休憩管理に専念）。
 - Backlog から起動する場合は教科が自明なため、教科入力なしで作成する。ダイアログ内で「個別追加（詳細入力）」と「一括追加（複数行テキストで1行=1タスク、タイトルのみ）」を切替でき、選択状態を記憶する。一括作成後の詳細編集は通常の TCard 編集で行う。
 
@@ -684,6 +684,8 @@ interface TaskDialogService {
 | Contracts | State |
 
 **Responsibilities & Constraints**
+- 月曜始まり固定のカレンダーで週（スプリント）を選択し、現在表示中のスプリントを切替する（`UiSettings.currentSprintId` を更新）。viewMode=readonly でも切替は許可する（UI 専用のローカル状態）。
+  - 選択先の `sprint-{sprintId}.json` が Drive 上に存在しない場合、viewMode=editable では必要に応じて作成フローへ誘導できるが、viewMode=readonly では作成せず「この週のスプリントは未作成」を表示する。
 - 特定日ビューで実施/期日/追加タスクを表示。
 - Google Calendar 予定を取得して表示し、ユーザーが dayDefaultAvailability/当日上書き値を手動調整する際の参考情報として提示（自動控除はしない）。
 - LPK 側の予定追加/更新はオンライン時のみ CalendarAdapter 経由で同期する（オフライン時は追加/更新を受け付けず、再試行を促す）。
@@ -1045,8 +1047,8 @@ interface SyncEngine {
 - Consistency: Task/Subject/Sprint/Settings と `syncState` は同一トランザクションで更新する。教科削除時はタスク存在チェックで禁止。セル内順序は Task.priority で保持する（上が高優先度、下が低優先度）。
 - BurndownHistory: 過去日付の残工数（件/見積時間）はスプリントファイル内の `burndownHistory` に日次スナップショットとして保持し、過去表示はスナップショットを優先する（欠損時のみ再計算）。
 - updatedAt 運用: ローカル編集時にレコードの updatedAt を現在時刻で更新。並び替え（優先度変更）で複数 Task の priority が変わった場合は、同一操作で更新された Task の updatedAt を揃える。applyRemote で採用したリモートレコードはリモートの updatedAt を保持。ファイル書き出し時にファイル単位の updatedAt も更新する。
-- スプリントファイル作成タイミング: カレンダーで未来週を参照しただけでは作成しない。ユーザーが明示的に「スプリントを表示」を確定した時点で `sprint-{sprintId}.json` を新規作成（存在しない場合）。過去スプリントのファイルは削除せず保持する。現在表示中のスプリントは `UiSettings.currentSprintId` に保持する（バックアップ/同期対象外）。
-- スプリント未開始週の編集: スプリントが未開始の週はカレンダー/Availability を閲覧のみとし、学習可能時間の上書きやスプリントデータの編集は「スプリントを表示」確定後にのみ許可する。
+- スプリントファイル作成タイミング: カレンダーで未来週を参照しただけでは作成しない。ユーザー（viewMode=editable） が明示的に「スプリントを表示」を確定した時点で `sprint-{sprintId}.json` を新規作成（存在しない場合）。過去スプリントのファイルは削除せず保持する。現在表示中のスプリントは `UiSettings.currentSprintId` に保持する（バックアップ/同期対象外）。viewMode=readonly ではスプリントの切替は可能だが、未作成の週を選んでもファイル作成は行わない。
+- スプリント未開始週の編集: viewMode=editable では、スプリントが未開始の週はカレンダー/Availability を閲覧のみに制限し、学習可能時間の上書きやスプリントデータの編集は「スプリントを表示」確定後にのみ許可する。viewMode=readonly は常に閲覧のみとする。
 - バックアップ保存先（Drive 側）: `/LPK/backups/` 配下に `common-{type}-{deviceId}-{isoDate}.zip`（settings/calendarEvents/manifest）と `sprints-{type}-{YYYY-MM}-{deviceId}-{isoDate}.zip`（開始月ごとのスプリント群）を保存する。バックアップは IndexedDB には格納しない（必要時に Drive からダウンロードして復元）。
 
 ### Data Contracts & Integration
@@ -1089,4 +1091,4 @@ interface SyncEngine {
 ## Supporting References
 - 詳細な API 呼び出し仕様や競合解決パターンは `research.md` の Design Decisions と Research Log を参照。
 - 閲覧専用モードで管理: `viewMode`（editable|readonly）を Router/AppShell から受け取り、編集系操作（DnD/ダイアログ起動/保存）を無効化する。
-- viewMode が readonly の場合は全入力を無効化し表示専用とする。
+- viewMode が readonly の場合は、ドメインデータ（タスク/スプリント/設定/予定）への書き込みに関わる入力を無効化し表示専用とする（例外: `UiSettings` の変更、スプリントの選択、更新間隔設定などの端末ローカル UI 設定は許可）。
