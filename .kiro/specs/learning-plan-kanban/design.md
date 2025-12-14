@@ -589,9 +589,10 @@ flowchart TD
 ### UI Layer
 
 **View Mode 管理**
-- ソース: AppShell/Router が Auth 完了後に対象データフォルダ（`dataFolderId`）への権限を確認し `viewMode: 'editable' | 'readonly'` を決定する（閲覧専用は全画面共通のモード）。
-  - `sharedFolderId` が指定されている場合（学習者が発行した Google Drive の LPK フォルダ共有リンク由来）、`dataFolderId = sharedFolderId` として読み取り専用（readonly）で開く。
+- ソース: AppShell/Router が Auth 完了後に対象データフォルダ（`dataFolderId`）への権限を確認し `viewMode: 'editable' | 'readonly'` を決定する（閲覧専用は全画面共通の Mode）。
+  - `mode=readonly` または `sharedFolderId` が指定されている場合（学習者が発行した招待 URL 由来）、`dataFolderId = sharedFolderId` として **readonly で固定**して開く（招待 URL 経由では編集に昇格しない）。
   - 指定が無い場合は、ユーザー自身の Google Drive 上で `/LPK/` フォルダ（アプリ専用ディレクトリ）を解決し、読み書き可能なら editable とする。読み取りのみの場合は readonly とする。
+  - `dataFolderId` の権限確認は Drive の capability（例: `canEdit`）で判定し、読み取り専用権限の場合は常に readonly とする。
 - 伝播: viewMode をコンテキストまたは props で各画面（KanbanBoard/TaskDialog/CalendarView/Dashboard/SettingsPanel/Availability 等）へ渡し、編集操作をガードする。CalendarView での予定追加/更新、Availability の学習可能時間上書き、SettingsPanel のラベル/更新操作も無効化する。一方で、閲覧者の UI 操作としての「スプリント選択（`UiSettings.currentSprintId` の更新）」は許可する（Drive への書き込みは行わない）。
 - 永続化: viewMode は一時的なアクセスモードであり、settings/sprint には保存しない。
 
@@ -719,8 +720,9 @@ interface TaskDialogService {
 - バックアップ/リストア UI を提供し、BackupService を経由して daily/weekly の取得・復元を実行する（一覧表示→選択→確認→実行）。実行中は SyncEngine の自動同期を一時停止し、進捗表示を行う。
 - viewMode=readonly の場合、手動バックアップ/復元操作は無効化（表示のみ）とする。
 - 閲覧専用モードの自動更新間隔（Drive/Calendar からの pull）を設定可能にする（デフォルト 1 分）。この設定は閲覧者ごとのローカル専用（Drive 同期対象外）とし、viewMode=readonly でも変更を許可する。
-- 閲覧招待の発行: Google Drive の LPK フォルダを「リンクを知っている全員（閲覧者）」として共有し、共有リンクをコピーできるようにする（招待リンクの実体は Drive の共有リンク）。
-- 招待無効化: 上記のリンク共有を解除し、共有リンク経由の閲覧を遮断する。
+- 閲覧招待の発行: 閲覧者の Google アカウント（メールアドレス）を指定して、Google Drive の LPK フォルダへ **閲覧（reader）権限**を付与する。付与後に「招待 URL（`sharedFolderId` + `mode=readonly`）」を生成しコピーできるようにする（閲覧には Google ログインが必須）。
+- 招待無効化: 上記で付与した閲覧権限を削除し、招待 URL 経由の閲覧を遮断する。
+- 権限管理: 付与した権限の `permissionId` 一覧を `Settings` に保存し（同期対象）、無効化時はその `permissionId` を用いて確実に revoke する（他の共有設定は意図せず変更しない）。
 
 **Dependencies**
 - Outbound: TaskStore (settings 永続) (P0); UpdateManager (バージョン/アップデート状態) (P1)
@@ -770,7 +772,7 @@ interface TaskStoreActions {
   upsertTask(task: Task): void; // 作成または更新（upsert = update or insert: 存在すれば更新・無ければ作成）
   moveTask(taskId: TaskId, to: StatusSlot): Result<SideEffects, PolicyError>; // ステータス/教科移動（ドロップ位置を含む）
   reorderTasks(subjectId: SubjectId, status: Status, order: TaskId[]): void; // セル内並び替え（優先度更新）
-  recordActual(taskId: TaskId, entry: ActualEntry): void; // 実績時間の追記
+  recordActual(taskId: TaskId, entry: ActualEntry): void; // 実績時間の追記（自動/手動）
   setSubjectOrder(subjectIds: SubjectId[]): void; // 教科順の更新
 }
 
@@ -786,11 +788,14 @@ type SyncState = {
   calendarSyncToken?: string; // Calendar 差分取得用（必要なら）
 };
 
-// 実績時間の記録（分単位、タイムゾーンオフセット付き）
-// - すべての日時は ISO8601 拡張形式の ISODateTime（例: `2025-12-02T08:45:53+09:00`）で保持する。
-// - 日付しか情報が無い場合は、その日の 00:00:00 を ISODateTime で記録する。
+// 実績時間の記録（分単位、日次で集計）
+// - 実績（actual）を「端末×日付」で分解し、同期時に安全にマージできる形にする（実績データを死守する）。
 // - 集計（日次/週次）は `at` をパースし、`at` が表すローカル日付（YYYY-MM-DD）でバケット化する。
-type ActualEntry = { at: ISODateTime; minutes: number };
+type ISODate = string; // YYYY-MM-DD
+type DeviceId = string;
+type ActualEntry =
+  | { kind: 'auto'; at: ISODateTime; deltaMinutes: number; deviceId: DeviceId }
+  | { kind: 'manualOverride'; at: ISODateTime; minutes: number; deviceId: DeviceId };
 
 // 目的セル（教科×ステータス）と、挿入位置（ドロップ位置）
 type StatusSlot = {
@@ -804,7 +809,7 @@ type SideEffect =
   | { kind: 'autoMoveToOnHold'; taskId: TaskId } // InPro 置換時の自動退避
   | { kind: 'startInProTracking'; taskId: TaskId }
   | { kind: 'stopInProTracking'; taskId: TaskId }
-  | { kind: 'recordActual'; taskId: TaskId; minutes: number; at: ISODateTime }
+  | { kind: 'recordActual'; taskId: TaskId; entry: ActualEntry }
   | { kind: 'normalizePriorities'; subjectId: SubjectId; status: Status } // セル内順序に合わせて priority をギャップ付きで再採番
   | { kind: 'updateBurndown'; at: ISODateTime }; // 日次スナップショットは 00:00:00 を使用
 type SideEffects = SideEffect[];
@@ -923,10 +928,10 @@ type MoveDecision =
 | Contracts | Service |
 
 **Implementation Notes**
-- InPro 入室時に計測開始し、1 分刻みで `Task.actuals` に `ActualEntry { at: ISODateTime, minutes }` を追記する（丸めは分単位）。バックグラウンド復帰時は経過差分を算出して一括加算し、計測ずれを補正。
+- InPro 入室時に計測開始し、1 分刻みで `ActualEntry.kind='auto'` を `TaskStore.recordActual` に渡して反映する（丸めは分単位）。Task 側の保持は「日付×端末」の合計分（例: `Task.actualsByDay[YYYY-MM-DD].autoByDevice[deviceId]`）として持ち、同期時は key ごとに `max` を取り **二重加算を防ぎつつ実績を死守**する。
 - InPro 退出（他ステータスへ移動、または別タスクが InPro へ入る）時に計測を停止し、最終加算を行う。タブ終了時は Beacon/Fallback で最終書き込みを試行。
 - PomodoroTimer とは独立（Pomodoro は通知と休憩管理のみ）。Pomodoro が停止中でも計測は継続し、休憩は実績に影響させない。
-- オフラインでも加算を続け、`Task.actuals` をローカルへ永続して `syncState.dirty` を true にする。オンライン復帰時にスナップショット同期で Drive へ反映する（Calendar の参照・更新はオンライン時のみ）。
+- オフラインでも加算を続け、実績（Task の `actualsByDay`）をローカルへ永続して `syncState.dirty` を true にする。オンライン復帰時にスナップショット同期で Drive へ反映する（Calendar の参照・更新はオンライン時のみ）。
 - viewMode=readonly の場合は計測を開始せず、既存の実績を書き換えない。
 
 #### BackupService
@@ -936,7 +941,7 @@ type MoveDecision =
 | Contracts | Service |
 
 **Implementation Notes**
-- トリガー: 日次と週次で snapshot を作成（自動スケジュールは常時有効で、アプリ稼働中かつオンラインなら SyncEngine が実行）。必要に応じて UI から手動実行も可能にする。
+- トリガー: 日次と週次で snapshot を作成（自動スケジュールは viewMode=editable のみで有効。アプリ稼働中かつオンラインなら SyncEngine が実行）。必要に応じて UI から手動実行も可能にする。
 - 保持ポリシー: retention スロットを日次/週次で管理（例: daily=7 件, weekly=4 件）。`deviceId` ごとに世代管理し、削除は「同一 `deviceId` の同一 type」だけを対象にする（別端末のバックアップは削除しない）。
 - スコープ: daily は「現行スプリント + settings（+calendarEvents 必要なら）」のみを保存。weekly は「全スプリント + settings（+calendarEvents 必要なら）」を保存。新規スプリント確定直後の最初の daily/weekly で必ず当該スプリントを含める。temp/manual はデフォルト daily 同等スコープだが、オプションで全スプリントを含められる。
 - 格納形式（zip 分割）: Drive の `/LPK/backups/` に以下を保存する。  
@@ -947,7 +952,7 @@ type MoveDecision =
 - 復元フロー: UI で一覧→選択→復元確認→ SyncEngine の自動同期を一時停止。選択した `common-*.zip` をダウンロードして manifest を検証し、manifest が指す `sprints-*.zip` を順次ダウンロードして展開する。StorageAdapter 経由で settings/sprint-* をトランザクション適用→ `syncState.dirty=true` にして復元完了→ 自動同期を再開→ オンライン時に `SyncEngine.sync()` で再同期する。
 - 復元時の安全策: 現行状態を一時的にローカルへバックアップ（temp slot）し、失敗時はロールバック可能にする。
 - UI 起点: SettingsPanel からバックアップ一覧取得・手動バックアップ・復元を実行する。
-- 手動バックアップ/復元のエラーハンドリング: オフライン時は実行せずエラーを表示（後で自動再試行しない）。ただし自動バックアップスケジュールは継続する。Drive 権限不足時はエラーを表示し再認証を促し、ユーザーが許可した場合のみ認証フローを実施して再試行する。
+- 手動バックアップ/復元のエラーハンドリング: オフライン時は実行せずエラーを表示（後で自動再試行しない）。viewMode=editable の場合は自動バックアップスケジュールは継続する。Drive 権限不足時はエラーを表示し再認証を促し、ユーザーが許可した場合のみ認証フローを実施して再試行する。
 - viewMode=readonly の場合、手動バックアップ/復元操作は無効化（表示のみ）とする。
 - viewMode=readonly の場合、SyncEngine は Drive/Calendar への書き込みを行わず、設定された間隔（デフォルト 1 分）で pull のみ実行して表示を更新する。オフライン時は最終スナップショットを表示し、オンライン復帰時に即時 pull する。
 
@@ -974,7 +979,7 @@ interface SyncEngine {
 
 **Implementation Notes**
 - Integration: syncToken 失効時のフルリロード、競合時はローカル優先で警告。更新競合は世代ID＋更新時刻で解決し、セル内順序（priority）はタスク単位でマージしつつ、同一セル内で同値（重複）やギャップ不足がある場合は PrioritySorter で正規化する。BackupService を介して日次/週次スナップショットを取得し、復元時は同期を一時停止したうえで適用→再同期する。
-- Invariant 正規化（マージ後）: リモート取り込み/競合解決の結果、`status=InPro` が複数存在する場合は、それらをすべて `OnHold` に移動し、画面右下の `AlertToast` でユーザーへ通知する（自動計測中の場合は停止する）。
+- Invariant 正規化（マージ後）: リモート取り込み/競合解決の結果、`status=InPro` が複数存在する場合は、それらをすべて `OnHold` に移動し `AlertToast` で通知する。viewMode=editable の場合は **ユーザーに 1 件選択させるモーダル**を表示し（選択されるまで InProAutoTracker は停止）、選択結果で 1 件のみを `InPro` に戻す。viewMode=readonly の場合はモーダルは出さず、`OnHold` のまま表示する。
 - Drive のマージ/差分計算（remote→local）は Web Worker に委譲し、Worker は「適用可能な patch（tasks/subjectsOrder/burndownHistory などの差分）」を返す。SyncEngine は戻り値を TaskStore に適用し、IndexedDB commit と `syncState` 更新を行う。
 - ステート取得時に Drive から古いリビジョンへ後退しないよう、DriveAdapter の head revision/etag を確認し、世代ID が後退する場合は拒否して再取得する（最新の1版のみを同期対象とし、旧版は BackupService 管理下のスナップショットとして扱う）。
 - Risks: 大きな差分でのパフォーマンス低下→バッチ分割。
@@ -1022,19 +1027,20 @@ interface SyncEngine {
 - 手動チェック: SettingsPanel からの「更新を確認」が UpdateManager.checkForUpdate を呼び出し、上記と同じ検知→更新フローをトリガーする。自動チェックとの衝突を避けるため、実行中は重複チェックを抑止する。
 
 ### Infra/Tooling
-- Auth: Google OAuth（トークンはメモリまたは Session Storage、長期保存しない）。閲覧専用は Google Drive の LPK フォルダ共有リンク（閲覧者）で提供し、AppShell/Router が対象 `dataFolderId` の読み取り可否で viewMode を判定する。Drive API の 401/403/404 は「認証切れ/権限不足/リンク無効/一時障害」を区別して扱い、再試行・再認証・リンク再入力（別フォルダで開く）へ誘導する。ローカルデータの削除は自動では行わず、ユーザーの明示操作でのみ実行する。
+- Auth: Google OAuth（トークンはメモリまたは Session Storage、長期保存しない）。閲覧専用は「学習者が閲覧者の Google アカウントを招待し、招待 URL（`sharedFolderId` + `mode=readonly`）を共有する」ことで提供する。AppShell/Router が対象 `dataFolderId` の読み取り可否（canEdit など）と `mode=readonly` に基づき viewMode を判定する。Drive API の 401/403/404 は「認証切れ/権限不足/招待無効/一時障害」を区別して扱い、再試行・再認証・リンク再入力へ誘導する。ローカルデータの削除は自動では行わず、ユーザーの明示操作でのみ実行する。
 - DevContainer/CI: VS Code Dev Container 上で実装・ビルド・テストを一貫実行し、CI は test→build→deploy to Pages を自動化。
 - RepoSetupScript: gh API を用いて main 保護（必須チェック/レビュー）、マージ方式（Squash/通常マージ許可, Rebase 無効）、ブランチ自動削除、必要に応じて Pages 設定を適用する。入力: リポジトリ owner/repo; 出力: 設定結果（ログ）。
 
 ## Data Models
 
 ### Domain Model
-- **Task**: id, title, detail, subjectId, status, priority（ギャップ付き rank。数値が大きいほど上＝高優先度）, estimateMinutes, actuals[{at, minutes}], dueAt, createdAt, updatedAt.
+- **Task**: id, title, detail, subjectId, status, priority（ギャップ付き rank。数値が大きいほど上＝高優先度）, estimateMinutes, actualsByDay（`YYYY-MM-DD -> { autoByDevice[deviceId]=totalMinutes, manualOverride? }`）, dueAt, createdAt, updatedAt.
 - **Subject**: id, name.
 - **Sprint**: id (スプリント開始の ISODateTime を推奨), startAt (Mon 00:00:00), endAt, subjectsOrder (SubjectId[]), dayOverrides[{at, availableMinutes}]（スプリント内の特定日上書き。00:00:00 を使用）, burndownHistory: BurndownHistoryEntry[]
 - **CalendarEvent**: id, title, description, start/end, status, source (LPK/Google), etag.
   - カレンダー全体の `syncToken` はカレンダーメタとして管理し、イベントごとには持たせない。
 - **Settings**: statusLabels, dayDefaultAvailability.
+- **SharingSettings（Settings 内）**: viewerPermissionIds（閲覧招待で付与した Drive の `permissionId` 一覧）
 - **UiSettings（ローカル専用）**: deviceId （初回起動時に `crypto.randomUUID()` で生成した端末ローカル識別子）, readonlyRefreshIntervalSec（閲覧専用時の定期 pull 間隔・秒、デフォルト 60), currentSprintId（現在表示中のスプリント。バックアップ/同期対象外）。
 - **SyncState**: dirty（未同期変更の有無）, lastSyncedAt, localGeneration（ローカル commit の単調増加カウンタ）, driveHeads（`settings.json` と各 `sprint-{sprintId}.json` の `{ etag, updatedAt }`）, calendarSyncToken（差分取得用、必要なら）。
 - **BackupSnapshot**: id, createdAt, deviceId, manifestVersion, files[{name, path, checksum, kind (common|sprints), month (YYYY-MM)?}], retentionSlot (daily/weekly), type (daily/weekly/temp/manual), isoDate, source (local/remote).
@@ -1052,9 +1058,9 @@ interface SyncEngine {
 - バックアップ保存先（Drive 側）: `/LPK/backups/` 配下に `common-{type}-{deviceId}-{isoDate}.zip`（settings/calendarEvents/manifest）と `sprints-{type}-{YYYY-MM}-{deviceId}-{isoDate}.zip`（開始月ごとのスプリント群）を保存する。バックアップは IndexedDB には格納しない（必要時に Drive からダウンロードして復元）。
 
 ### Data Contracts & Integration
-- **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, dayDefaultAvailability 等）を保存する。各ファイルは `schemaVersion` と `updatedAt` を持つエンベロープ形式（`{ schemaVersion, updatedAt, data }`）とし、読み込み時に `schemaVersion` を検証してマイグレーションする。更新は `If-Match` （etag）で楽観ロックし、競合時は pull→merge→push で解決する。settings.json の競合解決は `updatedAt` を基準にしつつ、リモート値で上書きするかどうかを項目単位でモーダル確認する（チェックボックスで「この項目をリモート値で上書きする」を選択し、未選択はローカルを維持）。スプリントファイルはタスク単位で `updatedAt` と priority をマージし、同一セル内で同値（重複）やギャップ不足が発生した場合は PrioritySorter で正規化する。`SyncState` はローカル専用で Drive には保存しない。
+- **Drive**: `/LPK/` 配下にスプリント単位の `sprint-{sprintId}.json`（tasks, subjectsOrder, dayOverrides, burndownHistory）と `settings.json`（statusLabels, dayDefaultAvailability, viewerPermissionIds 等）を保存する。各ファイルは `schemaVersion` と `updatedAt` を持つエンベロープ形式（`{ schemaVersion, updatedAt, data }`）とし、読み込み時に `schemaVersion` を検証してマイグレーションする。更新は `If-Match` （etag）で楽観ロックし、競合時は pull→merge→push で解決する。settings.json の競合解決は `updatedAt` を基準にしつつ、リモート値で上書きするかどうかを項目単位でモーダル確認する（チェックボックスで「この項目をリモート値で上書きする」を選択し、未選択はローカルを維持）。スプリントファイルはタスク単位で `updatedAt` と priority をマージし、同一セル内で同値（重複）やギャップ不足が発生した場合は PrioritySorter で正規化する。実績（`Task.actualsByDay`）は「日付×端末」の key ごとに `max` を取り、自動計測の **二重加算を避けつつ実績を死守**する。`SyncState` はローカル専用で Drive には保存しない。
 - **Calendar**: 予定は Google Calendar から常に取得し、IndexedDB の `calendarEvents` にキャッシュして表示する。Google Drive の通常同期データには保存しない（バックアップに含める場合のみ `calendarEvents.json` として保存）。学習可能時間の算出には自動反映せず、表示のみとする。LPK 起点イベントは source=LPK を付与し二重反映を防止し、競合時は Google を優先する。
-- **Internal Events**: `SyncStatusChanged`, `UpdateAvailable`, `PomodoroTick` を発行し UI 通知と再計算をトリガ。
+- **Internal Events**: `SyncStatusChanged`, `UpdateAvailable`, `PomodoroTick`, `InProConflictDetected` を発行し UI 通知と再計算をトリガ。
 
 ## Error Handling
 
