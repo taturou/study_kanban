@@ -726,7 +726,9 @@ interface TaskDialogService {
 - 閲覧専用モードの自動更新間隔（Drive/Calendar からの pull）を設定可能にする（デフォルト 1 分）。この設定は閲覧者ごとのローカル専用（Drive 同期対象外）とし、viewMode=readonly でも変更を許可する。
 - 閲覧招待の発行: 閲覧者の Google アカウント（メールアドレス）を指定して、Google Drive の LPK フォルダへ **閲覧（reader）権限**を付与する。付与後に「招待 URL（`sharedFolderId` + `mode=readonly`）」を生成しコピーできるようにする（閲覧には Google ログインが必須）。
 - 招待無効化: 上記で付与した閲覧権限を削除し、招待 URL 経由の閲覧を遮断する。
-- 権限管理: 付与した権限の `permissionId` 一覧を `Settings` に保存し（同期対象）、無効化時はその `permissionId` を用いて確実に revoke する（他の共有設定は意図せず変更しない）。
+- 権限管理: 付与した権限の `permissionId` 一覧を `Settings` に保存し（同期対象）、無効化時はその `permissionId` を用いて revoke を試行する（他の共有設定は意図せず変更しない）。
+  - フォールバック: アプリ外で共有設定が変更され `permissionId` が無効/不整合の可能性があるため、revoke に失敗した場合は Drive から対象フォルダの permissions を再取得して突合し、「現在の共有状態」を表示してユーザーが削除対象を選択できる UI にフォールバックする（削除操作は Drive の `permissionId` を用いて行う）。
+  - UX: フォールバック時は「削除できなかった理由（例: 既に削除済み、権限不足、別経路の共有が残っている可能性）」を UI に表示し、再試行可能にする。
 
 **Dependencies**
 - Outbound: TaskStore (settings 永続) (P0); UpdateManager (バージョン/アップデート状態) (P1)
@@ -1007,6 +1009,7 @@ interface SyncEngine {
 
 **Implementation Notes**
 - Drive: JSON ファイルを専用ディレクトリに保存（`settings.json`, `sprint-{sprintId}.json`）、`If-Match` を用いた楽観ロックを前提にする。`files.get` で head revision/etag を取得し、ローカルより古いリビジョンをダウンロードしない防御を入れる。バックアップは `/LPK/backups/` 配下に分離し、通常同期ファイルとは混在させない。バックアップ格納は zip 前提（`common-{type}-{deviceId}-{isoDate}.zip` と `sprints-{type}-{YYYY-MM}-{deviceId}-{isoDate}.zip`）で、アップロード/ダウンロードはファイル単位のフル転送。部分取得は不可のためクライアントで unzip して使用する。
+  - Sharing: 閲覧招待/無効化のため、対象フォルダの permissions（共有状態）を取得し、`permissionId` による付与/削除を行う。無効化時に `permissionId` が不整合な場合に備えて、permissions の再取得と突合（フォールバック UI の表示に必要）をサポートする。
   - Drive 同期用 JSON には `schemaVersion` を必須フィールドとして含める（例: `{ schemaVersion: 3, updatedAt: ISODateTime, data: {...} }`）。アプリ再インストールや更新で仕様差分がある場合でも、読み込み時に `schemaVersion` を検証して段階的にマイグレーションする。
   - マイグレーション: `schemaVersion < currentSchemaVersion` の場合、`vN → vN+1` の migrator を順に適用し、ローカル（IndexedDB）へ commit 後に Drive 側も最新 `schemaVersion` で上書きする（書き戻し前に Drive の Revisions（またはバックアップ）で 1 世代確保）。
   - 失敗時の扱い:
