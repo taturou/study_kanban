@@ -12,10 +12,29 @@
   "customizations": {
     "vscode": {
       "extensions": [
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
+        "MS-CEINTL.vscode-language-pack-ja",
+        "SimonSiefke.svg-preview",
+        "aaron-bond.better-comments",
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
+        "fabiospampinato.vscode-diff",
         "github.copilot",
-        "ms-vscode.vscode-typescript-next"
+        "mhutchie.git-graph",
+        "ms-vscode.vscode-typescript-next",
+        "msfukui.eof-mark",
+        "oderwat.indent-rainbow",
+        "ryu1kn.annotator",
+        "ryu1kn.partial-diff",
+        "ryu1kn.text-marker",
+        "shd101wyy.markdown-preview-enhanced",
+        "spywhere.guides",
+        "streetsidesoftware.code-spell-checker",
+        "vivaxy.vscode-conventional-commits",
+        "vscode-icons-team.vscode-icons",
+        "vscodevim.vim",
+        "wayou.vscode-todo-highlight"
       ]
     }
   }
