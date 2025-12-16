@@ -1104,7 +1104,7 @@ interface SyncEngine {
 - Unit: StatusPolicy（遷移ガード、副作用）、TimeCalc（残り時間/負荷/期日）、Availability（予定控除と上書き）、Burndown 計算、SyncEngine のマージ/競合処理。
 - Integration: KanbanBoard+Dnd キーボード/マウス、TaskDialog フォーカストラップ、SyncEngine と StorageAdapter の永続、CalendarAdapter の syncToken リカバリ。
 - E2E (Playwright): タスク作成→InPro への移動ガード、Today 過負荷警告、オフライン操作→再接続同期、閲覧専用モード表示。
-- Performance: 200 タスク・10 教科での DnD/スクロール応答、同期時のバッチ処理時間。
+- Performance: 教科 14（学校 9 + 塾 5）、固定ステータス 6 列の各セルに 35 枚（最大約 2,940 枚）を配置した状態での DnD/スクロール応答、同期時のバッチ処理時間。
 
 ## Security Considerations
 - Google OAuth トークンは長期保存しない（メモリ/Session Storage）。Drive/Calendar scope を最小限に限定。
@@ -1115,6 +1115,7 @@ interface SyncEngine {
 - Board 描画はバーチャライゼーションを前提に拡張可能な構造で実装する。縦スクロールの支配的コストを下げるため、教科行単位のバーチャライゼーションを優先し、必要に応じて行内の列リストを部分的に仮想化する。TimeCalc/Burndown はメモ化。
 - 同期はスナップショットの pull→merge→push とし、`syncState.dirty` の場合のみ push する。Calendar は差分取得で通信量を抑制。
 - 強制アップデート時の再ロード前に同期を完了させ、データ損失を防止。
+- 性能ベンチ対象は要件 1.12 の「教科 14 × 固定ステータス 6 列 × 各セル 35 枚（約 2,940 カード）」を基準とし、PoC/テストも同条件で評価する。
 
 ## Supporting References
 - 詳細な API 呼び出し仕様や競合解決パターンは `research.md` の Design Decisions と Research Log を参照。
