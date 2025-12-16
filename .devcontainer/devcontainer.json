@@ -32,5 +32,6 @@
         "wayou.vscode-todo-highlight"
       ]
     }
-  }
+  },
+  "postStartCommand": ".devcontainer/post-start.sh"
 }

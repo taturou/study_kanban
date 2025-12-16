@@ -1,0 +1,27 @@
+#-------------------------------------------------
+# .gitconfig をカスタマイズするための設定ファイル
+# コンテナ起動時に ~/.gitconfig に追記される
+#-------------------------------------------------
+[alias]
+	ch = checkout
+	co = commit
+	s = status
+	b = branch --column
+	current-branch = rev-parse --abbrev-ref HEAD
+	cb = rev-parse --abbrev-ref HEAD
+	bc = rev-parse --abbrev-ref HEAD
+	l = log --graph --decorate
+	ls = log --name-status --graph --decorate
+	la = log --graph --full-history --all --color --pretty=format:"%x1b[31m%h%x09%x1b[32m%d%x1b[0m<%an>%x20%s"
+	d = diff
+	dl = diff --name-status
+	cp = cherry-pick
+	a = add
+	ad = add
+
+[color]
+	diff = auto
+	status = auto
+	branch = auto
+	interactive = auto
+	ui = auto
