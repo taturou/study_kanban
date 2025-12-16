@@ -34,7 +34,8 @@
         "vivaxy.vscode-conventional-commits",
         "vscode-icons-team.vscode-icons",
         "vscodevim.vim",
-        "wayou.vscode-todo-highlight"
+        "wayou.vscode-todo-highlight",
+        "GitHub.vscode-pull-request-github"
       ]
     }
   },
