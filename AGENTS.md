@@ -46,7 +46,7 @@ Project memory keeps persistent guidance (steering, specs notes, component docs)
 - Keep steering current and verify alignment with `/prompts:kiro-spec-status`
 - Follow the user's instructions precisely, and within that scope act autonomously: gather the necessary context and complete the requested work end-to-end in this run, asking questions only when essential information is missing or the instructions are critically ambiguous.
 - In Japanese documentation, always insert a half-width space between an English word and the following Japanese text (e.g., `Archive 属性`, `Read-only 属性`; never `Archive属性`, `Read-only属性`).
-- When committing, strictly follow the "Conventional Commits" format (e.g., `feat: ...`, `docs(specs): ...`, `chore: ...`) using Japanese for the title summary and the optional body describing the purpose and intent, and do not commit autonomously but only upon explicit human instruction, executing the commit solely on the changes currently staged by the user.
+- When committing, strictly follow the "Conventional Commits" format (e.g., `feat: ...`, `docs(specs): ...`, `chore: ...`) using Japanese for the title summary and the optional body describing the purpose and intent, and do not commit autonomously but only upon explicit human instruction, executing the commit solely on the changes currently staged by the user, and include a brief Japanese body describing the intent and purpose based on the prior conversation.
 
 ## Steering Configuration
 - Load entire `.kiro/steering/` as project memory
