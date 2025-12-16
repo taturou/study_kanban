@@ -37,7 +37,7 @@ EOF
 echo "マージ方式と Pages 設定を適用します (Auto-merge を許可し、レビュー不要で CI パス後に自動マージ可能にします)..."
 gh api --method PATCH "repos/${REPO}" \
   -H "Accept: application/vnd.github+json" \
-  -F allow_squash_merge=true \
+  -F allow_squash_merge=false \
   -F allow_merge_commit=true \
   -F allow_rebase_merge=false \
   -F delete_branch_on_merge=true \

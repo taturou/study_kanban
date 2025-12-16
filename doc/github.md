@@ -13,7 +13,7 @@ GitHub Actions で `main` ブランチへの push / PR をトリガーに `lint`
    ./scripts/gh-setup.sh taturou/study_kanban
    ```  
    - main ブランチ保護（必須ステータスチェック: `ci`, `deploy` のみ、レビュー不要で自己承認なし）  
-   - マージ方式（Squash/通常マージのみ許可、Rebase 無効、マージ後のブランチ自動削除、Auto-merge 許可）  
+   - マージ方式（通常マージのみ許可、Squash/Rebase 無効、マージ後のブランチ自動削除、Auto-merge 許可）  
    - Pages を GitHub Actions (workflow) 配信に設定（未作成なら自動作成）。証明書発行が終わる前は 404 になる場合があるので、その場合は数分待って再実行してください。
 3. 初回デプロイ: `main` に push するか、Actions から `CI/CD` を手動実行すると Pages が公開されます。
 
@@ -27,7 +27,7 @@ GitHub Actions で `main` ブランチへの push / PR をトリガーに `lint`
    - Require pull request reviews: 無効（自動マージを許可するため）  
    - Include administrators: 任意
 3. Settings → General → Pull Requests  
-   - Allow squash merge: 有効  
+   - Allow squash merge: 無効  
    - Allow merge commit: 有効  
    - Allow rebase merge: 無効  
    - Automatically delete head branches: 有効  
