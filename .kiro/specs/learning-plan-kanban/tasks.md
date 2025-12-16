@@ -5,9 +5,10 @@
   - VS Code Dev Container を構成し、ホスト依存を排除する
   - _Requirements: 9.1,9.2,9.3_
 
-- [ ] 2. (P) CI/CD とリポジトリ設定を整備する
+- [x] 2. (P) CI/CD とリポジトリ設定を整備する
   - main への push で lint/test/build、成功時に Pages へデプロイし結果を通知する
   - gh スクリプトでブランチ保護・マージ方式・Pages 設定を適用する
+  - github ページを手動で設定するための手順を doc/github.md に記載する
   - _Requirements: 5.2,5.12,8.1,8.2,8.3,8.4_
 
 - [ ] 3. (P) i18n 基盤を `ja-JP` 固定で構築し、全 UI 文字列をライブラリ管理に移行する
