@@ -18,7 +18,7 @@ if [[ "${REPO}" != *"/"* ]]; then
 fi
 
 echo "ターゲット: ${REPO}"
-echo "main ブランチの保護ルールを設定します..."
+echo "main ブランチの保護ルールを設定します (ステータスチェックのみ必須、レビュー不要/自己承認なし)..."
 gh api --method PUT "repos/${REPO}/branches/main/protection" \
   -H "Accept: application/vnd.github+json" \
   -H "Content-Type: application/json" \
@@ -28,22 +28,20 @@ gh api --method PUT "repos/${REPO}/branches/main/protection" \
     "strict": true,
     "contexts": ["CI/CD", "ci", "deploy"]
   },
-  "enforce_admins": true,
-  "required_pull_request_reviews": {
-    "dismiss_stale_reviews": true,
-    "required_approving_review_count": 1
-  },
+  "enforce_admins": false,
+  "required_pull_request_reviews": null,
   "restrictions": null
 }
 EOF
 
-echo "マージ方式と Pages 設定を適用します..."
+echo "マージ方式と Pages 設定を適用します (Auto-merge を許可し、レビュー不要で CI パス後に自動マージ可能にします)..."
 gh api --method PATCH "repos/${REPO}" \
   -H "Accept: application/vnd.github+json" \
   -F allow_squash_merge=true \
   -F allow_merge_commit=true \
   -F allow_rebase_merge=false \
-  -F delete_branch_on_merge=true
+  -F delete_branch_on_merge=true \
+  -F allow_auto_merge=true
 
 echo "Pages を GitHub Actions 配信で有効化します (存在しない場合は新規作成)..."
 # まず新規作成（既に存在する場合は 409 になるので無視）
