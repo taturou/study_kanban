@@ -8,10 +8,10 @@ ARG NO_PROXY
 
 USER root
 
-# パッケージをインストール
+# パッケージをインストール（ロケールは locales-all で一括導入）
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    curl git language-pack-ja less locales lv tree vim
+    curl git locales-all less lv tree vim
 
 # グローバルに利用する CLI 群をインストール
 RUN npm_config_proxy=$HTTP_PROXY npm_config_https_proxy=$HTTPS_PROXY npm_config_noproxy=$NO_PROXY \
@@ -22,7 +22,8 @@ RUN npm_config_proxy=$HTTP_PROXY npm_config_https_proxy=$HTTPS_PROXY npm_config_
     @openai/codex \
     @google/gemini-cli \
     @github/copilot \
-    @githubnext/github-copilot-cli
+    @githubnext/github-copilot-cli && \
+    chmod -R a+rx /usr/local/lib/node_modules
 
 # GitHub CLI を apt 経由で追加
 RUN http_proxy=$HTTP_PROXY https_proxy=$HTTPS_PROXY no_proxy=$NO_PROXY \
@@ -45,10 +46,9 @@ ENV LC_ALL=ja_JP.UTF-8
 # Kiro スタイルの cc-sdd プロンプトをコンテナ内に展開
 ENV CCSDD_TEMP=/tmp/cc-sdd
 RUN rm -rf ${CCSDD_TEMP} && mkdir -p ${CCSDD_TEMP} && \
-    npm_config_proxy=$HTTP_PROXY npm_config_https_proxy=$HTTPS_PROXY npm_config_noproxy=$NO_PROXY \
-    /bin/bash -lc "cd ${CCSDD_TEMP} && npx cc-sdd@latest --codex --lang ja" && \
-    mkdir -p /home/node/.codex/prompts && \
-    cp -a ${CCSDD_TEMP}/.codex/prompts/. /home/node/.codex/prompts && \
+    chown node:node ${CCSDD_TEMP} && \
+    su node -lc "npm_config_proxy=$HTTP_PROXY npm_config_https_proxy=$HTTPS_PROXY npm_config_noproxy=$NO_PROXY /bin/bash -lc 'cd ${CCSDD_TEMP} && npx cc-sdd@latest --codex --lang ja'" && \
+    su node -lc "mkdir -p /home/node/.codex/prompts && cp -a ${CCSDD_TEMP}/.codex/prompts/. /home/node/.codex/prompts" && \
     rm -rf ${CCSDD_TEMP}
 
 USER node
