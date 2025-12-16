@@ -949,10 +949,10 @@ type MoveDecision =
 | Contracts | Service |
 
 **Implementation Notes**
-- InPro 入室時に計測開始し、InPro 滞在を 1 つの `TaskActual` として記録する（毎分の新規レコード追加は行わず、同一 `id` の `durationMinutes` を更新して伸ばす）。退出時に最終値を確定する。
-- InPro 退出（他ステータスへ移動、または別タスクが InPro へ入る）時に計測を停止し、最終加算を行う。タブ終了時は Beacon/Fallback で最終書き込みを試行。
+- InPro 入室時に計測開始し、InPro 滞在を 1 つの `TaskActual` として扱うが、1 分ごとの進捗は UI ローカル状態（非同期対象）にのみ蓄積する。一定間隔（例: 5 分）または退出時にまとめて `TaskActual.durationMinutes` を更新し、初めて `syncState.dirty` を立てる（1 分刻みでは dirty にしない）。
+- InPro 退出（他ステータスへ移動、または別タスクが InPro へ入る）時に計測を停止し、未反映の UI ローカル蓄積をまとめて反映して最終加算を行う。タブ終了時は Beacon/Fallback で最終書き込みを試行。
 - PomodoroTimer とは独立（Pomodoro は通知と休憩管理のみ）。Pomodoro が停止中でも計測は継続し、休憩は実績に影響させない。
-- オフラインでも加算を続け、実績（Task の `actuals`）をローカルへ永続して `syncState.dirty` を true にする。オンライン復帰時にスナップショット同期で Drive へ反映する（Calendar の参照・更新はオンライン時のみ）。
+- オフラインでも加算を続けるが、1 分刻みは UI ローカルに保持し、バッチ反映時のみ実績（Task の `actuals`）をローカルへ永続して `syncState.dirty` を true にする。オンライン復帰時にスナップショット同期で Drive へ反映する（Calendar の参照・更新はオンライン時のみ）。
 - viewMode=readonly の場合は計測を開始せず、既存の実績を書き換えない。
 
 #### BackupService
@@ -1000,6 +1000,7 @@ interface SyncEngine {
 
 **Implementation Notes**
 - Integration: syncToken 失効時のフルリロード、競合時はローカル優先で警告。更新競合は世代ID＋更新時刻で解決し、セル内順序（priority）はタスク単位でマージしつつ、同一セル内で同値（重複）やギャップ不足がある場合は PrioritySorter で正規化する。BackupService を介して日次/週次スナップショットを取得し、復元時は同期を一時停止したうえで適用→再同期する。
+- InProAutoTracker の 1 分刻みの進捗は UI ローカルにとどめ、バッチ反映時のみ `syncState.dirty` を更新する（即時 push を発火させない）。同期トリガーは手動/定期/イベント駆動（明示的な状態変更）に限定し、レートリミットとバッテリーを避ける。
 - Invariant 正規化（マージ後）: リモート取り込み/競合解決の結果、`status=InPro` が複数存在する場合は、それらを発見順に `OnHold` へ順次 `insertIndex=0` で挿入し（最後に見つかったものが OnHold 最上位）、`AlertToast` で通知する。viewMode=editable/readonly を問わずモーダルは表示せず、全て OnHold のままとする。
 - Drive のマージ/差分計算（remote→local）は Web Worker に委譲し、Worker は「適用可能な patch（tasks/subjectsOrder/burndownHistory などの差分）」を返す。SyncEngine は戻り値を TaskStore に適用し、IndexedDB commit と `syncState` 更新を行う。
 - ステート取得時に Drive から古いリビジョンへ後退しないよう、DriveAdapter の head revision/etag を確認し、世代ID が後退する場合は拒否して再取得する（最新の1版のみを同期対象とし、旧版は BackupService 管理下のスナップショットとして扱う）。
