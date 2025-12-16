@@ -26,7 +26,7 @@ gh api --method PUT "repos/${REPO}/branches/main/protection" \
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["CI/CD", "ci", "deploy"]
+    "contexts": ["ci", "deploy"]
   },
   "enforce_admins": false,
   "required_pull_request_reviews": null,
