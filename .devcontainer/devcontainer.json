@@ -1,7 +1,12 @@
 {
   "name": "study_kanban",
   "build": {
-    "dockerfile": "Dockerfile"
+    "dockerfile": "Dockerfile",
+    "args": {
+      "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
+      "HTTPS_PROXY": "${localEnv:HTTPS_PROXY}",
+      "NO_PROXY": "${localEnv:NO_PROXY}"
+    }
   },
   "remoteUser": "node",
   "customizations": {
