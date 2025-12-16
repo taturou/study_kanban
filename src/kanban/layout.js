@@ -16,8 +16,10 @@ export function guardStatusOrder(order) {
   return STATUS_ORDER;
 }
 
-export function createKanbanLayoutConfig({ subjects }) {
+export function createKanbanLayoutConfig({ subjects, viewportWidth = Infinity }) {
   guardStatusOrder(STATUS_ORDER);
+  const minColumnWidth = 240;
+  const needHorizontalScroll = STATUS_ORDER.length * minColumnWidth > viewportWidth;
   return {
     headerFixed: true,
     containerScroll: true,
@@ -26,11 +28,24 @@ export function createKanbanLayoutConfig({ subjects }) {
       subjectColumn: true,
     },
     grid: {
-      minColumnWidth: 240,
+      minColumnWidth,
       minCardTitleLength: 10,
+    },
+    scroll: {
+      horizontal: needHorizontalScroll,
     },
     subjects,
     statuses: STATUS_ORDER,
     performance: PERFORMANCE_BASELINE,
   };
+}
+
+export function calculateScrollDuringEmptyDrag({ current, dragDeltaX, dragDeltaY }) {
+  const nextX = Math.max(0, current.x + dragDeltaX);
+  const nextY = Math.max(0, current.y + dragDeltaY);
+  return { x: nextX, y: nextY };
+}
+
+export function shouldShowInsertPreview({ subjects, cardsPerCell }) {
+  return subjects <= PERFORMANCE_BASELINE.subjects && cardsPerCell <= PERFORMANCE_BASELINE.cardsPerCell;
 }
