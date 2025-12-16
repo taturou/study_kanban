@@ -129,7 +129,7 @@ sequenceDiagram
     KB-->>U: show block reason
   end
 ```
-Key: ローカル操作ではポリシーが Today→InPro 制約、Done 遷移条件、InPro 唯一性、自動 OnHold を返す。端末間同期のマージ後に不整合（InPro 複数）が混入した場合は SyncEngine 側で正規化する（SyncEngine の Implementation Notes「Invariant 正規化（マージ後）」を参照）。
+Key: ローカル操作ではポリシーが Today 先頭のみ→InPro、OnHold 先頭のみ→InPro、Done 遷移条件、InPro 唯一性、自動 OnHold 退避を返す。端末間同期のマージ後に不整合（InPro 複数）が混入した場合は SyncEngine 側で正規化する（SyncEngine の Implementation Notes「Invariant 正規化（マージ後）」を参照）。
 
 ### オフライン同期サイクル（Drive/Calendar）
 ```mermaid
@@ -507,10 +507,12 @@ flowchart TD
 | 3.8 | Today 最優先以外→InPro 禁止 | StatusPolicy | - | タスク移動 |
 | 3.9 | InPro のみ1件、他は OnHold へ自動移動 | StatusPolicy, TaskStore | - | タスク移動 |
 | 3.10 | InPro/OnHold 以外→Done 禁止 | StatusPolicy | - | タスク移動 |
-| 3.11 | Today/InPro/OnHold 残り時間超過で警告 | AlertToast, Availability, TimeCalc | - | - |
-| 3.12 | InPro 自動計測＋円形インジケータ | PomodoroTimer, TaskCard | TimeCalc | - |
-| 3.13 | PT 操作と通知 | PomodoroTimer, AlertToast | - | - |
-| 3.14 | PT 終了時アラーム | PomodoroTimer, AlertToast | - | - |
+| 3.11 | OnHold→InPro は同一教科の先頭のみ許可 | StatusPolicy | - | タスク移動 |
+| 3.12 | InPro の置換は退避タスクを OnHold 先頭へ挿入し再採番 | StatusPolicy, TaskStore | - | タスク移動 |
+| 3.13 | Today/InPro/OnHold 残り時間超過で警告 | AlertToast, Availability, TimeCalc | - | - |
+| 3.14 | InPro 自動計測＋円形インジケータ | PomodoroTimer, TaskCard | TimeCalc | - |
+| 3.15 | PT 操作と通知 | PomodoroTimer, AlertToast | - | - |
+| 3.16 | PT 終了時アラーム | PomodoroTimer, AlertToast | - | - |
 | 4.1 | Dashboard で週次集計を表示 | Dashboard | Burndown | - |
 | 4.2 | 今日期日 Backlog 強調 | KanbanBoard | TimeCalc | - |
 | 4.3 | 期日超過フラグ/リスト | Dashboard | TimeCalc | - |
@@ -609,7 +611,7 @@ flowchart TD
 - 端末横幅が不足する場合は `Container` の横スクロールで全ステータス列にアクセスできるようにする。ステータス列には最小幅を設ける（TCard のタイトル 10 文字程度＋予定/実績時間＋期日を省略せず表示できること）。最小幅は UI 定数（例: `--lpk-status-col-min-width`）として集約する。
 - DnD は StatusPolicy の判定結果に従い、ドラッグ中に有効セルのみをハイライトし、無効セルではドロップを受け付けず元の位置に戻す。
 - TCard の DnD 中は縦スクロールを行わず、ドロップ対象は「ドラッグ開始時点で DOM 上に存在する教科行」に限定する。横方向は端付近で自動横スクロールし、狭い端末でも目的のステータス列へ移動できるようにする。
-- ドロップ位置は挿入プレビュー（挿入ライン/プレースホルダ）を必須とし、カードの矩形（bounding box）ベースで「上半分/下半分」を判定して `insertIndex` を決める。空セルへのドロップは末尾挿入とする（同一セル/別セルで同一規則）。
+- ドロップ位置は挿入プレビュー（挿入ライン/プレースホルダ）を必須とし、カードの矩形（bounding box）ベースで「上半分/下半分」を判定して `insertIndex` を決める（InPro への遷移は `insertIndex=0` 固定でのみ許可）。空セルへのドロップは末尾挿入とする（同一セル/別セルで同一規則）。
 - 空セルドラッグでスクロール補助、Backlog プラスから TaskDialog を起動。
 - viewMode が readonly の場合は DnD/ダイアログ起動など編集操作を無効化し、表示のみとする。Subject 行の並べ替え/追加/削除も禁止。
 
@@ -620,7 +622,7 @@ flowchart TD
 
 **Implementation Notes**
 - Touch: タッチでの DnD はスクロール誤操作を避けるため、一般的な長押し開始遅延（例: 200-300ms 程度）を設定し、体験に応じて調整可能にする。
-- Validation: ドロップ前に StatusPolicy の結果を確認、警告は AlertToast へ。
+- Validation: ドロップ前に StatusPolicy の結果を確認し、無効セル/`insertIndex` ではドロップを無効化（プレビュー/ハイライトで示す）。警告は AlertToast へ。
 - Risks: 大量カードで描画負荷→縦スクロール主体のため「教科行（row）単位のバーチャライゼーション（仮想スクロール）」を第一候補とする（横方向は仮想化しない）。DnD 中は縦スクロール無効化に加え、ドラッグ開始時点の仮想化レンジ（可視行 + overscan）をドラッグ終了まで固定し、行のアンマウントを抑止してドロップ判定と挿入プレビューを安定化する。
 - Auto 横スクロール: パラメータ（端からの発火距離、最大速度など）は UI 定数として集約し、初期値は一般的なデフォルトを仮置きして後から調整可能にする。
 - PoC: `sticky` + 2 軸スクロール（`KanbanView[Header][Container]`）+ dnd-kit の autoScroll + 縦仮想化レンジ固定 + `insertIndex` の挿入プレビュー（矩形ベース）を組み合わせたスパイクを先行実施し、性能受け入れ基準（教科 14、各セル 35 件の TCard）で操作が破綻しないことを確認する。
@@ -821,7 +823,7 @@ type StatusSlot = {
 
 // StatusPolicy から返され、TaskStore が適用する副作用の最小集合
 type SideEffect =
-  | { kind: 'autoMoveToOnHold'; taskId: TaskId } // InPro 置換時の自動退避
+  | { kind: 'autoMoveToOnHold'; taskId: TaskId } // InPro 置換時に OnHold 先頭へ自動退避
   | { kind: 'startInProTracking'; taskId: TaskId }
   | { kind: 'stopInProTracking'; taskId: TaskId }
   | { kind: 'upsertActual'; taskId: TaskId; actual: TaskActual }
@@ -854,13 +856,15 @@ interface StatusPolicyService {
 // タスク移動の入力（TaskStore から必要なコンテキストを明示的に渡す）
 type MoveInput = {
   taskId: TaskId;
-  from: { subjectId: SubjectId; status: Status; priority: number }; // Today→InPro 判定に優先度を使用（自動 OnHold も Today 時の優先度を保持）
+  from: { subjectId: SubjectId; status: Status; priority: number }; // Today→InPro 判定に優先度を使用（Today 先頭のみ InPro 可）
   to: { subjectId: SubjectId; status: Status; insertIndex?: number }; // D&D のドロップ位置（0=最上位）。省略時は最下位へ挿入し priority を更新する
   context: {
     hasOtherInPro: boolean; // 既に InPro が存在するか（同時に 1 件のみ）
     todayPlannedMinutes: number; // Today に積まれている予定時間合計
     availableMinutesToday: number; // 本日の学習可能時間（Availability 結果）
     dueAt?: ISODateTime; // 期日（Done/WontFix ガードなどに利用。日付のみの場合は 00:00:00）
+    isTopOfOnHold?: boolean; // from.status=OnHold のとき先頭かどうか（先頭のみ InPro 遷移可）
+    isTopOfToday?: boolean; // from.status=Today のとき先頭かどうか（先頭のみ InPro 遷移可）
   };
   initiator?: 'mouse' | 'touch' | 'keyboard';
 };
@@ -869,13 +873,15 @@ type MoveDecision =
   | { allowed: false; reason: PolicyError };
 ```
 - Preconditions: 固定ステータス集合外の遷移は即拒否。
-- Postconditions: 副作用（InPro 置換→元を OnHold へ、Done ガード）を返却。
+- Postconditions: 副作用（InPro 置換→元を OnHold 先頭へ退避、Done ガード）を返却。
 
 **Dependencies**
 - Inbound: KanbanBoard (P0)
 - Outbound: なし（TaskStore 依存を持たない純粋サービス）
 
 **Implementation Notes**
+- InPro への遷移は Today 先頭または OnHold 先頭からのみ許可し、`insertIndex` は 0 限定。その他は `PolicyError` を返す。
+- InPro 置換時は退避タスクを OnHold 先頭へ挿入し、当該セルの priority を再採番する（Today の優先度はコピーしない）。
 - Risks: ポリシー更新時のリグレッション→ユニットテスト必須。
 
 #### PrioritySorter
@@ -994,7 +1000,7 @@ interface SyncEngine {
 
 **Implementation Notes**
 - Integration: syncToken 失効時のフルリロード、競合時はローカル優先で警告。更新競合は世代ID＋更新時刻で解決し、セル内順序（priority）はタスク単位でマージしつつ、同一セル内で同値（重複）やギャップ不足がある場合は PrioritySorter で正規化する。BackupService を介して日次/週次スナップショットを取得し、復元時は同期を一時停止したうえで適用→再同期する。
-- Invariant 正規化（マージ後）: リモート取り込み/競合解決の結果、`status=InPro` が複数存在する場合は、それらをすべて `OnHold` に移動し `AlertToast` で通知する。viewMode=editable の場合は **ユーザーに 1 件選択させるモーダル**を表示し（選択されるまで InProAutoTracker は停止）、選択結果で 1 件のみを `InPro` に戻す。viewMode=readonly の場合はモーダルは出さず、`OnHold` のまま表示する。
+- Invariant 正規化（マージ後）: リモート取り込み/競合解決の結果、`status=InPro` が複数存在する場合は、それらを発見順に `OnHold` へ順次 `insertIndex=0` で挿入し（最後に見つかったものが OnHold 最上位）、`AlertToast` で通知する。viewMode=editable/readonly を問わずモーダルは表示せず、全て OnHold のままとする。
 - Drive のマージ/差分計算（remote→local）は Web Worker に委譲し、Worker は「適用可能な patch（tasks/subjectsOrder/burndownHistory などの差分）」を返す。SyncEngine は戻り値を TaskStore に適用し、IndexedDB commit と `syncState` 更新を行う。
 - ステート取得時に Drive から古いリビジョンへ後退しないよう、DriveAdapter の head revision/etag を確認し、世代ID が後退する場合は拒否して再取得する（最新の1版のみを同期対象とし、旧版は BackupService 管理下のスナップショットとして扱う）。
 - Risks: 大きな差分でのパフォーマンス低下→バッチ分割。
