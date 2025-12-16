@@ -50,12 +50,14 @@ echo "Pages を GitHub Actions 配信で有効化します (存在しない場�
 gh api --method POST "repos/${REPO}/pages" \
   -H "Accept: application/vnd.github+json" \
   -F build_type=workflow \
-  -F https_enforced=true >/dev/null 2>&1 || true
+  -F https_enforced=false >/dev/null 2>&1 || true
 
-# 既存設定の更新（HTTPS 強制を再度適用）
-gh api --method PUT "repos/${REPO}/pages" \
+# 設定更新（証明書がまだ発行されていない場合は 404 が返るので警告だけ出して続行）
+if ! gh api --method PUT "repos/${REPO}/pages" \
   -H "Accept: application/vnd.github+json" \
   -F build_type=workflow \
-  -F https_enforced=true
+  -F https_enforced=false >/dev/null 2>&1; then
+  echo "Warning: Pages 設定更新に失敗しました。証明書発行が完了したら再実行してください。" >&2
+fi
 
 echo "設定が完了しました。GitHub Pages のデプロイは Actions ワークフロー (CI/CD) から実行されます。"
