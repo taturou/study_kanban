@@ -45,6 +45,14 @@ gh api --method PATCH "repos/${REPO}" \
   -F allow_rebase_merge=false \
   -F delete_branch_on_merge=true
 
+echo "Pages を GitHub Actions 配信で有効化します (存在しない場合は新規作成)..."
+# まず新規作成（既に存在する場合は 409 になるので無視）
+gh api --method POST "repos/${REPO}/pages" \
+  -H "Accept: application/vnd.github+json" \
+  -F build_type=workflow \
+  -F https_enforced=true >/dev/null 2>&1 || true
+
+# 既存設定の更新（HTTPS 強制を再度適用）
 gh api --method PUT "repos/${REPO}/pages" \
   -H "Accept: application/vnd.github+json" \
   -F build_type=workflow \

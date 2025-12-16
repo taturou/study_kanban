@@ -14,7 +14,7 @@ GitHub Actions で `main` ブランチへの push / PR をトリガーに `lint`
    ```  
    - main ブランチ保護（必須ステータスチェック: CI/CD・ci・deploy、レビュー1件、管理者にも適用）  
    - マージ方式（Squash/通常マージのみ許可、Rebase 無効、マージ後のブランチ自動削除）  
-   - Pages を GitHub Actions (workflow) 配信・HTTPS 強制に設定
+   - Pages を GitHub Actions (workflow) 配信・HTTPS 強制に設定（未作成なら自動で作成）
 3. 初回デプロイ: `main` に push するか、Actions から `CI/CD` を手動実行すると Pages が公開されます。
 
 ## 手動で設定する場合
