@@ -1,0 +1,22 @@
+{
+  "name": "study_kanban",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    }
+  },
+  "remoteUser": "node",
+  "postCreateCommand": "npm install -g typescript@5.3.3 pnpm@8",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "github.copilot",
+        "ms-vscode.vscode-typescript-next"
+      ]
+    }
+  }
+}

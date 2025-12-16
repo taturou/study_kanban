@@ -1,7 +1,7 @@
 # Implementation Plan
 
-- [ ] 1. DevContainer 環境を整備し推奨拡張を導入する
-- [ ] 1.1 Node/TypeScript など依存のプリインストールと推奨拡張の自動インストールを設定する
+- [x] 1. DevContainer 環境を整備し推奨拡張を導入する
+- [x] 1.1 Node/TypeScript など依存のプリインストールと推奨拡張の自動インストールを設定する
   - VS Code Dev Container を構成し、ホスト依存を排除する
   - _Requirements: 9.1,9.2,9.3_
 
