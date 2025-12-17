@@ -26,6 +26,16 @@ test("main.js に AppShell と Kanban スケルトンのプレースホルダー
   assert.match(content, /Kanban/);
 });
 
+test("main.js は KanbanBoard のプレースホルダーを初期レンダリングする", async () => {
+  const container = { innerHTML: "" };
+  const originalDocument = global.document;
+  global.document = { querySelector: () => container };
+  await import("../src/main.js");
+  assert.match(container.innerHTML, /kanban-board/);
+  assert.match(container.innerHTML, /data-testid="placeholder-card"/);
+  global.document = originalDocument;
+});
+
 test("dev サーバスクリプトが存在し、ポート 5173 で公開する設定を持つ", () => {
   const serverPath = path.join(workspace, "scripts", "dev-server.js");
   assert.ok(fs.existsSync(serverPath));
