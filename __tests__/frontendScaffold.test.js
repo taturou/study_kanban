@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
+import { renderAppShell } from "../src/main.js";
 
 const workspace = process.cwd();
 
@@ -28,12 +29,16 @@ test("main.js に AppShell と Kanban スケルトンのプレースホルダー
 
 test("main.js は KanbanBoard のプレースホルダーを初期レンダリングする", async () => {
   const container = { innerHTML: "" };
-  const originalDocument = global.document;
-  global.document = { querySelector: () => container };
-  await import("../src/main.js");
+  const appended = [];
+  const mockDocument = {
+    querySelector: (sel) => (sel === "#app" ? container : null),
+    createElement: (tag) => ({ tagName: tag, rel: "", href: "", setAttribute() {}, textContent: "", innerHTML: "", id: "" }),
+    head: { appendChild: (node) => appended.push(node) },
+  };
+  renderAppShell(mockDocument);
   assert.match(container.innerHTML, /kanban-board/);
   assert.match(container.innerHTML, /data-testid="placeholder-card"/);
-  global.document = originalDocument;
+  assert.ok(appended.length > 0);
 });
 
 test("dev サーバスクリプトが存在し、ポート 5173 で公開する設定を持つ", () => {
