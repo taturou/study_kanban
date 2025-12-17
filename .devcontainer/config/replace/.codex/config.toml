@@ -1,6 +1,0 @@
-[projects."/workspaces/study_kanban"]
-trust_level = "trusted"
-
-[mcp_servers.playwright]
-command = "npx"
-args = ["@playwright/mcp@latest"]
