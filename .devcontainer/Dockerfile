@@ -52,3 +52,8 @@ RUN rm -rf ${CCSDD_TEMP} && mkdir -p ${CCSDD_TEMP} && \
     rm -rf ${CCSDD_TEMP}
 
 USER node
+
+# Playwright のブラウザを事前インストール（プロキシ対応、グローバルインストールなしで npx を使用）
+WORKDIR /workspaces/study_kanban
+RUN npm_config_proxy=$HTTP_PROXY npm_config_https_proxy=$HTTPS_PROXY npm_config_noproxy=$NO_PROXY \
+    npx --yes playwright@1.58.0-alpha-2025-12-11 install --with-deps chromium firefox
