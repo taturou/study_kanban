@@ -42,3 +42,11 @@ test("スタイルシートにレイアウト用の CSS 変数とピン留め/�
   assert.match(styleContent, /\.kanban-board__container/);
   assert.match(container.innerHTML, /kanban-board__container/);
 });
+
+test("カンバン内ヘッダーがスクロール領域で sticky になる top 指定を持つ", () => {
+  const { appended, document } = createMockDocument();
+  renderAppShell(document);
+  const styleContent = appended.map((node) => node.textContent || node.innerHTML || "").join("\n");
+  const headerRule = /\.kanban-board\s+\.kanban-header[^{]*{[^}]*top:\s*0/;
+  assert.match(styleContent, headerRule);
+});

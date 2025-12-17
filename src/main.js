@@ -110,6 +110,7 @@ body {
 }
 .kanban-board .kanban-header {
   position: sticky;
+  top: 0;
 }
 .kanban-board .kanban-cell {
   min-width: var(--lpk-status-col-min-width);

@@ -72,15 +72,15 @@
   - 最小列幅とステータス列の横スクロールをレスポンシブに調整し、モバイル/タブレットでもスケッチに近い見た目を保つ
   - _Requirements: 1.1,1.9,1.10,1.11_
 
-- [ ] 7. UI/E2E テストと回帰修正
-- [ ] 7.1 Playwright MCP で UI/E2E テストを作成・実施する
+- [x] 7. UI/E2E テストと回帰修正
+- [x] 7.1 Playwright MCP で UI/E2E テストを作成・実施する
   - スケッチ準拠のレイアウト（AppBar/KanbanHeader/ボードのピン留めとスクロール）をブラウザで検証し、スクリーンショット差分を確認する
   - 横/縦スクロール時の固定位置、プレースホルダー表示、最小列幅などを boundingBox/computedStyle で検証する
   - _Requirements: 1.1,1.3,1.9,1.10,1.11_
-- [ ] 7.2 Task 1〜6 の UI/UX 回帰を Playwright/Vitest で検証し、不具合を修正する
+- [x] 7.2 Task 1〜6 の UI/UX 回帰を Playwright/Vitest で検証し、不具合を修正する
   - Kanban スケルトン・TaskDialog・TCard 表示・AppShell/KanbanHeader など Task 1〜6 の成果物を跨いで E2E/結合テストを実施し、検出した UI/UX の欠陥を修正する
   - _Requirements: 1.x,2.x,3.x_
-- [ ] 7.3 障害修正後の差分をスクリーンショット比較・追加テストで回帰防止する
+- [x] 7.3 障害修正後の差分をスクリーンショット比較・追加テストで回帰防止する
   - 修正箇所のスクリーンショット差分とテストケースを追加し、再発を防止する
   - _Requirements: 1.x,2.x,3.x_
 
