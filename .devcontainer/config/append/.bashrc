@@ -11,6 +11,7 @@ fi
 export PS1='$(__git_ps1 "[%s]") \$ '
 
 # ls コマンドのエイリアス
+alias l='ls -F --show-control-chars --color=auto'
 alias la='ls -aF --show-control-chars --color=auto'
 alias ll='ls -lF --show-control-chars --color=auto'
 alias lla='ls -laF --show-control-chars --color=auto'
