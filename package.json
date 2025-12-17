@@ -11,6 +11,7 @@
     "dev": "node scripts/dev-server.js"
   },
   "devDependencies": {
+    "@playwright/mcp": "^0.0.52",
     "@typescript-eslint/eslint-plugin": "^8.18.1",
     "@typescript-eslint/parser": "^8.18.1",
     "eslint": "^9.17.0",
