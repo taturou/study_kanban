@@ -43,7 +43,7 @@ export function renderKanbanBoard({ subjects, layout }) {
     `--lpk-total-width:${config.grid.totalWidth}px`,
     `--lpk-status-columns:${statusColumns}`,
     `min-width:${config.grid.totalWidth}px`,
-    config.scroll.horizontal ? `width:${config.grid.totalWidth}px` : "width:100%",
+    `width:${config.grid.totalWidth}px`,
   ].join(";");
   return `<section class="kanban-board" data-testid="kanban-board" data-scroll-horizontal="${config.scroll.horizontal}" data-scroll-vertical="true" style="${boardStyle}">${header}<div class="kanban-container" data-testid="kanban-container" data-pinned-subject-column="${config.pinned.subjectColumn}">${rows}</div></section>`;
 }

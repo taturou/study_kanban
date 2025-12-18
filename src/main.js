@@ -3,6 +3,7 @@ import { renderKanbanBoard } from "./kanban/board.js";
 import { createKanbanLayoutConfig } from "./kanban/layout.js";
 
 const DEFAULT_SUBJECTS = ["国語", "数学", "英語", "理科", "社会", "技術", "音楽", "体育", "家庭科"];
+const BOARD_HORIZONTAL_PADDING = 32;
 
 function injectStyles(doc) {
   if (!doc?.head || doc.getElementById?.("kanban-styles")) return;
@@ -129,6 +130,9 @@ body {
   border: 1px solid var(--lpk-border);
   border-radius: 16px;
   box-shadow: var(--lpk-shadow-soft);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
   overflow-y: auto;
   overflow-x: hidden;
   position: relative;
@@ -164,14 +168,18 @@ body {
   z-index: 2;
   background: #f8fbff;
   border-bottom: 0;
+  padding: 0;
+  gap: 0;
 }
 .kanban-board .kanban-header__corner {
   width: var(--lpk-subject-col-width);
   background: #f8fbff;
+  height: 100%;
 }
 .kanban-header__cells {
   display: grid;
   grid-template-columns: var(--lpk-status-columns, repeat(6, var(--lpk-status-col-min-width)));
+  grid-column: 2 / span 6;
 }
 .kanban-board .kanban-header__cell {
   position: relative;
@@ -320,7 +328,8 @@ function formatNow(now = new Date()) {
 
 export function buildAppShellHtml(now = new Date(), viewportWidth = 1024) {
   const subjects = DEFAULT_SUBJECTS;
-  const layout = createKanbanLayoutConfig({ subjects, viewportWidth });
+  const adjustedWidth = Math.max(320, viewportWidth - BOARD_HORIZONTAL_PADDING);
+  const layout = createKanbanLayoutConfig({ subjects, viewportWidth: adjustedWidth });
   const boardHtml = renderKanbanBoard({ subjects, layout });
   const datetime = formatNow(now);
   return `
