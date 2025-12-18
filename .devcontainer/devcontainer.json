@@ -9,6 +9,9 @@
     }
   },
   "runArgs": [
+    "--add-host=host.docker.internal:host-gateway",
+    "--dns=172.16.0.35",
+    "--dns=172.16.0.36"
   ],
   "remoteUser": "node",
   "customizations": {
