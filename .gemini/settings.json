@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "bash",
+      "args": [
+        "-c",
+        "npx chrome-devtools-mcp@latest --browserUrl=http://$(ip route show | grep default | awk '{print $3}'):60053"
+      ],
+      "env": {
+        "NO_PROXY": "*"
+      }
+    }
+  }
+}
