@@ -1,6 +1,0 @@
-[projects."/workspaces/study_kanban"]
-trust_level = "trusted"
-
-[mcp_servers.chrome-devtools]
-command = "npx"
-args = ["chrome-devtools-mcp@latest", "--browser-url=http://host.docker.internal:60053", "--autoConnect", "--channel=canary"]
