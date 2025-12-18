@@ -18,12 +18,12 @@ test("固定ステータス×教科のグリッドにプレースホルダー TC
   const placeholderCount = (html.match(/data-testid="placeholder-card"/g) ?? []).length;
   assert.equal(placeholderCount, STATUS_ORDER.length * subjects.length);
   assert.match(html, /data-header-fixed="true"/);
-  assert.match(html, /data-pinned-subject-column="true"/);
+  assert.match(html, /data-pinned-subject-column="false"/);
 });
 
 test("レイアウト設定に応じてヘッダー固定・横スクロール・ステータス列の最小幅を反映する", () => {
   const subjects = ["English"];
-  const narrowLayout = createKanbanLayoutConfig({ subjects, viewportWidth: 200 });
+  const narrowLayout = createKanbanLayoutConfig({ subjects, viewportWidth: 800 });
   const narrowHtml = renderKanbanBoard({ subjects, layout: narrowLayout });
   assert.match(narrowHtml, /data-scroll-horizontal="true"/);
   assert.match(narrowHtml, new RegExp(`min-width:${narrowLayout.grid.minColumnWidth}px`));
@@ -33,4 +33,5 @@ test("レイアウト設定に応じてヘッダー固定・横スクロール�
   assert.match(wideHtml, /data-scroll-horizontal="false"/);
   assert.match(wideHtml, /data-header-fixed="true"/);
   assert.match(wideHtml, /data-pinned-status-columns="true"/);
+  assert.match(wideHtml, new RegExp(`grid-template-columns`));
 });

@@ -10,7 +10,7 @@ function injectStyles(doc) {
   style.id = "kanban-styles";
   style.textContent = `
 :root {
-  --lpk-status-col-min-width: 240px;
+  --lpk-status-col-min-width: 200px;
   --lpk-subject-col-width: 160px;
   --lpk-appbar-height: 64px;
   --lpk-header-height: 56px;
@@ -153,7 +153,7 @@ body {
   position: sticky;
   top: 0;
   display: grid;
-  grid-template-columns: var(--lpk-grid-template);
+  grid-template-columns: var(--lpk-grid-template, 1fr);
   z-index: 2;
   background: #f8fbff;
   border-bottom: 0;
@@ -172,9 +172,7 @@ body {
 }
 .kanban-header__cells {
   display: grid;
-  grid-template-columns: repeat(6, var(--lpk-status-col-min-width));
-  width: max-content;
-  position: relative;
+  grid-auto-flow: column;
 }
 .kanban-board .kanban-header__cell {
   position: relative;
@@ -251,16 +249,13 @@ body {
   padding-right: 44px;
 }
 .kanban-board .kanban-row__subject {
-  position: sticky;
-  left: 0;
   background: #f8fbff;
   border-right: 1px solid var(--lpk-border);
-  box-shadow: 6px 0 12px rgba(15, 23, 42, 0.08);
   font-weight: 700;
   padding: 14px 12px;
   display: flex;
   align-items: center;
-  z-index: 5;
+  z-index: 1;
 }
 .mcp-lab {
   margin: 32px 16px 16px;

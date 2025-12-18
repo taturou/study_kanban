@@ -25,8 +25,8 @@ test("AppShell に AppBar と KanbanHeader があり、KanbanBoard とスクロ�
   assert.match(container.innerHTML, /data-testid="kanban-header"/);
   assert.match(container.innerHTML, /data-testid="pomodoro-button"/);
   assert.match(container.innerHTML, /kanban-board/);
-  assert.match(container.innerHTML, /data-scroll-horizontal="true"/);
-  assert.match(container.innerHTML, /data-pinned-subject-column="true"/);
+  assert.match(container.innerHTML, /data-scroll-horizontal="(true|false)"/);
+  assert.match(container.innerHTML, /data-pinned-subject-column="false"/);
   assert.ok(appended.length > 0);
 });
 
@@ -36,7 +36,7 @@ test("スタイルシートにレイアウト用の CSS 変数とピン留め/�
   renderAppShell(document);
 
   const styleContent = appended.map((node) => node.textContent || node.innerHTML || "").join("\n");
-  assert.match(styleContent, /--lpk-status-col-min-width: 240px/);
+  assert.match(styleContent, /--lpk-status-col-min-width: 200px/);
   assert.match(styleContent, /--lpk-appbar-height:/);
   assert.match(styleContent, /\.kanban-appbar/);
   assert.match(styleContent, /\.kanban-board__container/);

@@ -1,17 +1,17 @@
 import { STATUS_ORDER, createKanbanLayoutConfig } from "./layout.js";
 
 function renderHeader(statuses, config) {
-  const corner = `<div class="kanban-header__corner" aria-hidden="true"></div>`;
+  const corner = `<div class="kanban-header__corner" aria-hidden="true" style="width:${config.grid.subjectWidth}px"></div>`;
   const statusCells = statuses
     .map(
       (status) =>
-        `<div class="kanban-header__cell" style="min-width:${config.grid.minColumnWidth}px" data-status="${status}">${status}</div>`,
+        `<div class="kanban-header__cell" style="min-width:${config.grid.minColumnWidth}px;width:${config.grid.statusWidths?.[statuses.indexOf(status)] ?? config.grid.minColumnWidth}px" data-status="${status}">${status}</div>`,
     )
     .join("");
-  return `<div class="kanban-header" data-header-fixed="${config.headerFixed}" data-pinned-status-columns="${config.pinned.statusColumns}" data-scroll-horizontal="${config.scroll.horizontal}">${corner}<div class="kanban-header__cells">${statusCells}</div></div>`;
+  return `<div class="kanban-header" data-header-fixed="${config.headerFixed}" data-pinned-status-columns="${config.pinned.statusColumns}" data-scroll-horizontal="${config.scroll.horizontal}" style="grid-template-columns:${config.grid.template}">${corner}<div class="kanban-header__cells">${statusCells}</div></div>`;
 }
 
-function renderRow(subject, statuses, pinnedSubject) {
+function renderRow(subject, statuses, pinnedSubject, config) {
   const cells = statuses
     .map(
       (status) =>
@@ -20,7 +20,7 @@ function renderRow(subject, statuses, pinnedSubject) {
         }<div class="kanban-card placeholder" data-testid="placeholder-card" data-status="${status}" data-subject="${subject}"></div></div>`,
     )
     .join("");
-  return `<div class="kanban-row" data-subject="${subject}"><div class="kanban-row__subject" data-pinned-subject-column="${pinnedSubject}">${subject}</div>${cells}</div>`;
+  return `<div class="kanban-row" data-subject="${subject}" style="grid-template-columns:${config.grid.template}"><div class="kanban-row__subject" data-pinned-subject-column="${pinnedSubject}" style="width:${config.grid.subjectWidth}px">${subject}</div>${cells}</div>`;
 }
 
 /**
@@ -31,6 +31,6 @@ export function renderKanbanBoard({ subjects, layout }) {
   const config = layout ?? createKanbanLayoutConfig({ subjects, viewportWidth: Infinity });
   const statuses = config.statuses ?? STATUS_ORDER;
   const header = renderHeader(statuses, config);
-  const rows = subjects.map((subject) => renderRow(subject, statuses, config.pinned.subjectColumn)).join("");
+  const rows = subjects.map((subject) => renderRow(subject, statuses, config.pinned.subjectColumn, config)).join("");
   return `<section class="kanban-board" data-testid="kanban-board" data-scroll-horizontal="${config.scroll.horizontal}" data-scroll-vertical="true">${header}<div class="kanban-container" data-testid="kanban-container" data-pinned-subject-column="${config.pinned.subjectColumn}">${rows}</div></section>`;
 }
