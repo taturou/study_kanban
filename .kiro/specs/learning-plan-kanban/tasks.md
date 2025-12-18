@@ -84,7 +84,7 @@
 - [x] 8.3 レイアウト崩れ・幅ずれ・重なりの回避を確認するためのテストまたはスナップショットを追加し、開発環境で表示確認する
 
 - [ ] 9. ステータス遷移と DnD ガード
-- [ ] 9.1 StatusPolicy で Today 先頭/OnHold 先頭のみ InPro 遷移可、InPro 唯一性、Done 遷移ガード、自動 OnHold 退避（優先度保持要件含む）を実装する
+- [x] 9.1 StatusPolicy で Today 先頭/OnHold 先頭のみ InPro 遷移可、InPro 唯一性、Done 遷移ガード、自動 OnHold 退避（優先度保持要件含む）を実装する
   - Today 最優先以外→InPro 拒否、OnHold 先頭のみ InPro 許可、InPro 置換時は OnHold 先頭へ退避し優先度を再採番する
   - InPro/OnHold 以外→Done を拒否し、ステータス固定列のロックを遵守する
   - _Requirements: 1.4,3.1,3.8,3.9,3.10,3.11,3.12,3.16_
