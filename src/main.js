@@ -12,6 +12,7 @@ function injectStyles(doc) {
 :root {
   --lpk-status-col-min-width: 200px;
   --lpk-subject-col-width: 160px;
+  --lpk-total-width: auto;
   --lpk-appbar-height: 64px;
   --lpk-header-height: 56px;
   --lpk-grid-template: var(--lpk-subject-col-width) repeat(6, var(--lpk-status-col-min-width));
@@ -128,13 +129,17 @@ body {
   border: 1px solid var(--lpk-border);
   border-radius: 16px;
   box-shadow: var(--lpk-shadow-soft);
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   position: relative;
   max-height: calc(100vh - var(--lpk-appbar-height) - var(--lpk-header-height) - 56px);
 }
+.kanban-board__scroll[data-scroll-horizontal="true"] {
+  overflow-x: auto;
+}
 .kanban-board {
   width: 100%;
-  min-width: calc(var(--lpk-subject-col-width) + 6 * var(--lpk-status-col-min-width));
+  min-width: var(--lpk-total-width);
   background: linear-gradient(180deg, #f8fbff 0%, #f6f8fb 100%);
   position: relative;
   display: grid;
@@ -154,25 +159,19 @@ body {
   top: 0;
   display: grid;
   grid-template-columns: var(--lpk-grid-template, 1fr);
+  width: var(--lpk-total-width);
+  min-width: var(--lpk-total-width);
   z-index: 2;
   background: #f8fbff;
   border-bottom: 0;
-  width: max-content;
 }
 .kanban-board .kanban-header__corner {
-  position: sticky;
-  left: 0;
   width: var(--lpk-subject-col-width);
   background: #f8fbff;
-  border-right: 0;
-  box-shadow: none;
-  pointer-events: none;
-  z-index: 4;
-  height: 100%;
 }
 .kanban-header__cells {
   display: grid;
-  grid-auto-flow: column;
+  grid-template-columns: var(--lpk-status-columns, repeat(6, var(--lpk-status-col-min-width)));
 }
 .kanban-board .kanban-header__cell {
   position: relative;
@@ -198,10 +197,11 @@ body {
 }
 .kanban-row {
   display: grid;
-  grid-template-columns: var(--lpk-subject-col-width) repeat(6, var(--lpk-status-col-min-width));
+  grid-template-columns: var(--lpk-grid-template);
   border-bottom: 1px solid var(--lpk-border);
   background: #ffffff;
-  width: max-content;
+  width: var(--lpk-total-width);
+  min-width: var(--lpk-total-width);
 }
 .kanban-row:nth-child(2n) {
   background: #f9fbff;
@@ -318,9 +318,9 @@ function formatNow(now = new Date()) {
   return iso.slice(0, 10) + " " + iso.slice(11, 16);
 }
 
-export function buildAppShellHtml(now = new Date()) {
+export function buildAppShellHtml(now = new Date(), viewportWidth = 1024) {
   const subjects = DEFAULT_SUBJECTS;
-  const layout = createKanbanLayoutConfig({ subjects, viewportWidth: 1024 });
+  const layout = createKanbanLayoutConfig({ subjects, viewportWidth });
   const boardHtml = renderKanbanBoard({ subjects, layout });
   const datetime = formatNow(now);
   return `
@@ -356,7 +356,7 @@ export function buildAppShellHtml(now = new Date()) {
       </section>
       <main class="kanban-main">
         <div class="kanban-board__container">
-          <div class="kanban-board__scroll">
+          <div class="kanban-board__scroll" data-scroll-horizontal="${layout.scroll.horizontal}">
             ${boardHtml}
           </div>
         </div>
@@ -373,22 +373,11 @@ export function renderAppShell(doc = document) {
   const app = doc.querySelector("#app");
   if (!app) return;
   injectStyles(doc);
-  app.innerHTML = buildAppShellHtml();
+  const viewportWidth = doc?.documentElement?.clientWidth ?? 1024;
+  app.innerHTML = buildAppShellHtml(new Date(), viewportWidth);
   setupMcpLab(doc);
-  syncKanbanHeaderScroll(doc);
 }
 
 if (typeof document !== "undefined") {
   renderAppShell(document);
-}
-
-function syncKanbanHeaderScroll(doc) {
-  const scroll = doc.querySelector(".kanban-board__scroll");
-  const headerCells = doc.querySelector(".kanban-header__cells");
-  if (!scroll || !headerCells) return;
-  const sync = () => {
-    headerCells.style.transform = `translateX(${scroll.scrollLeft}px)`;
-    requestAnimationFrame(sync);
-  };
-  sync();
 }

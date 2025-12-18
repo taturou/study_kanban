@@ -63,6 +63,7 @@ export function createKanbanLayoutConfig({ subjects, viewportWidth = Infinity })
   guardStatusOrder(STATUS_ORDER);
   const { widths, horizontal, minColumnWidth } = computeStatusWidths(viewportWidth);
   const gridTemplate = [SUBJECT_WIDTH, ...widths].map((w) => `${w}px`).join(" ");
+  const totalWidth = SUBJECT_WIDTH + widths.reduce((sum, w) => sum + w, 0);
   return {
     headerFixed: true,
     containerScroll: true,
@@ -76,6 +77,7 @@ export function createKanbanLayoutConfig({ subjects, viewportWidth = Infinity })
       template: gridTemplate,
       subjectWidth: SUBJECT_WIDTH,
       statusWidths: widths,
+      totalWidth,
     },
     scroll: {
       horizontal,

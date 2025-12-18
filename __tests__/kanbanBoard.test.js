@@ -35,3 +35,19 @@ test("レイアウト設定に応じてヘッダー固定・横スクロール�
   assert.match(wideHtml, /data-pinned-status-columns="true"/);
   assert.match(wideHtml, new RegExp(`grid-template-columns`));
 });
+
+test("ステータス幅と総幅をヘッダー・セルで共有し、不要な横スクロールを防ぐ", () => {
+  const subjects = ["English"];
+  const layout = createKanbanLayoutConfig({ subjects, viewportWidth: 1200 });
+
+  const html = renderKanbanBoard({ subjects, layout });
+
+  assert.match(html, new RegExp(`--lpk-total-width:${layout.grid.totalWidth}px`));
+  const templatePattern = layout.grid.template.replace(/\s+/g, "\\s*");
+  assert.match(html, new RegExp(`grid-template-columns:${templatePattern}`));
+  assert.match(html, new RegExp(`class="kanban-row"[^>]*min-width:${layout.grid.totalWidth}px`));
+  assert.match(
+    html,
+    new RegExp(`data-status="Backlog"[^>]*style="[^"]*width:${layout.grid.statusWidths[0]}px`),
+  );
+});
