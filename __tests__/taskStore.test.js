@@ -66,3 +66,15 @@ test("優先度ギャップが足りない場合はセル内で正規化して�
     assert.ok(today[i - 1].priority > today[i].priority);
   }
 });
+
+test("previewMove は mutate せず可否と理由を返し、moveTask と整合する", () => {
+  const preview = store.previewMove({ taskId: "t2", to: { subjectId: "English", status: "InPro", insertIndex: 0 } });
+  assert.equal(preview.allowed, false);
+  assert.match(preview.reason, /today-not-top/);
+
+  const okPreview = store.previewMove({ taskId: "t1", to: { subjectId: "English", status: "InPro", insertIndex: 0 } });
+  assert.equal(okPreview.allowed, true);
+  const before = store.getTask("t1").status;
+  store.moveTask({ taskId: "t1", to: { subjectId: "English", status: "InPro", insertIndex: 0 } });
+  assert.notEqual(before, store.getTask("t1").status);
+});

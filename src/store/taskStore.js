@@ -7,10 +7,9 @@ function sortByPriority(tasks) {
 }
 
 function normalizeCell(tasks) {
-  const sorted = sortByPriority(tasks);
-  return sorted.map((task, index) => ({
+  return tasks.map((task, index) => ({
     ...task,
-    priority: PRIORITY_STEP * (sorted.length - index),
+    priority: PRIORITY_STEP * (tasks.length - index),
   }));
 }
 
@@ -99,10 +98,22 @@ export function createTaskStore(policy = createStatusPolicy()) {
     return { ok: true };
   }
 
+  function previewMove({ taskId, to }) {
+    const task = getTask(taskId);
+    if (!task) return { allowed: false, reason: "not-found" };
+    return policy.validateMove({
+      taskId,
+      from: { subjectId: task.subjectId, status: task.status, priority: task.priority },
+      to,
+      context: buildContext(task),
+    });
+  }
+
   return {
     addTask,
     getTask,
     getTasksByCell,
     moveTask,
+    previewMove,
   };
 }

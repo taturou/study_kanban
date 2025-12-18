@@ -2,6 +2,7 @@ import { initialLabHtml, setupMcpLab } from "./e2e/lab.js";
 import { renderKanbanBoard } from "./kanban/board.js";
 import { createKanbanLayoutConfig } from "./kanban/layout.js";
 import { createTaskStore } from "./store/taskStore.js";
+import { getDropFeedback } from "./kanban/dnd.js";
 
 const DEFAULT_SUBJECTS = ["国語", "数学", "英語", "理科", "社会", "技術", "音楽", "体育", "家庭科"];
 const BOARD_HORIZONTAL_PADDING = 32;
@@ -229,6 +230,11 @@ body {
   position: relative;
   z-index: 1;
 }
+.kanban-cell[data-droppable="true"] {
+  outline: 2px solid var(--lpk-accent);
+  outline-offset: -2px;
+  background: linear-gradient(180deg, #f0f6ff 0%, #ffffff 60%);
+}
 .kanban-cell .kanban-card.placeholder {
   display: flex;
   flex-direction: column;
@@ -446,35 +452,67 @@ function setupDemoDnD(doc) {
     });
   };
 
-  let dragTaskId = null;
+  let dragMeta = null;
+
+  const computeInsertIndex = (cell, targetCard) => {
+    const container = cell.querySelector(".kanban-cell__tasks");
+    if (!container) return undefined;
+    const targetIdx = targetCard ? Number(targetCard.dataset.index) : container.children.length;
+    if (!dragMeta) return targetIdx;
+    const sameCell = dragMeta.subject === cell.getAttribute("data-subject") && dragMeta.status === cell.getAttribute("data-status");
+    if (sameCell && targetIdx > dragMeta.index) {
+      return targetIdx - 1;
+    }
+    return targetIdx;
+  };
 
   doc.addEventListener("dragstart", (e) => {
     const target = e.target.closest(".demo-card");
     if (!target) return;
-    dragTaskId = target.dataset.taskId;
+    dragMeta = {
+      id: target.dataset.taskId,
+      subject: target.dataset.subject,
+      status: target.dataset.status,
+      index: Number(target.dataset.index ?? 0),
+    };
     e.dataTransfer.effectAllowed = "move";
   });
 
   doc.addEventListener("dragover", (e) => {
-    if (!e.target.closest(".kanban-cell")) return;
+    const cell = e.target.closest(".kanban-cell");
+    if (!cell) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
+    const subjectId = cell.getAttribute("data-subject");
+    const status = cell.getAttribute("data-status");
+    const before = e.target.closest(".demo-card");
+    const insertIndex = computeInsertIndex(cell, before);
+    const feedback = dragMeta
+      ? getDropFeedback(store, { taskId: dragMeta.id, to: { subjectId, status, insertIndex } })
+      : { highlight: false };
+    cell.dataset.droppable = feedback.highlight ? "true" : "false";
   });
 
   doc.addEventListener("drop", (e) => {
     const cell = e.target.closest(".kanban-cell");
-    if (!cell || !dragTaskId) return;
+    if (!cell || !dragMeta) return;
     e.preventDefault();
     const subjectId = cell.getAttribute("data-subject");
     const status = cell.getAttribute("data-status");
     const before = e.target.closest(".demo-card");
-    const insertIndex = before ? Array.from(before.parentElement.children).indexOf(before) : undefined;
-    const result = store.moveTask({ taskId: dragTaskId, to: { subjectId, status, insertIndex } });
+    const insertIndex = computeInsertIndex(cell, before);
+    const result = store.moveTask({ taskId: dragMeta.id, to: { subjectId, status, insertIndex } });
     if (!result.ok) {
       alert(`移動できません: ${result.reason}`);
     }
-    dragTaskId = null;
+    dragMeta = null;
+    cell.dataset.droppable = "false";
     render();
+  });
+
+  doc.addEventListener("dragleave", (e) => {
+    const cell = e.target.closest(".kanban-cell");
+    if (cell) cell.dataset.droppable = "false";
   });
 
   render();
