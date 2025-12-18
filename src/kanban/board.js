@@ -1,20 +1,23 @@
 import { STATUS_ORDER, createKanbanLayoutConfig } from "./layout.js";
 
 function renderHeader(statuses, config) {
+  const corner = `<div class="kanban-header__corner" aria-hidden="true"></div>`;
   const statusCells = statuses
     .map(
       (status) =>
         `<div class="kanban-header__cell" style="min-width:${config.grid.minColumnWidth}px" data-status="${status}">${status}</div>`,
     )
     .join("");
-  return `<div class="kanban-header" data-header-fixed="${config.headerFixed}" data-pinned-status-columns="${config.pinned.statusColumns}" data-scroll-horizontal="${config.scroll.horizontal}">${statusCells}</div>`;
+  return `<div class="kanban-header" data-header-fixed="${config.headerFixed}" data-pinned-status-columns="${config.pinned.statusColumns}" data-scroll-horizontal="${config.scroll.horizontal}">${corner}<div class="kanban-header__cells">${statusCells}</div></div>`;
 }
 
 function renderRow(subject, statuses, pinnedSubject) {
   const cells = statuses
     .map(
       (status) =>
-        `<div class="kanban-cell" data-status="${status}" data-subject="${subject}"><div class="kanban-card placeholder" data-testid="placeholder-card" data-status="${status}" data-subject="${subject}">${status} | ${subject}</div></div>`,
+        `<div class="kanban-cell" data-status="${status}" data-subject="${subject}">${
+          status === "Backlog" ? '<button class="kanban-add" aria-label="Backlog にタスクを追加">＋</button>' : ""
+        }<div class="kanban-card placeholder" data-testid="placeholder-card" data-status="${status}" data-subject="${subject}"></div></div>`,
     )
     .join("");
   return `<div class="kanban-row" data-subject="${subject}"><div class="kanban-row__subject" data-pinned-subject-column="${pinnedSubject}">${subject}</div>${cells}</div>`;
