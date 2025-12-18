@@ -18,6 +18,12 @@
   </head>
   <body>
     <div id="app"></div>
+    <script>
+      if (typeof EventSource !== "undefined") {
+        const es = new EventSource("/__livereload");
+        es.onmessage = () => location.reload();
+      }
+    </script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
