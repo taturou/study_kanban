@@ -1,3 +1,4 @@
+import { initialLabHtml, setupMcpLab } from "./e2e/lab.js";
 import { renderKanbanBoard } from "./kanban/board.js";
 import { createKanbanLayoutConfig } from "./kanban/layout.js";
 
@@ -137,26 +138,74 @@ body {
   color: var(--lpk-muted);
   font-size: 14px;
 }
+.mcp-lab {
+  margin: 24px 16px;
+  padding: 16px;
+  border: 1px solid var(--lpk-border);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+.mcp-lab__controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.mcp-lab__board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.lab-column {
+  border: 1px dashed var(--lpk-border);
+  border-radius: 10px;
+  background: #f6f8fb;
+  min-height: 140px;
+}
+.lab-column__header {
+  padding: 8px 10px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--lpk-border);
+}
+.lab-column__list {
+  padding: 10px;
+}
+.lab-column__list[data-drag-over="true"] {
+  outline: 2px solid var(--lpk-accent);
+}
+.lab-card {
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid var(--lpk-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  cursor: grab;
+}
+.lab-status {
+  font-size: 14px;
+  color: var(--lpk-muted);
+}
 `;
   doc.head.appendChild(style);
 }
 
-function formatNow() {
-  const now = new Date();
+function formatNow(now = new Date()) {
   const iso = now.toISOString();
   return iso.slice(0, 10) + " " + iso.slice(11, 16);
 }
 
-export function renderAppShell(doc = document) {
-  const app = doc.querySelector("#app");
-  if (!app) return;
-  injectStyles(doc);
+export function buildAppShellHtml(now = new Date()) {
   const subjects = DEFAULT_SUBJECTS;
   const layout = createKanbanLayoutConfig({ subjects, viewportWidth: 1024 });
   const boardHtml = renderKanbanBoard({ subjects, layout });
-  const datetime = formatNow();
-  app.innerHTML = `
-    <div class="app-shell">
+  const datetime = formatNow(now);
+  return `
+    <div class="app-shell" data-testid="app-root">
       <header class="kanban-appbar" data-testid="app-bar" data-fixed="true">
         <div class="kanban-appbar__left">
           <button class="app-bar__menu" aria-label="メニュー">☰</button>
@@ -192,9 +241,21 @@ export function renderAppShell(doc = document) {
             ${boardHtml}
           </div>
         </div>
+        <section class="mcp-lab" data-testid="mcp-lab">
+          <div class="mcp-lab__title">MCP E2E Lab</div>
+          ${initialLabHtml()}
+        </section>
       </main>
     </div>
   `;
+}
+
+export function renderAppShell(doc = document) {
+  const app = doc.querySelector("#app");
+  if (!app) return;
+  injectStyles(doc);
+  app.innerHTML = buildAppShellHtml();
+  setupMcpLab(doc);
 }
 
 if (typeof document !== "undefined") {

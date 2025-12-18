@@ -29,5 +29,5 @@ export function renderKanbanBoard({ subjects, layout }) {
   const statuses = config.statuses ?? STATUS_ORDER;
   const header = renderHeader(statuses, config);
   const rows = subjects.map((subject) => renderRow(subject, statuses, config.pinned.subjectColumn)).join("");
-  return `<section class="kanban-board" data-scroll-horizontal="${config.scroll.horizontal}" data-scroll-vertical="true">${header}<div class="kanban-container" data-pinned-subject-column="${config.pinned.subjectColumn}">${rows}</div></section>`;
+  return `<section class="kanban-board" data-testid="kanban-board" data-scroll-horizontal="${config.scroll.horizontal}" data-scroll-vertical="true">${header}<div class="kanban-container" data-testid="kanban-container" data-pinned-subject-column="${config.pinned.subjectColumn}">${rows}</div></section>`;
 }
