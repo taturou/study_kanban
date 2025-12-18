@@ -2,7 +2,7 @@ import { initialLabHtml, setupMcpLab } from "./e2e/lab.js";
 import { renderKanbanBoard } from "./kanban/board.js";
 import { createKanbanLayoutConfig } from "./kanban/layout.js";
 
-const DEFAULT_SUBJECTS = ["English", "Math", "Science"];
+const DEFAULT_SUBJECTS = ["国語", "数学", "英語", "理科", "社会", "技術", "音楽", "体育", "家庭科"];
 
 function injectStyles(doc) {
   if (!doc?.head || doc.getElementById?.("kanban-styles")) return;
