@@ -8,6 +8,8 @@
       "NO_PROXY": "${localEnv:NO_PROXY}"
     }
   },
+  "runArgs": [
+  ],
   "remoteUser": "node",
   "customizations": {
     "vscode": {

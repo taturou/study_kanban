@@ -1,0 +1,6 @@
+[projects."/workspaces/study_kanban"]
+trust_level = "trusted"
+
+[mcp_servers.chrome-devtools]
+command = "npx"
+args = ["chrome-devtools-mcp@latest", "--autoConnect", "--channel=canary"]
