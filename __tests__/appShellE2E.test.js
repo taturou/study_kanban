@@ -13,3 +13,11 @@ test("AppShell は MCP ラボ用のデータ属性を含む HTML を生成する
   assert.match(html, /data-testid="lab-create-button"/);
   assert.match(html, /data-testid="lab-status"/);
 });
+
+test("デモ用のタスクがカンバン内に含まれる", () => {
+  const html = buildAppShellHtml();
+  assert.match(html, /demo-1/);
+  assert.match(html, /demo-2/);
+  assert.match(html, /demo-3/);
+  assert.match(html, /demo-4/);
+});

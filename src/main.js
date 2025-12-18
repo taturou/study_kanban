@@ -1,9 +1,16 @@
 import { initialLabHtml, setupMcpLab } from "./e2e/lab.js";
 import { renderKanbanBoard } from "./kanban/board.js";
 import { createKanbanLayoutConfig } from "./kanban/layout.js";
+import { createTaskStore } from "./store/taskStore.js";
 
 const DEFAULT_SUBJECTS = ["国語", "数学", "英語", "理科", "社会", "技術", "音楽", "体育", "家庭科"];
 const BOARD_HORIZONTAL_PADDING = 32;
+const DEMO_TASKS = [
+  { id: "demo-1", title: "英語: 単語20語", subjectId: "英語", status: "Backlog" },
+  { id: "demo-2", title: "数学: 因数分解", subjectId: "数学", status: "Today" },
+  { id: "demo-3", title: "国語: 漢字練習", subjectId: "国語", status: "OnHold" },
+  { id: "demo-4", title: "理科: 実験レポート", subjectId: "理科", status: "InPro" },
+];
 
 function injectStyles(doc) {
   if (!doc?.head || doc.getElementById?.("kanban-styles")) return;
@@ -239,6 +246,26 @@ body {
 .kanban-card.placeholder {
   margin: 6px 0;
 }
+.kanban-cell__tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.demo-card {
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid var(--lpk-border);
+  border-radius: 10px;
+  box-shadow: var(--lpk-shadow-card);
+  cursor: grab;
+}
+.demo-card__title {
+  font-weight: 700;
+  font-size: 14px;
+}
+.demo-card__meta {
+  color: var(--lpk-muted);
+}
 .kanban-cell .kanban-add {
   position: absolute;
   top: 6px;
@@ -330,7 +357,7 @@ export function buildAppShellHtml(now = new Date(), viewportWidth = 1024) {
   const subjects = DEFAULT_SUBJECTS;
   const adjustedWidth = Math.max(320, viewportWidth - BOARD_HORIZONTAL_PADDING);
   const layout = createKanbanLayoutConfig({ subjects, viewportWidth: adjustedWidth });
-  const boardHtml = renderKanbanBoard({ subjects, layout });
+  const boardHtml = renderKanbanBoard({ subjects, layout: { ...layout, tasks: DEMO_TASKS } });
   const datetime = formatNow(now);
   return `
     <div class="app-shell" data-testid="app-root">
@@ -385,8 +412,70 @@ export function renderAppShell(doc = document) {
   const viewportWidth = doc?.documentElement?.clientWidth ?? 1024;
   app.innerHTML = buildAppShellHtml(new Date(), viewportWidth);
   setupMcpLab(doc);
+  setupDemoDnD(doc);
 }
 
 if (typeof document !== "undefined") {
   renderAppShell(document);
+}
+
+function setupDemoDnD(doc) {
+  if (!doc?.querySelectorAll || !doc?.addEventListener) return;
+  const store = createTaskStore();
+  DEMO_TASKS.forEach((t) => store.addTask(t));
+
+  const render = () => {
+    doc.querySelectorAll(".kanban-cell").forEach((cell) => {
+      const subjectId = cell.getAttribute("data-subject");
+      const status = cell.getAttribute("data-status");
+      const container = cell.querySelector(".kanban-cell__tasks");
+      if (!container) return;
+      container.innerHTML = "";
+      const tasks = store.getTasksByCell(subjectId, status);
+      tasks.forEach((task, index) => {
+        const el = doc.createElement("div");
+        el.className = "kanban-card demo-card";
+        el.draggable = true;
+        el.dataset.taskId = task.id;
+        el.dataset.status = task.status;
+        el.dataset.subject = task.subjectId;
+        el.dataset.index = String(index);
+        el.innerHTML = `<div class=\"demo-card__title\">${task.title}</div><small class=\"demo-card__meta\">${task.status}</small>`;
+        container.appendChild(el);
+      });
+    });
+  };
+
+  let dragTaskId = null;
+
+  doc.addEventListener("dragstart", (e) => {
+    const target = e.target.closest(".demo-card");
+    if (!target) return;
+    dragTaskId = target.dataset.taskId;
+    e.dataTransfer.effectAllowed = "move";
+  });
+
+  doc.addEventListener("dragover", (e) => {
+    if (!e.target.closest(".kanban-cell")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  });
+
+  doc.addEventListener("drop", (e) => {
+    const cell = e.target.closest(".kanban-cell");
+    if (!cell || !dragTaskId) return;
+    e.preventDefault();
+    const subjectId = cell.getAttribute("data-subject");
+    const status = cell.getAttribute("data-status");
+    const before = e.target.closest(".demo-card");
+    const insertIndex = before ? Array.from(before.parentElement.children).indexOf(before) : undefined;
+    const result = store.moveTask({ taskId: dragTaskId, to: { subjectId, status, insertIndex } });
+    if (!result.ok) {
+      alert(`移動できません: ${result.reason}`);
+    }
+    dragTaskId = null;
+    render();
+  });
+
+  render();
 }

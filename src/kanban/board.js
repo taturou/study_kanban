@@ -13,13 +13,24 @@ function renderHeader(statuses, config) {
   return `<div class="kanban-header" data-header-fixed="${config.headerFixed}" data-pinned-status-columns="${config.pinned.statusColumns}" data-scroll-horizontal="${config.scroll.horizontal}" style="${headerStyle};--lpk-status-columns:${statusColumns}">${corner}<div class="kanban-header__cells">${statusCells}</div></div>`;
 }
 
-function renderRow(subject, statuses, pinnedSubject, config) {
+function renderTasks(tasks) {
+  if (!tasks?.length) return "";
+  return tasks
+    .map(
+      (task) =>
+        `<div class="kanban-card demo-card" draggable="true" data-task-id="${task.id}" data-status="${task.status}" data-subject="${task.subjectId}"><div class="demo-card__title">${task.title}</div><small class="demo-card__meta">${task.status}</small></div>`,
+    )
+    .join("");
+}
+
+function renderRow(subject, statuses, pinnedSubject, config, tasks) {
   const cells = statuses
     .map((status, idx) => {
       const width = config.grid.statusWidths?.[idx] ?? config.grid.minColumnWidth;
+      const cellTasks = tasks?.filter((t) => t.subjectId === subject && t.status === status) ?? [];
       return `<div class="kanban-cell" data-status="${status}" data-subject="${subject}" style="min-width:${config.grid.minColumnWidth}px;width:${width}px">${
         status === "Backlog" ? '<button class="kanban-add" aria-label="Backlog にタスクを追加">＋</button>' : ""
-      }<div class="kanban-card placeholder" data-testid="placeholder-card" data-status="${status}" data-subject="${subject}"></div></div>`;
+      }<div class="kanban-card placeholder" data-testid="placeholder-card" data-status="${status}" data-subject="${subject}"></div><div class="kanban-cell__tasks">${renderTasks(cellTasks)}</div></div>`;
     })
     .join("");
   const rowStyle = `grid-template-columns:${config.grid.template};min-width:${config.grid.totalWidth}px;width:${config.grid.totalWidth}px`;
@@ -34,7 +45,7 @@ export function renderKanbanBoard({ subjects, layout }) {
   const config = layout ?? createKanbanLayoutConfig({ subjects, viewportWidth: Infinity });
   const statuses = config.statuses ?? STATUS_ORDER;
   const header = renderHeader(statuses, config);
-  const rows = subjects.map((subject) => renderRow(subject, statuses, config.pinned.subjectColumn, config)).join("");
+  const rows = subjects.map((subject) => renderRow(subject, statuses, config.pinned.subjectColumn, config, layout?.tasks ?? [])).join("");
   const statusColumns = config.grid.statusWidths.map((w) => `${w}px`).join(" ");
   const boardStyle = [
     `--lpk-grid-template:${config.grid.template}`,
