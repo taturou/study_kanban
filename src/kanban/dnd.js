@@ -13,3 +13,15 @@ export function getDropFeedback(store, { taskId, to }) {
 export function applyDrop(store, { taskId, to }) {
   return store.moveTask({ taskId, to });
 }
+
+/**
+ * 同一セルの並び替えで、自分より後ろにドロップする場合は実挿入位置を1つ前に補正する。
+ */
+export function computeInsertIndex({ targetIndex, dragMeta, containerLength, isSameCell }) {
+  if (targetIndex === undefined || targetIndex === null) return containerLength;
+  if (!dragMeta) return targetIndex;
+  if (isSameCell && targetIndex > dragMeta.index) {
+    return Math.max(0, targetIndex - 1);
+  }
+  return targetIndex;
+}

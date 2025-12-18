@@ -2,7 +2,7 @@ import { initialLabHtml, setupMcpLab } from "./e2e/lab.js";
 import { renderKanbanBoard } from "./kanban/board.js";
 import { createKanbanLayoutConfig } from "./kanban/layout.js";
 import { createTaskStore } from "./store/taskStore.js";
-import { getDropFeedback } from "./kanban/dnd.js";
+import { getDropFeedback, computeInsertIndex } from "./kanban/dnd.js";
 
 const DEFAULT_SUBJECTS = ["国語", "数学", "英語", "理科", "社会", "技術", "音楽", "体育", "家庭科"];
 const BOARD_HORIZONTAL_PADDING = 32;
@@ -230,11 +230,6 @@ body {
   position: relative;
   z-index: 1;
 }
-.kanban-cell[data-droppable="true"] {
-  outline: 2px solid var(--lpk-accent);
-  outline-offset: -2px;
-  background: linear-gradient(180deg, #f0f6ff 0%, #ffffff 60%);
-}
 .kanban-cell .kanban-card.placeholder {
   display: flex;
   flex-direction: column;
@@ -256,6 +251,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+.kanban-drop-preview {
+  height: 16px;
+  margin: 4px 0;
+  border: 2px dashed var(--lpk-accent);
+  border-radius: 10px;
+  background: #f0f6ff;
+  pointer-events: none;
 }
 .demo-card {
   padding: 10px 12px;
@@ -430,6 +433,35 @@ function setupDemoDnD(doc) {
   const store = createTaskStore();
   DEMO_TASKS.forEach((t) => store.addTask(t));
 
+  let previewState = { cellKey: null, index: null };
+
+  const clearPreview = (cell) => {
+    const container = cell?.querySelector(".kanban-cell__tasks");
+    if (!container) return;
+    const preview = container.querySelector(".kanban-drop-preview");
+    if (preview) preview.remove();
+    previewState = { cellKey: null, index: null };
+  };
+
+  const getCellKey = (cell) => `${cell.getAttribute("data-subject")}::${cell.getAttribute("data-status")}`;
+
+  const insertPreview = (cell, index) => {
+    const container = cell.querySelector(".kanban-cell__tasks");
+    if (!container) return;
+    const key = getCellKey(cell);
+    if (previewState.cellKey === key && previewState.index === index) return;
+    clearPreview(cell);
+    const preview = doc.createElement("div");
+    preview.className = "kanban-drop-preview";
+    const children = Array.from(container.children).filter((el) => !el.classList.contains("kanban-drop-preview"));
+    if (index >= children.length) {
+      container.appendChild(preview);
+    } else {
+      container.insertBefore(preview, children[index]);
+    }
+    previewState = { cellKey: key, index };
+  };
+
   const render = () => {
     doc.querySelectorAll(".kanban-cell").forEach((cell) => {
       const subjectId = cell.getAttribute("data-subject");
@@ -454,18 +486,6 @@ function setupDemoDnD(doc) {
 
   let dragMeta = null;
 
-  const computeInsertIndex = (cell, targetCard) => {
-    const container = cell.querySelector(".kanban-cell__tasks");
-    if (!container) return undefined;
-    const targetIdx = targetCard ? Number(targetCard.dataset.index) : container.children.length;
-    if (!dragMeta) return targetIdx;
-    const sameCell = dragMeta.subject === cell.getAttribute("data-subject") && dragMeta.status === cell.getAttribute("data-status");
-    if (sameCell && targetIdx > dragMeta.index) {
-      return targetIdx - 1;
-    }
-    return targetIdx;
-  };
-
   doc.addEventListener("dragstart", (e) => {
     const target = e.target.closest(".demo-card");
     if (!target) return;
@@ -482,15 +502,32 @@ function setupDemoDnD(doc) {
     const cell = e.target.closest(".kanban-cell");
     if (!cell) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    const subjectId = cell.getAttribute("data-subject");
-    const status = cell.getAttribute("data-status");
-    const before = e.target.closest(".demo-card");
-    const insertIndex = computeInsertIndex(cell, before);
-    const feedback = dragMeta
-      ? getDropFeedback(store, { taskId: dragMeta.id, to: { subjectId, status, insertIndex } })
-      : { highlight: false };
-    cell.dataset.droppable = feedback.highlight ? "true" : "false";
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    if (!dragMeta) return;
+    queueMicrotask(() => {
+      const subjectId = cell.getAttribute("data-subject");
+      const status = cell.getAttribute("data-status");
+      const before = e.target.closest(".demo-card");
+      const insertIndexRaw = before ? Number(before.dataset.index) : null;
+      const isSameCell = dragMeta && dragMeta.subject === subjectId && dragMeta.status === status;
+      const container = cell.querySelector(".kanban-cell__tasks");
+      const length = container ? container.children.length : 0;
+      const targetIndex = status === "InPro" ? 0 : insertIndexRaw;
+      const insertIndex = computeInsertIndex({
+        targetIndex,
+        dragMeta,
+        containerLength: length,
+        isSameCell,
+      });
+      const feedback = dragMeta
+        ? getDropFeedback(store, { taskId: dragMeta.id, to: { subjectId, status, insertIndex } })
+        : { highlight: false };
+      if (feedback.highlight) {
+        insertPreview(cell, insertIndex);
+      } else {
+        clearPreview(cell);
+      }
+    });
   });
 
   doc.addEventListener("drop", (e) => {
@@ -500,19 +537,33 @@ function setupDemoDnD(doc) {
     const subjectId = cell.getAttribute("data-subject");
     const status = cell.getAttribute("data-status");
     const before = e.target.closest(".demo-card");
-    const insertIndex = computeInsertIndex(cell, before);
+    const insertIndexRaw = before ? Number(before.dataset.index) : null;
+    const container = cell.querySelector(".kanban-cell__tasks");
+    const length = container ? container.children.length : 0;
+    const isSameCell = dragMeta.subject === subjectId && dragMeta.status === status;
+    const targetIndex = status === "InPro" ? 0 : insertIndexRaw;
+    const insertIndex = computeInsertIndex({
+      targetIndex,
+      dragMeta,
+      containerLength: length,
+      isSameCell,
+    });
     const result = store.moveTask({ taskId: dragMeta.id, to: { subjectId, status, insertIndex } });
     if (!result.ok) {
       alert(`移動できません: ${result.reason}`);
     }
     dragMeta = null;
-    cell.dataset.droppable = "false";
+    clearPreview(cell);
     render();
   });
 
   doc.addEventListener("dragleave", (e) => {
     const cell = e.target.closest(".kanban-cell");
-    if (cell) cell.dataset.droppable = "false";
+    if (cell) {
+      const nextCell = e.relatedTarget?.closest?.(".kanban-cell");
+      if (nextCell === cell) return;
+      clearPreview(cell);
+    }
   });
 
   render();

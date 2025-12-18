@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { getDropFeedback } from "../src/kanban/dnd.js";
+import { computeInsertIndex, getDropFeedback } from "../src/kanban/dnd.js";
 import { createTaskStore } from "../src/store/taskStore.js";
 
 test("許可されないセルはハイライトせず理由を返す", () => {
@@ -20,4 +20,30 @@ test("許可されるセルはハイライトを返し、moveTask と整合す�
   assert.equal(okFeedback.highlight, true);
   const move = store.moveTask({ taskId: "t1", to: { subjectId: "英語", status: "InPro", insertIndex: 0 } });
   assert.equal(move.ok, true);
+});
+
+test("computeInsertIndex は同一セル並び替えで後方へ置くときに1つ前へ補正する", () => {
+  const sameCell = computeInsertIndex({
+    targetIndex: 3,
+    dragMeta: { index: 1 },
+    containerLength: 5,
+    isSameCell: true,
+  });
+  assert.equal(sameCell, 2);
+
+  const differentCell = computeInsertIndex({
+    targetIndex: 2,
+    dragMeta: { index: 1 },
+    containerLength: 4,
+    isSameCell: false,
+  });
+  assert.equal(differentCell, 2);
+
+  const append = computeInsertIndex({
+    targetIndex: null,
+    dragMeta: { index: 0 },
+    containerLength: 4,
+    isSameCell: true,
+  });
+  assert.equal(append, 4);
 });
