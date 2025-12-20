@@ -92,7 +92,7 @@
   - ドロップ前にポリシー結果を確認し、無効セル/insertIndex はドロップ不可にする
   - 同一セル並び替えと別セル移動で優先度を再計算し保存する
   - _Requirements: 3.2,3.3,3.4,3.5_
-- [ ] 9.3 InPro 置換・競合時の優先度正規化と OnHold 配置を TaskStore/Sync 側で統合する
+- [x] 9.3 InPro 置換・競合時の優先度正規化と OnHold 配置を TaskStore/Sync 側で統合する
   - InProAutoTracker の退避副作用と PrioritySorter の整合を取り、競合で複数 InPro が出た場合は発見順に OnHold 先頭へ積む
   - _Requirements: 3.9,3.12,3.16_
 

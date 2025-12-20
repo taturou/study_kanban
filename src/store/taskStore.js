@@ -55,18 +55,48 @@ export function createTaskStore(policy = createStatusPolicy()) {
       if (effect.kind === "autoMoveToOnHold") {
         const target = getTask(effect.taskId);
         if (!target) continue;
-        const subjectId = effect.subjectId ?? target.subjectId;
-        const cell = getTasksByCell(subjectId, "OnHold").filter((t) => t.id !== target.id);
-        const next = normalizeCell([{ ...target, subjectId, status: "OnHold" }, ...cell]);
-        setCell(subjectId, "OnHold", next);
-        // 元のセルから削除
-        tasks = tasks.filter((t) => !(t.id === target.id && t.status !== "OnHold"));
+        placeTaskOnHoldTop(target, effect.subjectId);
       }
       if (effect.kind === "normalizePriorities") {
         const cell = getTasksByCell(effect.subjectId, effect.status);
         setCell(effect.subjectId, effect.status, normalizeCell(cell));
       }
     }
+  }
+
+  function placeTaskOnHoldTop(task, subjectOverride) {
+    const subjectId = subjectOverride ?? task.subjectId;
+    const cell = getTasksByCell(subjectId, "OnHold").filter((t) => t.id !== task.id);
+    const next = normalizeCell([{ ...task, subjectId, status: "OnHold" }, ...cell]);
+    setCell(subjectId, "OnHold", next);
+    // 元のセルから削除
+    tasks = tasks.filter((t) => !(t.id === task.id && t.status !== "OnHold"));
+  }
+
+  function normalizeInProConflicts() {
+    const inProTasks = tasks.filter((task) => task.status === "InPro");
+    if (inProTasks.length <= 1) {
+      return { moved: [] };
+    }
+
+    const moved = [];
+    const onHoldMap = new Map();
+
+    // 競合タスクを発見順に OnHold の先頭へ積む
+    for (const task of inProTasks) {
+      tasks = tasks.filter((t) => t.id !== task.id);
+      const subjectId = task.subjectId;
+      const cell = onHoldMap.get(subjectId) ?? getTasksByCell(subjectId, "OnHold");
+      const nextCell = [{ ...task, status: "OnHold" }, ...cell];
+      onHoldMap.set(subjectId, nextCell);
+      moved.push(task.id);
+    }
+
+    for (const [subjectId, cell] of onHoldMap.entries()) {
+      setCell(subjectId, "OnHold", normalizeCell(cell));
+    }
+
+    return { moved };
   }
 
   function placeTask(task, to) {
@@ -115,5 +145,6 @@ export function createTaskStore(policy = createStatusPolicy()) {
     getTasksByCell,
     moveTask,
     previewMove,
+    normalizeInProConflicts,
   };
 }

@@ -78,3 +78,18 @@ test("previewMove は mutate せず可否と理由を返し、moveTask と整合
   store.moveTask({ taskId: "t1", to: { subjectId: "English", status: "InPro", insertIndex: 0 } });
   assert.notEqual(before, store.getTask("t1").status);
 });
+
+test("InPro 競合は発見順に OnHold 先頭へ積み、優先度を正規化する", () => {
+  store.addTask({ id: "t4", title: "InPro first", subjectId: "English", status: "InPro", priority: 5000 });
+  store.addTask({ id: "t5", title: "InPro second", subjectId: "English", status: "InPro", priority: 4000 });
+
+  const result = store.normalizeInProConflicts();
+  assert.equal(result.moved.length, 2);
+  assert.equal(store.getTasksByCell("English", "InPro").length, 0);
+
+  const onHold = store.getTasksByCell("English", "OnHold");
+  assert.deepEqual(onHold.map((task) => task.id), ["t5", "t4", "t3"]);
+  for (let i = 1; i < onHold.length; i++) {
+    assert.ok(onHold[i - 1].priority > onHold[i].priority);
+  }
+});
