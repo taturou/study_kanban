@@ -20,6 +20,35 @@ test("固定ステータス×教科のグリッドを描画する", () => {
   assert.match(html, /data-pinned-subject-column="false"/);
 });
 
+test("ステータス表示名とカードの詳細表示を反映する", () => {
+  const subjects = ["English"];
+  const layout = createKanbanLayoutConfig({ subjects, viewportWidth: 900 });
+  const html = renderKanbanBoard({
+    subjects,
+    layout: {
+      ...layout,
+      statusLabels: { Backlog: "あとで" },
+      tasks: [
+        {
+          id: "t1",
+          title: "Task A",
+          subjectId: "English",
+          status: "Backlog",
+          dueAt: "2025-01-16",
+          estimateMinutes: 30,
+          actualMinutes: 10,
+        },
+      ],
+    },
+  });
+
+  assert.match(html, />あとで</);
+  assert.match(html, /Task A/);
+  assert.match(html, /期限/);
+  assert.match(html, /30/);
+  assert.match(html, /10/);
+});
+
 test("レイアウト設定に応じてヘッダー固定・横スクロール・ステータス列の最小幅を反映する", () => {
   const subjects = ["English"];
   const narrowLayout = createKanbanLayoutConfig({ subjects, viewportWidth: 800 });

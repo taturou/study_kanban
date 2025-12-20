@@ -1,11 +1,18 @@
+import { buildCardViewModel } from "../card/tcardView.js";
 import { STATUS_ORDER, createKanbanLayoutConfig } from "./layout.js";
 
-function renderHeader(statuses, config) {
+function formatDueLabel(task, viewModel) {
+  if (!task?.dueAt) return "期限: 未設定";
+  return `期限: ${task.dueAt} (${viewModel.dueWeekday})`;
+}
+
+function renderHeader(statuses, config, statusLabels = {}) {
   const corner = `<div class="kanban-header__corner" aria-hidden="true" style="width:${config.grid.subjectWidth}px"></div>`;
   const statusCells = statuses
     .map((status, idx) => {
       const width = config.grid.statusWidths?.[idx] ?? config.grid.minColumnWidth;
-      return `<div class="kanban-header__cell" style="min-width:${config.grid.minColumnWidth}px;width:${width}px" data-status="${status}">${status}</div>`;
+      const label = statusLabels[status] ?? status;
+      return `<div class="kanban-header__cell" style="min-width:${config.grid.minColumnWidth}px;width:${width}px" data-status="${status}">${label}</div>`;
     })
     .join("");
   const headerStyle = `grid-template-columns:${config.grid.template};min-width:${config.grid.totalWidth}px;width:${config.grid.totalWidth}px`;
@@ -13,13 +20,34 @@ function renderHeader(statuses, config) {
   return `<div class="kanban-header" data-header-fixed="${config.headerFixed}" data-pinned-status-columns="${config.pinned.statusColumns}" data-scroll-horizontal="${config.scroll.horizontal}" style="${headerStyle};--lpk-status-columns:${statusColumns}">${corner}<div class="kanban-header__cells">${statusCells}</div></div>`;
 }
 
+function sumActualMinutes(task) {
+  if (!Array.isArray(task.actuals)) return task.actualMinutes ?? 0;
+  return task.actuals.reduce((sum, actual) => sum + (actual.minutes ?? 0), 0);
+}
+
 function renderTasks(tasks) {
   if (!tasks?.length) return "";
   return tasks
-    .map(
-      (task) =>
-        `<div class="kanban-card" draggable="true" data-task-id="${task.id}" data-status="${task.status}" data-subject="${task.subjectId}"><div class="kanban-card__title">${task.title}</div><small class="kanban-card__meta">${task.status}</small></div>`,
-    )
+    .map((task, index) => {
+      const viewModel = buildCardViewModel({
+        ...task,
+        actualMinutes: sumActualMinutes(task),
+      });
+      const shapeClass = viewModel.shape === "square" ? "kanban-card--square" : "kanban-card--rect";
+      const dueLabel = formatDueLabel(task, viewModel);
+      return `
+        <div class="kanban-card ${shapeClass}" draggable="true" data-task-id="${task.id}" data-status="${task.status}" data-subject="${task.subjectId}" data-index="${index}">
+          <div class="kanban-card__title">${viewModel.title}</div>
+          <div class="kanban-card__meta">
+            <span class="kanban-card__due">${dueLabel}</span>
+          </div>
+          <div class="kanban-card__gauge">
+            <span>予定: ${viewModel.gauge.estimate}</span>
+            <span>実績: ${viewModel.gauge.actual}</span>
+          </div>
+        </div>
+      `;
+    })
     .join("");
 }
 
@@ -41,10 +69,11 @@ function renderRow(subject, statuses, pinnedSubject, config, tasks) {
  * KanbanBoard のプレースホルダー HTML を返す。
  * グリッド構造とピン留め/スクロール設定を data-* 属性で保持する。
  */
-export function renderKanbanBoard({ subjects, layout }) {
+export function renderKanbanBoard({ subjects, layout, statusLabels }) {
   const config = layout ?? createKanbanLayoutConfig({ subjects, viewportWidth: Infinity });
   const statuses = config.statuses ?? STATUS_ORDER;
-  const header = renderHeader(statuses, config);
+  const labels = layout?.statusLabels ?? statusLabels ?? {};
+  const header = renderHeader(statuses, config, labels);
   const rows = subjects.map((subject) => renderRow(subject, statuses, config.pinned.subjectColumn, config, layout?.tasks ?? [])).join("");
   const statusColumns = config.grid.statusWidths.map((w) => `${w}px`).join(" ");
   const boardStyle = [

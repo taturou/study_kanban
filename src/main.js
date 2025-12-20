@@ -1,5 +1,8 @@
 import { renderKanbanBoard } from "./kanban/board.js";
 import { createKanbanLayoutConfig } from "./kanban/layout.js";
+import { createKanbanController } from "./kanban/controller.js";
+import { computeInsertIndex, getDropFeedback } from "./kanban/dnd.js";
+import { computeSprintRange, formatSprintRange } from "./sprint/range.js";
 
 const DEFAULT_SUBJECTS = ["国語", "数学", "英語", "理科", "社会", "技術", "音楽", "体育", "家庭科"];
 const BOARD_HORIZONTAL_PADDING = 32;
@@ -234,12 +237,24 @@ body {
   box-shadow: var(--lpk-shadow-card);
   cursor: grab;
 }
+.kanban-card--square {
+  aspect-ratio: 1 / 1;
+}
+.kanban-card__meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--lpk-muted);
+}
+.kanban-card__gauge {
+  margin-top: 6px;
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--lpk-muted);
+}
 .kanban-card__title {
   font-weight: 700;
   font-size: 14px;
-}
-.kanban-card__meta {
-  color: var(--lpk-muted);
 }
 .kanban-cell .kanban-add {
   position: absolute;
@@ -264,6 +279,82 @@ body {
   align-items: center;
   z-index: 1;
 }
+.kanban-cell[data-drop-allowed="true"] {
+  outline: 2px dashed var(--lpk-accent);
+  outline-offset: -2px;
+}
+.task-dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+.task-dialog {
+  background: #ffffff;
+  border-radius: 16px;
+  width: min(560px, 92vw);
+  padding: 20px;
+  box-shadow: var(--lpk-shadow-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.task-dialog__row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.task-dialog__row label {
+  font-size: 12px;
+  color: var(--lpk-muted);
+}
+.task-dialog__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.settings-panel {
+  position: fixed;
+  top: var(--lpk-appbar-height);
+  right: 16px;
+  width: min(360px, 92vw);
+  background: #ffffff;
+  border: 1px solid var(--lpk-border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--lpk-shadow-soft);
+  display: none;
+  z-index: 15;
+}
+.settings-panel[data-open="true"] {
+  display: block;
+}
+.settings-panel__section {
+  margin-top: 12px;
+}
+.settings-panel__section h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.settings-panel__status {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.settings-panel__subjects {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.settings-panel__subject {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 `;
   doc.head.appendChild(style);
 }
@@ -273,12 +364,133 @@ function formatNow(now = new Date()) {
   return iso.slice(0, 10) + " " + iso.slice(11, 16);
 }
 
-export function buildAppShellHtml(now = new Date(), viewportWidth = 1024) {
-  const subjects = DEFAULT_SUBJECTS;
+function buildSettingsPanelHtml(controller) {
+  if (!controller) return "";
+  const labels = controller.getStatusLabels();
+  const subjects = controller.getSubjects();
+  const statusInputs = Object.entries(labels)
+    .map(
+      ([status, label]) => `
+        <div class="settings-panel__status">
+          <span>${status}</span>
+          <input type="text" data-status-label="${status}" value="${label}" />
+        </div>
+      `,
+    )
+    .join("");
+  const subjectRows = subjects
+    .map(
+      (subject, index) => `
+        <div class="settings-panel__subject">
+          <span>${subject}</span>
+          <button data-subject-move="up" data-subject="${subject}" ${index === 0 ? "disabled" : ""}>↑</button>
+          <button data-subject-move="down" data-subject="${subject}" ${index === subjects.length - 1 ? "disabled" : ""}>↓</button>
+          <button data-subject-delete="${subject}">削除</button>
+        </div>
+      `,
+    )
+    .join("");
+  return `
+    <section class="settings-panel" data-testid="settings-panel" data-open="false">
+      <h2>Settings</h2>
+      <div class="settings-panel__section">
+        <h3>ステータス表示名</h3>
+        ${statusInputs}
+      </div>
+      <div class="settings-panel__section">
+        <h3>教科</h3>
+        <div class="settings-panel__subjects">${subjectRows}</div>
+      </div>
+    </section>
+  `;
+}
+
+function buildTaskDialogHtml(dialogState) {
+  if (!dialogState) return "";
+  const task = dialogState.task ?? {};
+  const actuals = Array.isArray(task.actuals) ? task.actuals : [];
+  const actualRows = actuals
+    .map(
+      (actual) => `
+        <div class="task-dialog__actual">
+          <input type="date" data-actual-id="${actual.id}" data-actual-field="at" value="${actual.at ?? ""}" />
+          <input type="number" data-actual-id="${actual.id}" data-actual-field="minutes" value="${actual.minutes ?? 0}" />
+          <button data-actual-delete="${actual.id}">削除</button>
+        </div>
+      `,
+    )
+    .join("");
+  return `
+    <div class="task-dialog__backdrop" data-testid="task-dialog">
+      <div class="task-dialog" role="dialog" aria-modal="true">
+        <div class="task-dialog__row">
+          <label>タイトル</label>
+          <input type="text" data-dialog-field="title" value="${task.title ?? ""}" />
+        </div>
+        <div class="task-dialog__row">
+          <label>詳細</label>
+          <textarea data-dialog-field="detail">${task.detail ?? ""}</textarea>
+        </div>
+        <div class="task-dialog__row">
+          <label>期日</label>
+          <input type="date" data-dialog-field="dueAt" value="${task.dueAt ?? ""}" />
+        </div>
+        <div class="task-dialog__row">
+          <label>予定時間 (分)</label>
+          <input type="number" data-dialog-field="estimateMinutes" value="${task.estimateMinutes ?? 0}" />
+        </div>
+        <div class="task-dialog__row">
+          <label>実績</label>
+          ${actualRows}
+          <button data-actual-add>実績を追加</button>
+        </div>
+        <div class="task-dialog__actions">
+          <button data-dialog-action="cancel">キャンセル</button>
+          <button data-dialog-action="delete">消去</button>
+          <button data-dialog-action="save">保存</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function collectDialogValues(dialog) {
+  const getValue = (selector) => dialog.querySelector(selector)?.value ?? "";
+  const updates = {
+    title: getValue('[data-dialog-field="title"]'),
+    detail: getValue('[data-dialog-field="detail"]'),
+    dueAt: getValue('[data-dialog-field="dueAt"]'),
+    estimateMinutes: Number(getValue('[data-dialog-field="estimateMinutes"]') || 0),
+  };
+  const actualsById = new Map();
+  dialog.querySelectorAll("[data-actual-id]").forEach((input) => {
+    const id = input.dataset.actualId;
+    if (!actualsById.has(id)) {
+      actualsById.set(id, { id });
+    }
+    const entry = actualsById.get(id);
+    if (input.dataset.actualField === "at") {
+      entry.at = input.value;
+    }
+    if (input.dataset.actualField === "minutes") {
+      entry.minutes = Number(input.value || 0);
+    }
+  });
+  if (actualsById.size) {
+    updates.actuals = Array.from(actualsById.values()).filter((entry) => entry.at || entry.minutes);
+  }
+  return updates;
+}
+
+export function buildAppShellHtml(now = new Date(), viewportWidth = 1024, controller = null) {
+  const subjects = controller?.getSubjects() ?? DEFAULT_SUBJECTS;
   const adjustedWidth = Math.max(320, viewportWidth - BOARD_HORIZONTAL_PADDING);
   const layout = createKanbanLayoutConfig({ subjects, viewportWidth: adjustedWidth });
-  const boardHtml = renderKanbanBoard({ subjects, layout });
+  const tasks = controller?.listTasks() ?? [];
+  const statusLabels = controller?.getStatusLabels?.() ?? {};
+  const boardHtml = renderKanbanBoard({ subjects, layout: { ...layout, tasks, statusLabels } });
   const datetime = formatNow(now);
+  const sprintLabel = controller?.getSprintLabel?.() ?? formatSprintRange(computeSprintRange(now));
   return `
     <div class="app-shell" data-testid="app-root">
       <header class="kanban-appbar" data-testid="app-bar" data-fixed="true">
@@ -303,6 +515,7 @@ export function buildAppShellHtml(now = new Date(), viewportWidth = 1024) {
         <div class="kanban-header__meta" data-testid="kanban-meta">
           <span>Today: 0</span>
           <span>Done: 0</span>
+          <span data-testid="sprint-range">${sprintLabel}</span>
         </div>
         <div class="kanban-header__gauge" data-testid="availability-gauge">
           <div class="gauge-bar" aria-hidden="true"><span class="gauge-bar__fill"></span></div>
@@ -316,7 +529,9 @@ export function buildAppShellHtml(now = new Date(), viewportWidth = 1024) {
             ${boardHtml}
           </div>
         </div>
+        ${buildSettingsPanelHtml(controller)}
       </main>
+      ${buildTaskDialogHtml(controller?.getDialogState?.())}
     </div>
   `;
 }
@@ -325,8 +540,208 @@ export function renderAppShell(doc = document) {
   const app = doc.querySelector("#app");
   if (!app) return;
   injectStyles(doc);
-  const viewportWidth = doc?.documentElement?.clientWidth ?? 1024;
-  app.innerHTML = buildAppShellHtml(new Date(), viewportWidth);
+  const controller = createKanbanController({ subjects: DEFAULT_SUBJECTS, now: new Date() });
+  let settingsOpen = false;
+
+  const render = () => {
+    const viewportWidth = doc?.documentElement?.clientWidth ?? 1024;
+    app.innerHTML = buildAppShellHtml(new Date(), viewportWidth, controller);
+    if (typeof app.querySelectorAll !== "function") {
+      return;
+    }
+    bindEvents();
+  };
+
+  const bindEvents = () => {
+    const menuButton = app.querySelector(".app-bar__menu");
+    const settingsPanel = app.querySelector('[data-testid="settings-panel"]');
+    if (menuButton && settingsPanel) {
+      settingsPanel.dataset.open = settingsOpen ? "true" : "false";
+      menuButton.addEventListener("click", () => {
+        settingsOpen = !settingsOpen;
+        settingsPanel.dataset.open = settingsOpen ? "true" : "false";
+      });
+    }
+
+    app.querySelectorAll("[data-status-label]").forEach((input) => {
+      input.addEventListener("change", (event) => {
+        const target = event.target;
+        controller.updateStatusLabel(target.dataset.statusLabel, target.value);
+        render();
+      });
+    });
+
+    app.querySelectorAll("[data-subject-move]").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        const target = event.target;
+        const subject = target.dataset.subject;
+        const direction = target.dataset.subjectMove;
+        const subjects = controller.getSubjects();
+        const index = subjects.indexOf(subject);
+        if (index === -1) return;
+        const swapIndex = direction === "up" ? index - 1 : index + 1;
+        if (swapIndex < 0 || swapIndex >= subjects.length) return;
+        const next = [...subjects];
+        [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+        controller.setSubjectOrder(next);
+        render();
+      });
+    });
+
+    app.querySelectorAll("[data-subject-delete]").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        const target = event.target;
+        const subject = target.dataset.subjectDelete;
+        const result = controller.deleteSubject(subject);
+        if (result?.ok === false) {
+          alert(result.reason);
+          return;
+        }
+        render();
+      });
+    });
+
+    app.querySelectorAll(".kanban-cell .kanban-add").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        const cell = event.target.closest(".kanban-cell");
+        if (!cell) return;
+        controller.openNewTaskDialog({
+          subjectId: cell.getAttribute("data-subject"),
+          status: cell.getAttribute("data-status"),
+        });
+        render();
+        const titleInput = app.querySelector('[data-dialog-field="title"]');
+        if (titleInput) titleInput.focus();
+      });
+    });
+
+    app.querySelectorAll(".kanban-card").forEach((card) => {
+      card.addEventListener("click", () => {
+        controller.openEditTaskDialog(card.dataset.taskId);
+        render();
+        const titleInput = app.querySelector('[data-dialog-field="title"]');
+        if (titleInput) titleInput.focus();
+      });
+    });
+
+    const dialog = app.querySelector('[data-testid="task-dialog"]');
+    if (dialog) {
+      dialog.addEventListener("click", (event) => {
+        if (event.target === dialog) {
+          controller.closeDialog();
+          render();
+        }
+      });
+      dialog.querySelectorAll("[data-dialog-action]").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          const action = event.target.dataset.dialogAction;
+          if (action === "cancel") {
+            controller.closeDialog();
+            render();
+            return;
+          }
+          if (action === "delete") {
+            controller.deleteDialogTask();
+            render();
+            return;
+          }
+          if (action === "save") {
+            const updates = collectDialogValues(dialog);
+            controller.saveDialog(updates);
+            render();
+          }
+        });
+      });
+      const addActualButton = dialog.querySelector("[data-actual-add]");
+      if (addActualButton) {
+        addActualButton.addEventListener("click", () => {
+          const row = doc.createElement("div");
+          const id = Math.random().toString(36).slice(2, 10);
+          row.className = "task-dialog__actual";
+          row.innerHTML = `
+            <input type="date" data-actual-id="${id}" data-actual-field="at" />
+            <input type="number" data-actual-id="${id}" data-actual-field="minutes" value="0" />
+            <button data-actual-delete="${id}">削除</button>
+          `;
+          addActualButton.before(row);
+        });
+      }
+      dialog.querySelectorAll("[data-actual-delete]").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          const target = event.target;
+          const row = target.closest(".task-dialog__actual");
+          if (row) row.remove();
+        });
+      });
+    }
+
+    let dragMeta = null;
+    app.querySelectorAll(".kanban-card").forEach((card) => {
+      card.addEventListener("dragstart", (event) => {
+        dragMeta = {
+          id: card.dataset.taskId,
+          subject: card.dataset.subject,
+          status: card.dataset.status,
+          index: Number(card.dataset.index ?? 0),
+        };
+        event.dataTransfer.effectAllowed = "move";
+      });
+    });
+
+    app.querySelectorAll(".kanban-cell").forEach((cell) => {
+      cell.addEventListener("dragover", (event) => {
+        if (!dragMeta) return;
+        event.preventDefault();
+        const subjectId = cell.getAttribute("data-subject");
+        const status = cell.getAttribute("data-status");
+        const before = event.target.closest(".kanban-card");
+        const insertIndexRaw = before ? Number(before.dataset.index) : null;
+        const container = cell.querySelector(".kanban-cell__tasks");
+        const length = container ? container.children.length : 0;
+        const isSameCell = dragMeta.subject === subjectId && dragMeta.status === status;
+        const targetIndex = status === "InPro" ? 0 : insertIndexRaw;
+        const insertIndex = computeInsertIndex({
+          targetIndex,
+          dragMeta,
+          containerLength: length,
+          isSameCell,
+        });
+        const feedback = getDropFeedback(controller, { taskId: dragMeta.id, to: { subjectId, status, insertIndex } });
+        cell.dataset.dropAllowed = feedback.highlight ? "true" : "false";
+      });
+
+      cell.addEventListener("dragleave", () => {
+        cell.dataset.dropAllowed = "false";
+      });
+
+      cell.addEventListener("drop", (event) => {
+        if (!dragMeta) return;
+        event.preventDefault();
+        const subjectId = cell.getAttribute("data-subject");
+        const status = cell.getAttribute("data-status");
+        const before = event.target.closest(".kanban-card");
+        const insertIndexRaw = before ? Number(before.dataset.index) : null;
+        const container = cell.querySelector(".kanban-cell__tasks");
+        const length = container ? container.children.length : 0;
+        const isSameCell = dragMeta.subject === subjectId && dragMeta.status === status;
+        const targetIndex = status === "InPro" ? 0 : insertIndexRaw;
+        const insertIndex = computeInsertIndex({
+          targetIndex,
+          dragMeta,
+          containerLength: length,
+          isSameCell,
+        });
+        const result = controller.moveTask({ taskId: dragMeta.id, to: { subjectId, status, insertIndex } });
+        if (!result.ok) {
+          alert(`移動できません: ${result.reason}`);
+        }
+        dragMeta = null;
+        render();
+      });
+    });
+  };
+
+  render();
 }
 
 if (typeof document !== "undefined") {

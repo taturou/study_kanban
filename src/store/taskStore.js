@@ -34,6 +34,23 @@ export function createTaskStore(policy = createStatusPolicy()) {
     return getTask(task.id);
   }
 
+  function updateTask(taskId, updates) {
+    const target = getTask(taskId);
+    if (!target) return null;
+    tasks = tasks.map((task) => (task.id === taskId ? { ...task, ...updates, priority: task.priority } : task));
+    return getTask(taskId);
+  }
+
+  function deleteTask(taskId) {
+    const before = tasks.length;
+    tasks = tasks.filter((task) => task.id !== taskId);
+    return tasks.length !== before;
+  }
+
+  function listTasks() {
+    return tasks.map((task) => ({ ...task }));
+  }
+
   function buildContext(task) {
     const today = getTasksByCell(task.subjectId, "Today");
     const onHold = getTasksByCell(task.subjectId, "OnHold");
@@ -146,5 +163,8 @@ export function createTaskStore(policy = createStatusPolicy()) {
     moveTask,
     previewMove,
     normalizeInProConflicts,
+    updateTask,
+    deleteTask,
+    listTasks,
   };
 }

@@ -16,3 +16,9 @@ test("デモ用のタスクはカンバン内に含まれない", () => {
   assert.doesNotMatch(html, /demo-3/);
   assert.doesNotMatch(html, /demo-4/);
 });
+
+test("スプリント期間の表示が含まれる", () => {
+  const html = buildAppShellHtml(new Date("2025-01-15T10:00:00Z"));
+  assert.match(html, /2025-01-13/);
+  assert.match(html, /2025-01-19/);
+});
