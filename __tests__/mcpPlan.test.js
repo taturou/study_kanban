@@ -8,38 +8,23 @@ test("MCPプランはターゲットURLと主要セレクタを提供する", ()
   assert.ok(plan.selectors.appRoot);
   assert.ok(plan.selectors.appBar);
   assert.ok(plan.selectors.kanbanBoard);
-  assert.ok(plan.selectors.lab.root);
-  assert.ok(plan.selectors.lab.backlog);
-  assert.ok(plan.selectors.lab.today);
-  assert.ok(plan.selectors.lab.done);
-  assert.ok(plan.selectors.lab.card);
-  assert.ok(plan.selectors.lab.input);
-  assert.ok(plan.selectors.lab.createButton);
-  assert.ok(plan.selectors.lab.status);
   assert.deepEqual(plan.selectors, E2E_SELECTORS);
 });
 
-test("タスク作成とDnDシナリオが含まれ、スナップショット検証も定義されている", () => {
+test("AppShell 確認シナリオが含まれ、スナップショット検証も定義されている", () => {
   const plan = buildMcpPlan();
-  const create = plan.scenarios.find((s) => s.id === "task-create");
-  const drag = plan.scenarios.find((s) => s.id === "drag-and-drop");
-  assert.ok(create, "task-create シナリオが必要");
-  assert.ok(drag, "drag-and-drop シナリオが必要");
+  const appShell = plan.scenarios.find((s) => s.id === "app-shell");
+  assert.ok(appShell, "app-shell シナリオが必要");
 
   assert.deepEqual(
-    create.steps.map((s) => s.action),
-    ["open", "waitFor", "waitFor", "type", "click", "waitForText", "assertCount"],
-  );
-  assert.deepEqual(
-    drag.steps.map((s) => s.action),
-    ["open", "waitFor", "waitFor", "dragAndDrop", "assertAttribute"],
+    appShell.steps.map((s) => s.action),
+    ["open", "waitFor", "waitFor"],
   );
 
   assert.ok(plan.snapshots.length > 0);
   const snapshotTargets = plan.snapshots.flatMap((s) => s.targets);
   assert.ok(snapshotTargets.includes(E2E_SELECTORS.appBar));
   assert.ok(snapshotTargets.includes(E2E_SELECTORS.kanbanBoard));
-  assert.ok(snapshotTargets.includes(E2E_SELECTORS.lab.root));
 });
 
 test("プランはJSONとしてシリアライズできる", () => {

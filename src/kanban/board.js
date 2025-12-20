@@ -18,7 +18,7 @@ function renderTasks(tasks) {
   return tasks
     .map(
       (task) =>
-        `<div class="kanban-card demo-card" draggable="true" data-task-id="${task.id}" data-status="${task.status}" data-subject="${task.subjectId}"><div class="demo-card__title">${task.title}</div><small class="demo-card__meta">${task.status}</small></div>`,
+        `<div class="kanban-card" draggable="true" data-task-id="${task.id}" data-status="${task.status}" data-subject="${task.subjectId}"><div class="kanban-card__title">${task.title}</div><small class="kanban-card__meta">${task.status}</small></div>`,
     )
     .join("");
 }
@@ -30,7 +30,7 @@ function renderRow(subject, statuses, pinnedSubject, config, tasks) {
       const cellTasks = tasks?.filter((t) => t.subjectId === subject && t.status === status) ?? [];
       return `<div class="kanban-cell" data-status="${status}" data-subject="${subject}" style="min-width:${config.grid.minColumnWidth}px;width:${width}px">${
         status === "Backlog" ? '<button class="kanban-add" aria-label="Backlog にタスクを追加">＋</button>' : ""
-      }<div class="kanban-card placeholder" data-testid="placeholder-card" data-status="${status}" data-subject="${subject}"></div><div class="kanban-cell__tasks">${renderTasks(cellTasks)}</div></div>`;
+      }<div class="kanban-cell__tasks">${renderTasks(cellTasks)}</div></div>`;
     })
     .join("");
   const rowStyle = `grid-template-columns:${config.grid.template};min-width:${config.grid.totalWidth}px;width:${config.grid.totalWidth}px`;

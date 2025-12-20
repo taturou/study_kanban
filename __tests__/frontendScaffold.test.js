@@ -27,7 +27,7 @@ test("main.js に AppShell と Kanban スケルトンのプレースホルダー
   assert.match(content, /Kanban/);
 });
 
-test("main.js は KanbanBoard のプレースホルダーを初期レンダリングする", async () => {
+test("main.js は KanbanBoard を初期レンダリングする", async () => {
   const container = { innerHTML: "" };
   const appended = [];
   const mockDocument = {
@@ -37,7 +37,7 @@ test("main.js は KanbanBoard のプレースホルダーを初期レンダリ�
   };
   renderAppShell(mockDocument);
   assert.match(container.innerHTML, /kanban-board/);
-  assert.match(container.innerHTML, /data-testid="placeholder-card"/);
+  assert.doesNotMatch(container.innerHTML, /data-testid="placeholder-card"/);
   assert.ok(appended.length > 0);
 });
 

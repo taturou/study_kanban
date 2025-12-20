@@ -1,17 +1,8 @@
-import { initialLabHtml, setupMcpLab } from "./e2e/lab.js";
 import { renderKanbanBoard } from "./kanban/board.js";
 import { createKanbanLayoutConfig } from "./kanban/layout.js";
-import { createTaskStore } from "./store/taskStore.js";
-import { getDropFeedback, computeInsertIndex } from "./kanban/dnd.js";
 
 const DEFAULT_SUBJECTS = ["国語", "数学", "英語", "理科", "社会", "技術", "音楽", "体育", "家庭科"];
 const BOARD_HORIZONTAL_PADDING = 32;
-const DEMO_TASKS = [
-  { id: "demo-1", title: "英語: 単語20語", subjectId: "英語", status: "Backlog" },
-  { id: "demo-2", title: "数学: 因数分解", subjectId: "数学", status: "Today" },
-  { id: "demo-3", title: "国語: 漢字練習", subjectId: "国語", status: "OnHold" },
-  { id: "demo-4", title: "理科: 実験レポート", subjectId: "理科", status: "InPro" },
-];
 
 function injectStyles(doc) {
   if (!doc?.head || doc.getElementById?.("kanban-styles")) return;
@@ -230,37 +221,12 @@ body {
   position: relative;
   z-index: 1;
 }
-.kanban-cell .kanban-card.placeholder {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: flex-start;
-  padding: 12px;
-  margin: 0;
-  border: 1px dashed var(--lpk-border);
-  border-radius: 12px;
-  background: #ffffff;
-  color: var(--lpk-text);
-  font-size: 14px;
-  box-shadow: var(--lpk-shadow-card);
-}
-.kanban-card.placeholder {
-  margin: 6px 0;
-}
 .kanban-cell__tasks {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.kanban-drop-preview {
-  height: 16px;
-  margin: 4px 0;
-  border: 2px dashed var(--lpk-accent);
-  border-radius: 10px;
-  background: #f0f6ff;
-  pointer-events: none;
-}
-.demo-card {
+.kanban-card {
   padding: 10px 12px;
   background: #fff;
   border: 1px solid var(--lpk-border);
@@ -268,11 +234,11 @@ body {
   box-shadow: var(--lpk-shadow-card);
   cursor: grab;
 }
-.demo-card__title {
+.kanban-card__title {
   font-weight: 700;
   font-size: 14px;
 }
-.demo-card__meta {
+.kanban-card__meta {
   color: var(--lpk-muted);
 }
 .kanban-cell .kanban-add {
@@ -289,9 +255,6 @@ body {
   cursor: pointer;
   box-shadow: var(--lpk-shadow-card);
 }
-.kanban-cell[data-status="Backlog"] .kanban-card.placeholder {
-  padding-right: 44px;
-}
 .kanban-board .kanban-row__subject {
   background: #f8fbff;
   border-right: 1px solid var(--lpk-border);
@@ -300,58 +263,6 @@ body {
   display: flex;
   align-items: center;
   z-index: 1;
-}
-.mcp-lab {
-  margin: 32px 16px 16px;
-  padding: 16px;
-  border: 1px solid var(--lpk-border);
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: var(--lpk-shadow-card);
-}
-.mcp-lab__controls {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  margin-bottom: 12px;
-}
-.mcp-lab__board {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-.lab-column {
-  border: 1px dashed var(--lpk-border);
-  border-radius: 10px;
-  background: #f6f8fb;
-  min-height: 140px;
-}
-.lab-column__header {
-  padding: 8px 10px;
-  font-weight: 700;
-  border-bottom: 1px solid var(--lpk-border);
-}
-.lab-column__list {
-  padding: 10px;
-}
-.lab-column__list[data-drag-over="true"] {
-  outline: 2px solid var(--lpk-accent);
-}
-.lab-card {
-  padding: 8px 10px;
-  margin-bottom: 8px;
-  border-radius: 8px;
-  background: #ffffff;
-  border: 1px solid var(--lpk-border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  cursor: grab;
-}
-.lab-status {
-  font-size: 14px;
-  color: var(--lpk-muted);
 }
 `;
   doc.head.appendChild(style);
@@ -366,7 +277,7 @@ export function buildAppShellHtml(now = new Date(), viewportWidth = 1024) {
   const subjects = DEFAULT_SUBJECTS;
   const adjustedWidth = Math.max(320, viewportWidth - BOARD_HORIZONTAL_PADDING);
   const layout = createKanbanLayoutConfig({ subjects, viewportWidth: adjustedWidth });
-  const boardHtml = renderKanbanBoard({ subjects, layout: { ...layout, tasks: DEMO_TASKS } });
+  const boardHtml = renderKanbanBoard({ subjects, layout });
   const datetime = formatNow(now);
   return `
     <div class="app-shell" data-testid="app-root">
@@ -405,10 +316,6 @@ export function buildAppShellHtml(now = new Date(), viewportWidth = 1024) {
             ${boardHtml}
           </div>
         </div>
-        <section class="mcp-lab" data-testid="mcp-lab">
-          <div class="mcp-lab__title">MCP E2E Lab</div>
-          ${initialLabHtml()}
-        </section>
       </main>
     </div>
   `;
@@ -420,151 +327,8 @@ export function renderAppShell(doc = document) {
   injectStyles(doc);
   const viewportWidth = doc?.documentElement?.clientWidth ?? 1024;
   app.innerHTML = buildAppShellHtml(new Date(), viewportWidth);
-  setupMcpLab(doc);
-  setupDemoDnD(doc);
 }
 
 if (typeof document !== "undefined") {
   renderAppShell(document);
-}
-
-function setupDemoDnD(doc) {
-  if (!doc?.querySelectorAll || !doc?.addEventListener) return;
-  const store = createTaskStore();
-  DEMO_TASKS.forEach((t) => store.addTask(t));
-
-  let previewState = { cellKey: null, index: null };
-
-  const clearPreview = (cell) => {
-    const container = cell?.querySelector(".kanban-cell__tasks");
-    if (!container) return;
-    const preview = container.querySelector(".kanban-drop-preview");
-    if (preview) preview.remove();
-    previewState = { cellKey: null, index: null };
-  };
-
-  const getCellKey = (cell) => `${cell.getAttribute("data-subject")}::${cell.getAttribute("data-status")}`;
-
-  const insertPreview = (cell, index) => {
-    const container = cell.querySelector(".kanban-cell__tasks");
-    if (!container) return;
-    const key = getCellKey(cell);
-    if (previewState.cellKey === key && previewState.index === index) return;
-    clearPreview(cell);
-    const preview = doc.createElement("div");
-    preview.className = "kanban-drop-preview";
-    const children = Array.from(container.children).filter((el) => !el.classList.contains("kanban-drop-preview"));
-    if (index >= children.length) {
-      container.appendChild(preview);
-    } else {
-      container.insertBefore(preview, children[index]);
-    }
-    previewState = { cellKey: key, index };
-  };
-
-  const render = () => {
-    doc.querySelectorAll(".kanban-cell").forEach((cell) => {
-      const subjectId = cell.getAttribute("data-subject");
-      const status = cell.getAttribute("data-status");
-      const container = cell.querySelector(".kanban-cell__tasks");
-      if (!container) return;
-      container.innerHTML = "";
-      const tasks = store.getTasksByCell(subjectId, status);
-      tasks.forEach((task, index) => {
-        const el = doc.createElement("div");
-        el.className = "kanban-card demo-card";
-        el.draggable = true;
-        el.dataset.taskId = task.id;
-        el.dataset.status = task.status;
-        el.dataset.subject = task.subjectId;
-        el.dataset.index = String(index);
-        el.innerHTML = `<div class=\"demo-card__title\">${task.title}</div><small class=\"demo-card__meta\">${task.status}</small>`;
-        container.appendChild(el);
-      });
-    });
-  };
-
-  let dragMeta = null;
-
-  doc.addEventListener("dragstart", (e) => {
-    const target = e.target.closest(".demo-card");
-    if (!target) return;
-    dragMeta = {
-      id: target.dataset.taskId,
-      subject: target.dataset.subject,
-      status: target.dataset.status,
-      index: Number(target.dataset.index ?? 0),
-    };
-    e.dataTransfer.effectAllowed = "move";
-  });
-
-  doc.addEventListener("dragover", (e) => {
-    const cell = e.target.closest(".kanban-cell");
-    if (!cell) return;
-    e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-    if (!dragMeta) return;
-    queueMicrotask(() => {
-      const subjectId = cell.getAttribute("data-subject");
-      const status = cell.getAttribute("data-status");
-      const before = e.target.closest(".demo-card");
-      const insertIndexRaw = before ? Number(before.dataset.index) : null;
-      const isSameCell = dragMeta && dragMeta.subject === subjectId && dragMeta.status === status;
-      const container = cell.querySelector(".kanban-cell__tasks");
-      const length = container ? container.children.length : 0;
-      const targetIndex = status === "InPro" ? 0 : insertIndexRaw;
-      const insertIndex = computeInsertIndex({
-        targetIndex,
-        dragMeta,
-        containerLength: length,
-        isSameCell,
-      });
-      const feedback = dragMeta
-        ? getDropFeedback(store, { taskId: dragMeta.id, to: { subjectId, status, insertIndex } })
-        : { highlight: false };
-      if (feedback.highlight) {
-        insertPreview(cell, insertIndex);
-      } else {
-        clearPreview(cell);
-      }
-    });
-  });
-
-  doc.addEventListener("drop", (e) => {
-    const cell = e.target.closest(".kanban-cell");
-    if (!cell || !dragMeta) return;
-    e.preventDefault();
-    const subjectId = cell.getAttribute("data-subject");
-    const status = cell.getAttribute("data-status");
-    const before = e.target.closest(".demo-card");
-    const insertIndexRaw = before ? Number(before.dataset.index) : null;
-    const container = cell.querySelector(".kanban-cell__tasks");
-    const length = container ? container.children.length : 0;
-    const isSameCell = dragMeta.subject === subjectId && dragMeta.status === status;
-    const targetIndex = status === "InPro" ? 0 : insertIndexRaw;
-    const insertIndex = computeInsertIndex({
-      targetIndex,
-      dragMeta,
-      containerLength: length,
-      isSameCell,
-    });
-    const result = store.moveTask({ taskId: dragMeta.id, to: { subjectId, status, insertIndex } });
-    if (!result.ok) {
-      alert(`移動できません: ${result.reason}`);
-    }
-    dragMeta = null;
-    clearPreview(cell);
-    render();
-  });
-
-  doc.addEventListener("dragleave", (e) => {
-    const cell = e.target.closest(".kanban-cell");
-    if (cell) {
-      const nextCell = e.relatedTarget?.closest?.(".kanban-cell");
-      if (nextCell === cell) return;
-      clearPreview(cell);
-    }
-  });
-
-  render();
 }

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { createKanbanLayoutConfig, STATUS_ORDER } from "../src/kanban/layout.js";
 import { renderKanbanBoard } from "../src/kanban/board.js";
 
-test("固定ステータス×教科のグリッドにプレースホルダー TCard を配置する", () => {
+test("固定ステータス×教科のグリッドを描画する", () => {
   const subjects = ["English", "Math"];
   const layout = createKanbanLayoutConfig({ subjects, viewportWidth: 320 });
 
@@ -15,8 +15,7 @@ test("固定ステータス×教科のグリッドにプレースホルダー TC
   subjects.forEach((subject) => {
     assert.match(html, new RegExp(`data-subject="${subject}"`));
   });
-  const placeholderCount = (html.match(/data-testid="placeholder-card"/g) ?? []).length;
-  assert.equal(placeholderCount, STATUS_ORDER.length * subjects.length);
+  assert.doesNotMatch(html, /data-testid="placeholder-card"/);
   assert.match(html, /data-header-fixed="true"/);
   assert.match(html, /data-pinned-subject-column="false"/);
 });
