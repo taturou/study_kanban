@@ -487,6 +487,10 @@ export function buildAppShellHtml(now = new Date(), viewportWidth = 1024, contro
   const adjustedWidth = Math.max(320, viewportWidth - BOARD_HORIZONTAL_PADDING);
   const layout = createKanbanLayoutConfig({ subjects, viewportWidth: adjustedWidth });
   const tasks = controller?.listTasks() ?? [];
+  const statusCounts = tasks.reduce((acc, task) => {
+    acc[task.status] = (acc[task.status] ?? 0) + 1;
+    return acc;
+  }, {});
   const statusLabels = controller?.getStatusLabels?.() ?? {};
   const boardHtml = renderKanbanBoard({ subjects, layout: { ...layout, tasks, statusLabels } });
   const datetime = formatNow(now);
@@ -513,8 +517,8 @@ export function buildAppShellHtml(now = new Date(), viewportWidth = 1024, contro
       </header>
       <section class="kanban-header" data-testid="kanban-header" data-fixed="true">
         <div class="kanban-header__meta" data-testid="kanban-meta">
-          <span>Today: 0</span>
-          <span>Done: 0</span>
+          <span>Today: ${statusCounts.Today ?? 0}</span>
+          <span>Done: ${statusCounts.Done ?? 0}</span>
           <span data-testid="sprint-range">${sprintLabel}</span>
         </div>
         <div class="kanban-header__gauge" data-testid="availability-gauge">
