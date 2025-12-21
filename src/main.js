@@ -743,6 +743,35 @@ export function renderAppShell(doc = document) {
 
     const dialog = app.querySelector('[data-testid="task-dialog"]');
     if (dialog) {
+      dialog.addEventListener("keydown", (event) => {
+        if (event.ctrlKey && event.key === "Enter") {
+          event.preventDefault();
+          const updates = collectDialogValues(dialog);
+          controller.saveDialog(updates);
+          render();
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          controller.closeDialog();
+          render();
+          return;
+        }
+        if (event.key === "Tab") {
+          const active = doc.activeElement;
+          if (!event.shiftKey && active?.dataset?.dialogAction === "save") {
+            event.preventDefault();
+            const titleInput = dialog.querySelector('[data-dialog-field="title"]');
+            if (titleInput) titleInput.focus();
+            return;
+          }
+          if (event.shiftKey && active?.dataset?.dialogField === "title") {
+            event.preventDefault();
+            const saveButton = dialog.querySelector('[data-dialog-action="save"]');
+            if (saveButton) saveButton.focus();
+          }
+        }
+      });
       dialog.addEventListener("click", (event) => {
         if (event.target === dialog) {
           controller.closeDialog();

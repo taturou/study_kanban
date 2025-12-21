@@ -1,7 +1,7 @@
 import { createTaskStore, PRIORITY_STEP } from "../store/taskStore.js";
 import { createSettingsStore } from "../settings/store.js";
 import { createSubjectsManager, SUBJECT_DELETE_BLOCK_MESSAGE } from "../subjects/manager.js";
-import { createTaskDialogState, saveTask, deleteTask as deleteDialogTask } from "../dialog/taskDialogFlow.js";
+import { createTaskDialogState, saveTask, deleteTask as deleteDialogTaskFlow } from "../dialog/taskDialogFlow.js";
 import { computeSprintRange, formatSprintRange } from "../sprint/range.js";
 
 function generateId() {
@@ -80,7 +80,7 @@ export function createKanbanController({ subjects, now = new Date(), settings = 
 
   function deleteDialogTask() {
     if (!dialogState) return { ok: false, reason: "dialog-not-open" };
-    const result = deleteDialogTask(dialogState);
+    const result = deleteDialogTaskFlow(dialogState);
     if (result.action === "delete") {
       store.deleteTask(result.taskId);
       dialogState = null;
