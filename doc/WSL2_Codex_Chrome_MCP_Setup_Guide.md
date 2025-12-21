@@ -37,13 +37,14 @@
 
 * **リンク先:**
 ```cmd
-"C:\Users\USERNAME\AppData\Local\Google\Chrome SxS\Application\chrome.exe" --remote-debugging-port=60053 --user-data-dir="%TEMP%\chrome_debug_mcp" --remote-allow-origins=* --no-first-run --no-default-browser-check
+"C:\Users\USERNAME\AppData\Local\Google\Chrome SxS\Application\chrome.exe" --remote-debugging-port=60054 --remote-debugging-address=0.0.0.0 --user-data-dir="%TEMP%\chrome_debug_mcp" --remote-allow-origins=* --no-first-run --no-default-browser-check
 
 ```
 
 
 * `--remote-allow-origins=*`: MCP ツールからの WebSocket 接続許可に必須。
 * `--user-data-dir`: 普段使いの Chrome とプロファイルを分離するために必須。
+* `--remote-debugging-address=0.0.0.0`: WSL2 からの接続を許可するために指定。
 
 
 
@@ -70,13 +71,13 @@ $wslInterfaceName = "vEthernet (WSL (Hyper-V firewall))"
 # 既存ルールのクリーンアップ
 Remove-NetFirewallRule -DisplayName "WSL Chrome Debug" -ErrorAction SilentlyContinue
 
-# 新規ルールの作成 (WSLインターフェース限定)
+# 新規ルールの作成 (WSL インターフェース限定)
 New-NetFirewallRule -DisplayName "WSL Chrome Debug" `
     -Direction Inbound `
     -InterfaceAlias $wslInterfaceName `
     -Action Allow `
     -Protocol TCP `
-    -LocalPort 60053
+    -LocalPort 60054
 
 ```
 
@@ -108,7 +109,7 @@ MCP サーバー起動時に、動的に取得した IP アドレスを引数と
 command = "bash"
 args = [
     "-c",
-    "npx chrome-devtools-mcp@latest --browserUrl=http://$(ip route show | grep default | awk '{print $3}'):60053"
+    "npx chrome-devtools-mcp@latest --browserUrl=http://$(ip route show | grep default | awk '{print $3}'):60054"
 ]
 # Node.js プロセスにもプロキシ除外を強制
 env = { NO_PROXY = "*" }
@@ -127,7 +128,7 @@ env = { NO_PROXY = "*" }
 
 ### 4.2. `netsh interface portproxy` の使用 (廃案)
 
-* **試行:** Windows 側で `0.0.0.0:60053` を `127.0.0.1:60053` へ転送。
+* **試行:** Windows 側で `0.0.0.0:60054` を `127.0.0.1:60054` へ転送。
 * **結果:** 不安定。
 * **理由:** `portproxy` サービスが VPN アダプターやファイアウォールと競合し、接続が切れる現象が発生。IP 直接指定の方が確実であった。
 
@@ -146,7 +147,7 @@ env = { NO_PROXY = "*" }
 
 1. **ポート待受確認:**
 ```powershell
-netstat -an | findstr 60053
+netstat -an | findstr 60054
 
 ```
 
@@ -156,7 +157,7 @@ netstat -an | findstr 60053
 WSL アダプターの IP に対して Windows 自身がアクセスできるか確認。これで FW ブロックかどうかが判別できる。
 ```powershell
 # IPは ipconfig で確認した vEthernet (WSL) のもの
-Test-NetConnection -ComputerName 172.x.x.x -Port 60053
+Test-NetConnection -ComputerName 172.x.x.x -Port 60054
 
 ```
 
@@ -171,7 +172,7 @@ Test-NetConnection -ComputerName 172.x.x.x -Port 60053
 1. **疎通確認 (プロキシ回避):**
 ```bash
 # IP自動取得版
-curl --noproxy "*" http://$(ip route show | grep default | awk '{print $3}'):60053/json/version
+curl --noproxy "*" http://$(ip route show | grep default | awk '{print $3}'):60054/json/version
 
 ```
 
@@ -179,3 +180,67 @@ curl --noproxy "*" http://$(ip route show | grep default | awk '{print $3}'):600
 * JSON が返れば成功。
 * HTML (Digital Arts等) が返ればプロキシ設定漏れ。
 * Timeout なら Windows FW ブロック。
+
+---
+
+## 6. 追加の回避策 (ポート競合・loopback 固定)
+
+### 6.1. ポート競合の確認と変更
+
+* **症状:** `netstat -ano | findstr 60054` で `chrome.exe` 以外が LISTENING。
+* **対策:** 60054 以外の空きポートに変更し、以下を同じポートへ統一。
+  * Chrome 起動フラグの `--remote-debugging-port`
+  * Windows Firewall ルールの `-LocalPort`
+  * WSL2 側の疎通確認先
+  * Codex の `--browserUrl`
+
+### 6.2. `--remote-debugging-address=0.0.0.0` が効かない場合
+
+* **症状:** `Get-NetTCPConnection -LocalPort <port>` で `LocalAddress=127.0.0.1` のまま。
+* **原因:** 企業ポリシーやセキュリティ製品で loopback が強制される可能性。
+* **対策:** `netsh interface portproxy` で WSL2 向けに転送 (暫定運用)。
+
+```powershell
+# Windows 側: vEthernet (WSL) の IPv4 アドレスを確認
+ipconfig
+
+# 例: 172.17.112.1 に転送
+netsh interface portproxy add v4tov4 `
+  listenaddress=172.17.112.1 listenport=60054 `
+  connectaddress=127.0.0.1 connectport=60054
+
+# 不要になったら削除
+netsh interface portproxy delete v4tov4 `
+  listenaddress=172.17.112.1 listenport=60054
+
+```
+
+---
+
+## 7. 再起動時チェックリスト (Windows / WSL2)
+
+### 7.1. Windows 側
+
+1. **Chrome をデバッグ起動 (専用プロファイル)**
+   * `--remote-debugging-port=60054`
+   * `--remote-debugging-address=0.0.0.0`
+   * `--user-data-dir="%TEMP%\chrome_debug_mcp"`
+2. **ポート待受確認**
+   * `netstat -ano | findstr 60054`
+   * `Get-NetTCPConnection -LocalPort 60054`
+3. **必要なら portproxy を再設定**
+   * `netsh interface portproxy add v4tov4 listenaddress=<vEthernet (WSL) IPv4> listenport=60054 connectaddress=127.0.0.1 connectport=60054`
+4. **Firewall ルールを確認 (必要に応じて再作成)**
+   * `New-NetFirewallRule -DisplayName "WSL Chrome Debug" -Direction Inbound -InterfaceAlias "<WSL interface>" -Action Allow -Protocol TCP -LocalPort 60054`
+
+### 7.2. WSL2 側
+
+1. **Windows host IP を再取得**
+   * `ip route show | grep default | awk '{print $3}'`
+2. **プロキシ除外を確認**
+   * `export no_proxy="${no_proxy},${winhost}"`
+   * `export NO_PROXY="${NO_PROXY},${winhost}"`
+3. **疎通確認**
+   * `curl --noproxy "*" http://<winhost>:60054/json/version`
+4. **Codex 設定を確認**
+   * `.codex/config.toml` の `--browserUrl` が `http://<winhost>:60054` になっていること
