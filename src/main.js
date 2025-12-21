@@ -236,6 +236,7 @@ body {
   border-radius: 10px;
   box-shadow: var(--lpk-shadow-card);
   cursor: grab;
+  touch-action: none;
 }
 .kanban-card.is-dragging {
   opacity: 0.35;
@@ -566,6 +567,7 @@ export function renderAppShell(doc = document) {
   let dropPreview = null;
   let dropPreviewCell = null;
   let dragGhost = null;
+  let touchDrag = null;
 
   const clearDropPreview = () => {
     if (dropPreview && dropPreview.parentElement) {
@@ -630,6 +632,32 @@ export function renderAppShell(doc = document) {
       insertIndexRaw = cards.length;
     }
     return { insertIndexRaw, length };
+  };
+
+  const updateDropPreview = ({ cell, event }) => {
+    const subjectId = cell.getAttribute("data-subject");
+    const status = cell.getAttribute("data-status");
+    const { insertIndexRaw, length } = computeInsertIndexFromPointer({
+      cell,
+      event,
+      dragId: dragMeta?.id,
+    });
+    const isSameCell = dragMeta?.subject === subjectId && dragMeta?.status === status;
+    const targetIndex = status === "InPro" ? 0 : insertIndexRaw;
+    const insertIndex = computeInsertIndex({
+      targetIndex,
+      dragMeta,
+      containerLength: length,
+      isSameCell,
+    });
+    const feedback = getDropFeedback(controller, { taskId: dragMeta.id, to: { subjectId, status, insertIndex } });
+    cell.dataset.dropAllowed = feedback.highlight ? "true" : "false";
+    if (feedback.highlight && !(isSameCell && insertIndex === dragMeta.index)) {
+      ensureDropPreview({ cell, insertIndex, status });
+    } else {
+      clearDropPreview();
+    }
+    return { subjectId, status, insertIndex, allowed: feedback.highlight };
   };
 
   const render = () => {
@@ -796,55 +824,101 @@ export function renderAppShell(doc = document) {
         clearDropPreview();
         clearDragGhost();
       });
+
+      card.addEventListener("pointerdown", (event) => {
+        if (event.pointerType === "mouse") return;
+        if (!event.isPrimary) return;
+        event.preventDefault();
+        const rect = card.getBoundingClientRect();
+        const offsetX = event.clientX - rect.left;
+        const offsetY = event.clientY - rect.top;
+        card.classList.add("is-dragging");
+        dragMeta = {
+          id: card.dataset.taskId,
+          subject: card.dataset.subject,
+          status: card.dataset.status,
+          index: Number(card.dataset.index ?? 0),
+        };
+        const ghost = card.cloneNode(true);
+        ghost.style.position = "fixed";
+        ghost.style.width = `${rect.width}px`;
+        ghost.style.height = `${rect.height}px`;
+        ghost.style.left = "0";
+        ghost.style.top = "0";
+        ghost.style.margin = "0";
+        ghost.style.opacity = "1";
+        ghost.style.pointerEvents = "none";
+        ghost.style.zIndex = "9999";
+        ghost.style.transform = `translate(${event.clientX - offsetX}px, ${event.clientY - offsetY}px)`;
+        doc.body.appendChild(ghost);
+        dragGhost = ghost;
+        touchDrag = { offsetX, offsetY };
+        if (card.setPointerCapture) {
+          card.setPointerCapture(event.pointerId);
+        }
+      });
+    });
+
+    app.addEventListener("pointermove", (event) => {
+      if (!touchDrag || event.pointerType === "mouse") return;
+      event.preventDefault();
+      if (dragGhost) {
+        dragGhost.style.transform = `translate(${event.clientX - touchDrag.offsetX}px, ${event.clientY - touchDrag.offsetY}px)`;
+      }
+      const target = doc.elementFromPoint(event.clientX, event.clientY);
+      const cell = target?.closest?.(".kanban-cell");
+      if (!cell) {
+        clearDropPreview();
+        return;
+      }
+      updateDropPreview({ cell, event });
+    });
+
+    app.addEventListener("pointerup", (event) => {
+      if (!touchDrag || event.pointerType === "mouse") return;
+      event.preventDefault();
+      const target = doc.elementFromPoint(event.clientX, event.clientY);
+      const cell = target?.closest?.(".kanban-cell");
+      if (cell && dragMeta) {
+        const drop = updateDropPreview({ cell, event });
+        if (drop.allowed) {
+          controller.moveTask({ taskId: dragMeta.id, to: { subjectId: drop.subjectId, status: drop.status, insertIndex: drop.insertIndex } });
+        }
+      }
+      app.querySelectorAll(".kanban-card.is-dragging").forEach((card) => card.classList.remove("is-dragging"));
+      clearDropPreview();
+      clearDragGhost();
+      dragMeta = null;
+      touchDrag = null;
+      render();
+    });
+
+    app.addEventListener("pointercancel", (event) => {
+      if (!touchDrag || event.pointerType === "mouse") return;
+      event.preventDefault();
+      app.querySelectorAll(".kanban-card.is-dragging").forEach((card) => card.classList.remove("is-dragging"));
+      clearDropPreview();
+      clearDragGhost();
+      dragMeta = null;
+      touchDrag = null;
+      render();
     });
 
     app.querySelectorAll(".kanban-cell").forEach((cell) => {
       cell.addEventListener("dragover", (event) => {
         if (!dragMeta) return;
         event.preventDefault();
-        const subjectId = cell.getAttribute("data-subject");
-        const status = cell.getAttribute("data-status");
-        const { insertIndexRaw, length } = computeInsertIndexFromPointer({
-          cell,
-          event,
-          dragId: dragMeta.id,
-        });
-        const isSameCell = dragMeta.subject === subjectId && dragMeta.status === status;
-        const targetIndex = status === "InPro" ? 0 : insertIndexRaw;
-        const insertIndex = computeInsertIndex({
-          targetIndex,
-          dragMeta,
-          containerLength: length,
-          isSameCell,
-        });
-        const feedback = getDropFeedback(controller, { taskId: dragMeta.id, to: { subjectId, status, insertIndex } });
-        cell.dataset.dropAllowed = feedback.highlight ? "true" : "false";
-        if (feedback.highlight && !(isSameCell && insertIndex === dragMeta.index)) {
-          ensureDropPreview({ cell, insertIndex, status });
-        } else {
-          clearDropPreview();
-        }
+        updateDropPreview({ cell, event });
       });
 
       cell.addEventListener("drop", (event) => {
         if (!dragMeta) return;
         event.preventDefault();
-        const subjectId = cell.getAttribute("data-subject");
-        const status = cell.getAttribute("data-status");
-        const { insertIndexRaw, length } = computeInsertIndexFromPointer({
-          cell,
-          event,
-          dragId: dragMeta.id,
+        const drop = updateDropPreview({ cell, event });
+        const result = controller.moveTask({
+          taskId: dragMeta.id,
+          to: { subjectId: drop.subjectId, status: drop.status, insertIndex: drop.insertIndex },
         });
-        const isSameCell = dragMeta.subject === subjectId && dragMeta.status === status;
-        const targetIndex = status === "InPro" ? 0 : insertIndexRaw;
-        const insertIndex = computeInsertIndex({
-          targetIndex,
-          dragMeta,
-          containerLength: length,
-          isSameCell,
-        });
-        const result = controller.moveTask({ taskId: dragMeta.id, to: { subjectId, status, insertIndex } });
         clearDropPreview();
         app.querySelectorAll(".kanban-card.is-dragging").forEach((card) => card.classList.remove("is-dragging"));
         clearDragGhost();
