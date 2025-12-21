@@ -237,6 +237,13 @@ body {
   box-shadow: var(--lpk-shadow-card);
   cursor: grab;
 }
+.kanban-card.is-dragging {
+  opacity: 0.35;
+  border-style: dashed;
+  border-color: var(--lpk-accent);
+  background: rgba(59, 130, 246, 0.06);
+  box-shadow: none;
+}
 .kanban-card--square {
   aspect-ratio: 1 / 1;
 }
@@ -558,6 +565,7 @@ export function renderAppShell(doc = document) {
   let dragMeta = null;
   let dropPreview = null;
   let dropPreviewCell = null;
+  let dragGhost = null;
 
   const clearDropPreview = () => {
     if (dropPreview && dropPreview.parentElement) {
@@ -568,6 +576,13 @@ export function renderAppShell(doc = document) {
     }
     dropPreview = null;
     dropPreviewCell = null;
+  };
+
+  const clearDragGhost = () => {
+    if (dragGhost && dragGhost.parentElement) {
+      dragGhost.parentElement.removeChild(dragGhost);
+    }
+    dragGhost = null;
   };
 
   const ensureDropPreview = ({ cell, insertIndex, status }) => {
@@ -751,6 +766,22 @@ export function renderAppShell(doc = document) {
 
     app.querySelectorAll(".kanban-card").forEach((card) => {
       card.addEventListener("dragstart", (event) => {
+        card.classList.add("is-dragging");
+        const rect = card.getBoundingClientRect();
+        const offsetX = event.clientX - rect.left;
+        const offsetY = event.clientY - rect.top;
+        const ghost = card.cloneNode(true);
+        ghost.style.position = "fixed";
+        ghost.style.top = "-1000px";
+        ghost.style.left = "-1000px";
+        ghost.style.margin = "0";
+        ghost.style.opacity = "1";
+        ghost.style.pointerEvents = "none";
+        doc.body.appendChild(ghost);
+        dragGhost = ghost;
+        if (event.dataTransfer?.setDragImage) {
+          event.dataTransfer.setDragImage(ghost, offsetX, offsetY);
+        }
         dragMeta = {
           id: card.dataset.taskId,
           subject: card.dataset.subject,
@@ -760,8 +791,10 @@ export function renderAppShell(doc = document) {
         event.dataTransfer.effectAllowed = "move";
       });
       card.addEventListener("dragend", () => {
+        card.classList.remove("is-dragging");
         dragMeta = null;
         clearDropPreview();
+        clearDragGhost();
       });
     });
 
@@ -786,7 +819,7 @@ export function renderAppShell(doc = document) {
         });
         const feedback = getDropFeedback(controller, { taskId: dragMeta.id, to: { subjectId, status, insertIndex } });
         cell.dataset.dropAllowed = feedback.highlight ? "true" : "false";
-        if (feedback.highlight) {
+        if (feedback.highlight && !(isSameCell && insertIndex === dragMeta.index)) {
           ensureDropPreview({ cell, insertIndex, status });
         } else {
           clearDropPreview();
@@ -813,6 +846,8 @@ export function renderAppShell(doc = document) {
         });
         const result = controller.moveTask({ taskId: dragMeta.id, to: { subjectId, status, insertIndex } });
         clearDropPreview();
+        app.querySelectorAll(".kanban-card.is-dragging").forEach((card) => card.classList.remove("is-dragging"));
+        clearDragGhost();
         dragMeta = null;
         render();
       });
