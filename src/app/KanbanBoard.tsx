@@ -125,6 +125,11 @@ export function KanbanBoard() {
       isSameCell: dragMeta?.subjectId === subjectId && dragMeta?.status === status,
     });
     const insertIndex = status === "InPro" ? 0 : computedIndex;
+    const decision = previewMove(activeId, { subjectId, status, insertIndex });
+    if (!decision.allowed) {
+      setDropTarget(null);
+      return;
+    }
     setDropTarget({ subjectId, status, insertIndex });
   };
 
