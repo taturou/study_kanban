@@ -48,6 +48,9 @@ export function createKanbanController({ subjects, now = new Date(), settings = 
   const sprintId = sprintRange.start.toISOString().slice(0, 10);
   let overloadActive = false;
   let lastPomodoroRemaining = pomodoroTimer.getSnapshot().remainingMinutes;
+  let lastPomodoroMs = pomodoroTimer.getSnapshot().remainingMs ?? lastPomodoroRemaining * 60000;
+  let lastPomodoroPhase = pomodoroTimer.getSnapshot().phase;
+  let lastPomodoroState = pomodoroTimer.getSnapshot().state;
 
   subjectsManager.setOrder(sprintId, subjects);
   tasks.forEach((task) => store.addTask(task));
@@ -219,14 +222,29 @@ export function createKanbanController({ subjects, now = new Date(), settings = 
     tickTimers: () => {
       const beforeSession = inProTracker.getSessionMinutes();
       const beforePomodoro = lastPomodoroRemaining;
+      const beforePomodoroMs = lastPomodoroMs;
+      const beforePomodoroPhase = lastPomodoroPhase;
+      const beforePomodoroState = lastPomodoroState;
       const flush = inProTracker.tick();
       if (flush) appendAutoActual(flush.taskId, flush.minutes);
       pomodoroTimer.tick();
       refreshLoadAlerts();
       const afterSession = inProTracker.getSessionMinutes();
-      const afterPomodoro = pomodoroTimer.getSnapshot().remainingMinutes;
+      const pomodoroSnapshot = pomodoroTimer.getSnapshot();
+      const afterPomodoro = pomodoroSnapshot.remainingMinutes;
+      const afterPomodoroMs = pomodoroSnapshot.remainingMs ?? afterPomodoro * 60000;
       lastPomodoroRemaining = afterPomodoro;
-      return beforeSession !== afterSession || beforePomodoro !== afterPomodoro || Boolean(flush);
+      lastPomodoroPhase = pomodoroSnapshot.phase;
+      lastPomodoroState = pomodoroSnapshot.state;
+      lastPomodoroMs = afterPomodoroMs;
+      return (
+        beforeSession !== afterSession ||
+        beforePomodoro !== afterPomodoro ||
+        beforePomodoroMs !== afterPomodoroMs ||
+        beforePomodoroPhase !== lastPomodoroPhase ||
+        beforePomodoroState !== lastPomodoroState ||
+        Boolean(flush)
+      );
     },
     consumeAlerts: () => {
       const current = alerts.splice(0, alerts.length);

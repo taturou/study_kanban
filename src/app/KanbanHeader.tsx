@@ -5,6 +5,9 @@ import { useKanbanStore } from "../store/kanbanStore";
 export function KanbanHeader() {
   const tasks = useKanbanStore((state) => state.tasks);
   const availability = useKanbanStore((state) => state.availability);
+  const pomodoro = useKanbanStore((state) => state.pomodoro);
+  const triggerPomodoro = useKanbanStore((state) => state.triggerPomodoro);
+  const setPomodoroVisible = useKanbanStore((state) => state.setPomodoroVisible);
 
   const { todayCount, doneCount } = useMemo(() => {
     let today = 0;
@@ -17,6 +20,7 @@ export function KanbanHeader() {
   }, [tasks]);
 
   const gaugePercent = Math.min(100, Math.max(0, availability.ratio * 100));
+  const pomodoroLabel = "🍅";
 
   return (
     <div className="kanban-header">
@@ -33,7 +37,33 @@ export function KanbanHeader() {
           <span className="gauge-bar__fill" style={{ width: `${gaugePercent}%` }} />
         </div>
       </div>
-      <Button variant="contained">Pomodoro Start</Button>
+      <div>
+        <Button
+          variant="contained"
+          className="pomodoro-trigger"
+          sx={{
+            width: 40,
+            height: 40,
+            minWidth: 40,
+            minHeight: 40,
+            padding: 0,
+            borderRadius: "999px",
+            backgroundColor: "#fff",
+            color: "#dc2626",
+            border: "1px solid rgba(15, 23, 42, 0.12)",
+            boxShadow: "0 6px 12px rgba(15, 23, 42, 0.12)",
+            "&:hover": {
+              backgroundColor: "#fff",
+            },
+          }}
+          onClick={() => {
+            setPomodoroVisible(true);
+            triggerPomodoro("start");
+          }}
+        >
+          {pomodoroLabel}
+        </Button>
+      </div>
     </div>
   );
 }

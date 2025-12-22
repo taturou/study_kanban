@@ -74,7 +74,8 @@ export function createPomodoroTimer({
     }
 
     notify("pomodoro-break-finished");
-    reset();
+    setPhase("work");
+    notify("pomodoro-started");
   }
 
   function updateSettings({ nextWorkMinutes, nextBreakMinutes }: { nextWorkMinutes?: number; nextBreakMinutes?: number } = {}) {
@@ -99,6 +100,7 @@ export function createPomodoroTimer({
       state,
       phase,
       remainingMinutes: Math.ceil(getRemainingMs() / MINUTE_MS),
+      remainingMs: Math.max(0, getRemainingMs()),
       workMinutes,
       breakMinutes,
     }),

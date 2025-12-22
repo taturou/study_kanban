@@ -31,6 +31,8 @@ function buildSnapshot(): KanbanSnapshot {
 }
 
 type KanbanStore = KanbanSnapshot & {
+  pomodoroVisible: boolean;
+  setPomodoroVisible: (visible: boolean) => void;
   openNewTaskDialog: (subjectId: string, status: Status) => void;
   openEditTaskDialog: (taskId: string) => void;
   closeDialog: () => void;
@@ -43,42 +45,55 @@ type KanbanStore = KanbanSnapshot & {
   };
   updateStatusLabel: (status: Status, label: string) => void;
   tickTimers: () => void;
+  triggerPomodoro: (action: "start" | "pause" | "reset") => void;
 };
 
-export const useKanbanStore = create<KanbanStore>((set) => ({
+export const useKanbanStore = create<KanbanStore>((set) => {
+  const refresh = () => set((state) => ({ ...state, ...buildSnapshot() }));
+  return {
   ...buildSnapshot(),
+  pomodoroVisible: false,
+  setPomodoroVisible: (visible) => {
+    set({ pomodoroVisible: visible });
+    refresh();
+  },
   openNewTaskDialog: (subjectId, status) => {
     controller.openNewTaskDialog({ subjectId, status });
-    set(buildSnapshot());
+    refresh();
   },
   openEditTaskDialog: (taskId) => {
     controller.openEditTaskDialog(taskId);
-    set(buildSnapshot());
+    refresh();
   },
   closeDialog: () => {
     controller.closeDialog();
-    set(buildSnapshot());
+    refresh();
   },
   saveDialog: (updates) => {
     controller.saveDialog(updates);
-    set(buildSnapshot());
+    refresh();
   },
   deleteDialogTask: () => {
     controller.deleteDialogTask();
-    set(buildSnapshot());
+    refresh();
   },
   moveTask: (taskId, to) => {
     controller.moveTask({ taskId, to });
-    set(buildSnapshot());
+    refresh();
   },
   previewMove: (taskId, to) => controller.previewMove({ taskId, to }),
   updateStatusLabel: (status, label) => {
     controller.updateStatusLabel(status, label);
-    set(buildSnapshot());
+    refresh();
+  },
+  triggerPomodoro: (action) => {
+    controller.triggerPomodoro(action);
+    refresh();
   },
   tickTimers: () => {
     if (controller.tickTimers()) {
-      set(buildSnapshot());
+      refresh();
     }
   },
-}));
+  };
+});

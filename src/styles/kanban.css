@@ -102,6 +102,105 @@ body {
 .kanban-board__scroll[data-scroll-horizontal="true"] {
   overflow-x: auto;
 }
+.pomodoro-overlay {
+  position: fixed;
+  top: calc(var(--lpk-appbar-height) + 6px);
+  right: 8px;
+  z-index: 20;
+}
+.pomodoro-overlay.is-work .pomodoro-overlay__panel {
+  background: rgba(15, 23, 42, 0.92);
+}
+.pomodoro-overlay.is-break .pomodoro-overlay__panel {
+  background: rgba(6, 78, 59, 0.92);
+}
+.pomodoro-overlay__panel {
+  min-width: 140px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  color: #ffffff;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pomodoro-overlay__title {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+.pomodoro-overlay__badge {
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.2);
+  color: #bfdbfe;
+  font-size: 10px;
+  font-weight: 600;
+}
+.pomodoro-overlay__time {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+.pomodoro-overlay__timebar {
+  position: relative;
+  height: 40px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.pomodoro-overlay__timebar-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(96, 165, 250, 0.35);
+  transform-origin: left center;
+}
+.pomodoro-overlay__progress {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.pomodoro-overlay__progress > span {
+  display: block;
+  height: 100%;
+  background: #60a5fa;
+  transition: width 0.3s ease;
+}
+.pomodoro-overlay__meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.65);
+}
+.pomodoro-overlay__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+.pomodoro-trigger {
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  min-height: 40px !important;
+  border-radius: 999px;
+  padding: 0;
+  line-height: 1;
+  background: #ffffff !important;
+  color: #dc2626 !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  box-shadow: 0 6px 12px rgba(15, 23, 42, 0.12);
+}
 .kanban-board {
   width: 100%;
   min-width: var(--lpk-total-width);
