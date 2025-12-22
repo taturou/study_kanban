@@ -192,6 +192,7 @@ body {
   box-shadow: var(--lpk-shadow-card);
   cursor: grab;
   touch-action: none;
+  min-width: 0;
 }
 .kanban-card[data-shape="square"] {
   aspect-ratio: 1 / 1;
@@ -199,6 +200,9 @@ body {
 .kanban-card__title {
   font-weight: 700;
   margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .kanban-card__meta {
   font-size: 12px;
