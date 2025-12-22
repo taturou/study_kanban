@@ -33,7 +33,11 @@ export function TCard({ task, index }: TCardProps) {
     setDropRef(node);
   };
 
-  const gaugeRatio = vm.gauge.estimate > 0 ? Math.min(vm.gauge.actual / vm.gauge.estimate, 1) : 0;
+  const inProMinutes = task.inProElapsedMinutes ?? 0;
+  const actualWithInPro = task.status === "InPro" ? vm.gauge.actual + inProMinutes : vm.gauge.actual;
+  const gaugeRatio = vm.gauge.estimate > 0 ? Math.min(actualWithInPro / vm.gauge.estimate, 1) : 0;
+  const ringMinutes = ((inProMinutes % 60) + 60) % 60;
+  const ringRatio = ringMinutes / 60;
 
   return (
     <div
@@ -57,17 +61,20 @@ export function TCard({ task, index }: TCardProps) {
       {...attributes}
     >
       <div className="kanban-card__title">{vm.title}</div>
+      {task.status === "InPro" ? (
+        <div className="kanban-card__ring" style={{ ["--lpk-ring-progress" as string]: ringRatio }}>
+          <span>{inProMinutes} min</span>
+        </div>
+      ) : null}
       <div className="kanban-card__meta">
         <span>{vm.dueWeekday ? `期日(${vm.dueWeekday})` : ""}</span>
         <span>
-          {vm.gauge.actual}/{vm.gauge.estimate}m
+          {actualWithInPro}/{vm.gauge.estimate}m
         </span>
       </div>
-      {task.status !== "InPro" ? (
-        <div className="kanban-card__gauge">
-          <span style={{ width: `${gaugeRatio * 100}%` }} />
-        </div>
-      ) : null}
+      <div className="kanban-card__gauge">
+        <span style={{ width: `${gaugeRatio * 100}%` }} />
+      </div>
     </div>
   );
 }
