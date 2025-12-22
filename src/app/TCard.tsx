@@ -41,7 +41,18 @@ export function TCard({ task, index }: TCardProps) {
       className="kanban-card"
       data-shape={vm.shape}
       style={style}
-      onDoubleClick={() => openEditTaskDialog(task.id)}
+      onClick={() => {
+        if (!isDragging) {
+          openEditTaskDialog(task.id);
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          openEditTaskDialog(task.id);
+        }
+      }}
+      role="button"
+      tabIndex={0}
       {...listeners}
       {...attributes}
     >

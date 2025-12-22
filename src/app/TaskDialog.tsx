@@ -10,7 +10,7 @@ import {
   Typography,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useKanbanStore } from "../store/kanbanStore";
 import type { TaskActual } from "../domain/types";
 
@@ -32,6 +32,7 @@ export function TaskDialog() {
   const closeDialog = useKanbanStore((state) => state.closeDialog);
   const saveDialog = useKanbanStore((state) => state.saveDialog);
   const deleteDialogTask = useKanbanStore((state) => state.deleteDialogTask);
+  const titleRef = useRef<HTMLInputElement | null>(null);
 
   const [form, setForm] = useState<TaskFormState>(() => ({
     title: dialogState?.task?.title ?? "",
@@ -49,6 +50,10 @@ export function TaskDialog() {
       dueAt: toDateInput(dialogState.task?.dueAt),
       estimateMinutes: dialogState.task?.estimateMinutes ?? 0,
       actuals: dialogState.task?.actuals ?? [],
+    });
+    requestAnimationFrame(() => {
+      titleRef.current?.focus();
+      titleRef.current?.select();
     });
   }, [dialogState]);
 
@@ -82,6 +87,7 @@ export function TaskDialog() {
             label="タイトル"
             value={form.title}
             autoFocus
+            inputRef={titleRef}
             onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
           />
           <TextField

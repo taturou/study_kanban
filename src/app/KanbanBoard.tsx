@@ -1,4 +1,13 @@
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDroppable } from "@dnd-kit/core";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
 import { Button } from "@mui/material";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { STATUS_ORDER } from "../status/policy";
@@ -55,6 +64,11 @@ export function KanbanBoard() {
   }, []);
 
   const layout = createKanbanLayoutConfig({ subjects, viewportWidth });
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    }),
+  );
 
   const grouped = useGroupedTasks(tasks);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -134,7 +148,7 @@ export function KanbanBoard() {
               ))}
             </div>
           </div>
-          <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             <div className="kanban-container">
               {subjects.map((subject) => (
                 <div key={subject} className="kanban-row">
