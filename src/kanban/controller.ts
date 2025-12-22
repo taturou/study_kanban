@@ -209,7 +209,7 @@ export function createKanbanController({ subjects, now = new Date(), settings = 
     getSubjects,
     setSubjectOrder,
     deleteSubject,
-    getDialogState: () => (dialogState ? { ...dialogState } : null),
+    getDialogState: () => dialogState,
     getAvailabilitySummary,
     getPomodoroSnapshot: () => pomodoroTimer.getSnapshot(),
     setPomodoroSettings: ({ workMinutes, breakMinutes }: { workMinutes: number; breakMinutes: number }) =>
