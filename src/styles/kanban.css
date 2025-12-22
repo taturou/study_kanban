@@ -218,8 +218,10 @@ body {
   height: 100%;
   background: var(--lpk-accent);
 }
-.drop-highlight {
-  outline: 2px dashed var(--lpk-accent);
-  outline-offset: 2px;
+.kanban-cell__placeholder {
+  height: 46px;
+  border: 2px dashed var(--lpk-accent);
+  border-radius: 10px;
+  background: rgba(37, 99, 235, 0.08);
 }
   margin: 0 16px;

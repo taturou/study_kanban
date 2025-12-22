@@ -3,6 +3,7 @@ import {
   DragEndEvent,
   DragOverlay,
   DragStartEvent,
+  DragOverEvent,
   PointerSensor,
   useDroppable,
   useSensor,
@@ -12,12 +13,13 @@ import { Button } from "@mui/material";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { STATUS_ORDER } from "../status/policy";
 import { createKanbanLayoutConfig } from "../kanban/layout";
-import { computeInsertIndex, getDropFeedback } from "../kanban/dnd";
+import { computeInsertIndex } from "../kanban/dnd";
 import { useKanbanStore } from "../store/kanbanStore";
 import type { Status, Task } from "../domain/types";
 import { TCard } from "./TCard";
 
 type DragMeta = { taskId: string; subjectId: string; status: Status; index: number };
+type DropTarget = { subjectId: string; status: Status; insertIndex: number };
 
 function useGroupedTasks(tasks: Task[]) {
   return useMemo(() => {
@@ -73,6 +75,7 @@ export function KanbanBoard() {
   const grouped = useGroupedTasks(tasks);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [dragMeta, setDragMeta] = useState<DragMeta | null>(null);
+  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
 
   const handleDragStart = (event: DragStartEvent) => {
     const task = tasks.find((t) => t.id === event.active.data.current?.taskId);
@@ -84,9 +87,51 @@ export function KanbanBoard() {
     }
   };
 
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) {
+      setDropTarget(null);
+      return;
+    }
+    const activeId = active.data.current?.taskId as string | undefined;
+    if (!activeId) {
+      setDropTarget(null);
+      return;
+    }
+    const overType = over.data.current?.type as string | undefined;
+    let subjectId = "";
+    let status: Status = "Backlog";
+    let targetIndex: number | null = null;
+
+    if (overType === "cell") {
+      ({ subjectId, status } = parseCellId(over.id as string));
+      const cellTasks = grouped.get(`${subjectId}:${status}`) ?? [];
+      targetIndex = cellTasks.length;
+    }
+    if (overType === "card") {
+      subjectId = over.data.current?.subjectId;
+      status = over.data.current?.status;
+      targetIndex = over.data.current?.index ?? null;
+    }
+    if (!subjectId) {
+      setDropTarget(null);
+      return;
+    }
+    const cellTasks = grouped.get(`${subjectId}:${status}`) ?? [];
+    const computedIndex = computeInsertIndex({
+      targetIndex,
+      dragMeta,
+      containerLength: cellTasks.length,
+      isSameCell: dragMeta?.subjectId === subjectId && dragMeta?.status === status,
+    });
+    const insertIndex = status === "InPro" ? 0 : computedIndex;
+    setDropTarget({ subjectId, status, insertIndex });
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveTask(null);
+    setDropTarget(null);
     if (!over) {
       setDragMeta(null);
       return;
@@ -148,26 +193,20 @@ export function KanbanBoard() {
               ))}
             </div>
           </div>
-          <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <DndContext sensors={sensors} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
             <div className="kanban-container">
               {subjects.map((subject) => (
                 <div key={subject} className="kanban-row">
                   <div className="kanban-subject">{subject}</div>
                   {STATUS_ORDER.map((status) => {
                     const cellTasks = grouped.get(`${subject}:${status}`) ?? [];
-                    const highlight = activeTask
-                      ? getDropFeedback(
-                          { previewMove: (input) => previewMove(input.taskId, input.to) },
-                          { taskId: activeTask.id, to: { subjectId: subject, status } },
-                        ).highlight
-                      : false;
                     return (
                       <KanbanCell
                         key={`${subject}-${status}`}
                         subjectId={subject}
                         status={status}
                         tasks={cellTasks}
-                        highlight={highlight}
+                        dropTarget={dropTarget}
                       />
                     );
                   })}
@@ -182,18 +221,38 @@ export function KanbanBoard() {
   );
 }
 
-function KanbanCell({ subjectId, status, tasks, highlight }: { subjectId: string; status: Status; tasks: Task[]; highlight: boolean }) {
+function KanbanCell({
+  subjectId,
+  status,
+  tasks,
+  dropTarget,
+}: {
+  subjectId: string;
+  status: Status;
+  tasks: Task[];
+  dropTarget: DropTarget | null;
+}) {
   const openNewTaskDialog = useKanbanStore((state) => state.openNewTaskDialog);
   const { setNodeRef } = useDroppableWithData({
     id: `cell:${subjectId}:${status}`,
     data: { type: "cell", subjectId, status },
   });
+  const isTarget = dropTarget?.subjectId === subjectId && dropTarget?.status === status;
+  const insertIndex = isTarget ? Math.min(dropTarget.insertIndex, tasks.length) : null;
+  const renderedTasks: React.ReactNode[] = [];
+  for (let i = 0; i <= tasks.length; i += 1) {
+    if (insertIndex === i) {
+      renderedTasks.push(<div key={`placeholder-${subjectId}-${status}`} className="kanban-cell__placeholder" />);
+    }
+    if (i < tasks.length) {
+      const task = tasks[i];
+      renderedTasks.push(<TCard key={task.id} task={task} index={i} />);
+    }
+  }
   return (
-    <div ref={setNodeRef} className={`kanban-cell${highlight ? " drop-highlight" : ""}`}>
+    <div ref={setNodeRef} className="kanban-cell">
       <div className="kanban-cell__tasks">
-        {tasks.map((task, index) => (
-          <TCard key={task.id} task={task} index={index} />
-        ))}
+        {renderedTasks}
         {status === "Backlog" ? (
           <Button variant="outlined" size="small" onClick={() => openNewTaskDialog(subjectId, status)}>
             +
