@@ -22,7 +22,7 @@
 - キャッシュ: `actions/setup-node` の npm キャッシュを利用。依存は `npm ci` で固定。
 
 ## 開発環境とテスト
-- Dev Container 内で実装・ビルド・テストを行う前提。CI と同一の Node バージョンと npm scripts を利用し、ローカル差異を排除する。
+- CI と同一の Node バージョンと npm scripts を利用し、ローカル差異を排除する。
 - 外部 API（Google Drive/Calendar）は CI ではモック（MSW 等）で置き換え、実 API 呼び出しを避ける。
 
 ## セキュリティと運用

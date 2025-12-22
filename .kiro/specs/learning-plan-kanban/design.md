@@ -552,9 +552,6 @@ flowchart TD
 | 8.2 | テスト成功でビルド | CI | - | - |
 | 8.3 | ビルド成功で Pages デプロイ | CI | - | - |
 | 8.4 | デプロイ結果通知 | CI | - | - |
-| 9.1 | Dev Container で開発環境構築 | DevContainer | - | - |
-| 9.2 | 依存関係プリインストール | DevContainer | - | - |
-| 9.3 | 推奨拡張自動導入 | DevContainer | - | - |
 
 ## Components and Interfaces
 
@@ -585,7 +582,7 @@ flowchart TD
 | StorageAdapter | Infra | IndexedDB CRUD | 5.4,5.5 | - | Service |
 | UpdateManager | Infra | バージョン検知と強制アップデート | 4.1,5.8,5.9 | ServiceWorker (P0) | Service |
 | Auth | Infra | Google 認証とトークン管理 | 5.3,6.1 | Google OAuth (P0) | Service |
-| DevContainer/CI | Tooling | 開発用コンテナ（ビルド/実装/テストを同一環境で実施）と CI/CD | 8.x,9.x | - | - |
+| CI | Tooling | CI/CD の実行基盤 | 8.x | - | - |
 | RepoSetupScript | Tooling | gh コマンドでブランチ保護・マージ方式・Pages 設定を適用 | 5.12 | GitHub API (P0) | Service |
 
 ### UI Layer
@@ -1051,7 +1048,7 @@ interface SyncEngine {
 
 ### Infra/Tooling
 - Auth: Google OAuth（トークンはメモリまたは Session Storage、長期保存しない）。閲覧専用は「学習者が閲覧者の Google アカウントを招待し、招待 URL（`sharedFolderId` + `mode=readonly`）を共有する」ことで提供する。AppShell/Router が対象 `dataFolderId` の読み取り可否（canEdit など）と `mode=readonly` に基づき viewMode を判定する。Drive API の 401/403/404 は「認証切れ/権限不足/招待無効/一時障害」を区別して扱い、再試行・再認証・リンク再入力へ誘導する。ローカルデータの削除は自動では行わず、ユーザーの明示操作でのみ実行する。
-- DevContainer/CI: VS Code Dev Container 上で実装・ビルド・テストを一貫実行し、CI は test→build→deploy to Pages を自動化。
+- CI: test→build→deploy to Pages を自動化。
 - RepoSetupScript: gh API を用いて main 保護（必須チェック/レビュー）、マージ方式（Squash/通常マージ許可, Rebase 無効）、ブランチ自動削除、必要に応じて Pages 設定を適用する。入力: リポジトリ owner/repo; 出力: 設定結果（ログ）。
 
 ## Data Models

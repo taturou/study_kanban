@@ -15,11 +15,6 @@
 **Purpose**: プロジェクト方針（プロダクト価値、技術構成、構造パターン）の記憶領域  
 **Example**: `product.md` で価値とユースケース、`tech.md` でサーバレス＋Google API方針、`structure.md` で組織・命名の原則
 
-### Dev Environment
-**Location**: `.devcontainer/`
-**Purpose**: VS Code Dev Container の設定ファイル群。ホストPCの環境に依存しない、再現性の高い開発環境を定義する。
-**Example**: `devcontainer.json` にて、ベースイメージや導入するVS Code拡張機能、ポートフォワーディングなどを指定。
-
 ## Naming Conventions
 - ステータス: Backlog / Today / InPro / OnHold / Done / WontFix（固定集合、表示文字列のみ設定可）
 - UI要素: TCard（横長、InProのみ正方形）、TDialog（タスク全属性を編集）

@@ -1,10 +1,5 @@
 # Implementation Plan
 
-- [x] 1. DevContainer 環境を整備し推奨拡張を導入する
-- [x] 1.1 Node/TypeScript など依存のプリインストールと推奨拡張の自動インストールを設定する
-  - VS Code Dev Container を構成し、ホスト依存を排除する
-  - _Requirements: 9.1,9.2,9.3_
-
 - [x] 2. (P) CI/CD とリポジトリ設定を整備する
   - main への push で lint/test/build、成功時に Pages へデプロイし結果を通知する
   - gh スクリプトでブランチ保護・マージ方式・Pages 設定を適用する
