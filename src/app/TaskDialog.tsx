@@ -27,6 +27,10 @@ function toDateInput(value?: string) {
   return value.slice(0, 10);
 }
 
+function todayInput() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export function TaskDialog() {
   const dialogState = useKanbanStore((state) => state.dialogState);
   const closeDialog = useKanbanStore((state) => state.closeDialog);
@@ -41,6 +45,9 @@ export function TaskDialog() {
     estimateMinutes: dialogState?.task?.estimateMinutes ?? 0,
     actuals: dialogState?.task?.actuals ?? [],
   }));
+  const [estimateInput, setEstimateInput] = useState(
+    dialogState?.task?.estimateMinutes != null ? String(dialogState.task.estimateMinutes) : "0",
+  );
 
   useEffect(() => {
     if (!dialogState) return;
@@ -51,6 +58,7 @@ export function TaskDialog() {
       estimateMinutes: dialogState.task?.estimateMinutes ?? 0,
       actuals: dialogState.task?.actuals ?? [],
     });
+    setEstimateInput(dialogState.task?.estimateMinutes != null ? String(dialogState.task.estimateMinutes) : "0");
     requestAnimationFrame(() => {
       titleRef.current?.focus();
       titleRef.current?.select();
@@ -60,13 +68,17 @@ export function TaskDialog() {
   if (!dialogState) return null;
 
   const handleSave = () => {
+    const estimateParsed = Number.parseInt(estimateInput, 10);
+    const estimateNormalized = Number.isFinite(estimateParsed) ? estimateParsed : 0;
     saveDialog({
       title: form.title,
       detail: form.detail,
       dueAt: form.dueAt ? new Date(form.dueAt).toISOString() : undefined,
-      estimateMinutes: Number(form.estimateMinutes),
+      estimateMinutes: estimateNormalized,
       actuals: form.actuals,
     });
+    setEstimateInput(String(estimateNormalized));
+    setForm((prev) => ({ ...prev, estimateMinutes: estimateNormalized }));
   };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
@@ -107,8 +119,17 @@ export function TaskDialog() {
           <TextField
             label="予定時間(分)"
             type="number"
-            value={form.estimateMinutes}
-            onChange={(event) => setForm((prev) => ({ ...prev, estimateMinutes: Number(event.target.value) }))}
+            inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
+            value={estimateInput}
+            onChange={(event) => {
+              setEstimateInput(event.target.value);
+            }}
+            onBlur={() => {
+              const next = Number.parseInt(estimateInput, 10);
+              const normalized = Number.isFinite(next) ? next : 0;
+              setEstimateInput(String(normalized));
+              setForm((prev) => ({ ...prev, estimateMinutes: normalized }));
+            }}
           />
           <ActualsEditor value={form.actuals} onChange={(actuals) => setForm((prev) => ({ ...prev, actuals }))} />
         </Stack>
@@ -127,13 +148,14 @@ export function TaskDialog() {
 }
 
 function ActualsEditor({ value, onChange }: { value: TaskActual[]; onChange: (next: TaskActual[]) => void }) {
-  const [date, setDate] = useState("");
-  const [minutes, setMinutes] = useState(0);
+  const [date, setDate] = useState(todayInput());
+  const [minutesInput, setMinutesInput] = useState("0");
 
   const total = value.reduce((sum, item) => sum + item.minutes, 0);
 
   const addActual = () => {
-    if (!date || minutes <= 0) return;
+    const minutes = Number.parseInt(minutesInput, 10);
+    if (!date || !Number.isFinite(minutes) || minutes <= 0) return;
     const next = [
       ...value,
       {
@@ -143,8 +165,8 @@ function ActualsEditor({ value, onChange }: { value: TaskActual[]; onChange: (ne
       },
     ];
     onChange(next);
-    setDate("");
-    setMinutes(0);
+    setDate(todayInput());
+    setMinutesInput("0");
   };
 
   const deleteActual = (id: string) => {
@@ -155,8 +177,26 @@ function ActualsEditor({ value, onChange }: { value: TaskActual[]; onChange: (ne
     <Stack spacing={1}>
       <Typography variant="subtitle2">実績時間 (合計 {total} 分)</Typography>
       <Stack direction="row" spacing={1}>
-        <TextField type="date" value={date} onChange={(event) => setDate(event.target.value)} InputLabelProps={{ shrink: true }} />
-        <TextField type="number" label="分" value={minutes} onChange={(event) => setMinutes(Number(event.target.value))} />
+        <TextField
+          type="date"
+          value={date}
+          onChange={(event) => setDate(event.target.value)}
+          InputLabelProps={{ shrink: true }}
+        />
+        <TextField
+          type="number"
+          label="分"
+          inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
+          value={minutesInput}
+          onChange={(event) => {
+            setMinutesInput(event.target.value);
+          }}
+          onBlur={() => {
+            const next = Number.parseInt(minutesInput, 10);
+            const normalized = Number.isFinite(next) ? next : 0;
+            setMinutesInput(String(normalized));
+          }}
+        />
         <Button onClick={addActual} variant="outlined">
           追加
         </Button>
