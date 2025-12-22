@@ -121,7 +121,7 @@ body {
   left: 0;
   top: 0;
   bottom: 0;
-  width: 45%;
+  width: 0%;
   background: var(--lpk-accent);
 }
 .kanban-board__container {
@@ -253,6 +253,30 @@ body {
   font-size: 12px;
   color: var(--lpk-muted);
 }
+.kanban-card__ring {
+  margin: 10px auto 0;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: conic-gradient(var(--lpk-accent) calc(var(--lpk-ring-progress, 0) * 1turn), #e7edf5 0);
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+.kanban-card__ring::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border-radius: 50%;
+  background: #fff;
+}
+.kanban-card__ring-label {
+  position: relative;
+  z-index: 1;
+  font-weight: 700;
+  color: var(--lpk-text);
+  font-size: 14px;
+}
 .kanban-card__gauge {
   margin-top: 6px;
   display: flex;
@@ -371,6 +395,61 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+.pomodoro-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+  font-size: 12px;
+}
+.pomodoro-controls__buttons {
+  display: flex;
+  gap: 6px;
+}
+.pomodoro-controls button {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--lpk-border);
+  background: #ffffff;
+  cursor: pointer;
+}
+.gauge-bar[data-overload="true"] {
+  background: rgba(248, 113, 113, 0.2);
+}
+.gauge-bar[data-overload="true"] .gauge-bar__fill {
+  background: #ef4444;
+}
+.lpk-toast-container {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 30;
+}
+.lpk-toast {
+  background: #0f172a;
+  color: #ffffff;
+  border-radius: 12px;
+  padding: 12px 14px;
+  min-width: 220px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.25);
+}
+.lpk-toast__actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+}
+.lpk-toast__actions button {
+  background: #ffffff;
+  color: #0f172a;
+  border: none;
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
 }
 `;
   doc.head.appendChild(style);
@@ -499,7 +578,7 @@ function collectDialogValues(dialog) {
   return updates;
 }
 
-export function buildAppShellHtml(now = new Date(), viewportWidth = 1024, controller = null) {
+export function buildAppShellHtml(now = new Date(), viewportWidth = 1024, controller = null, toasts = []) {
   const subjects = controller?.getSubjects() ?? DEFAULT_SUBJECTS;
   const adjustedWidth = Math.max(320, viewportWidth - BOARD_HORIZONTAL_PADDING);
   const layout = createKanbanLayoutConfig({ subjects, viewportWidth: adjustedWidth });
@@ -512,6 +591,43 @@ export function buildAppShellHtml(now = new Date(), viewportWidth = 1024, contro
   const boardHtml = renderKanbanBoard({ subjects, layout: { ...layout, tasks, statusLabels } });
   const datetime = formatNow(now);
   const sprintLabel = controller?.getSprintLabel?.() ?? formatSprintRange(computeSprintRange(now));
+  const availability = controller?.getAvailabilitySummary?.() ?? {
+    availableMinutes: 120,
+    remainingAvailableMinutes: 120,
+    ratio: 1,
+    overload: false,
+  };
+  const gaugeFill = Math.round(Math.max(0, Math.min(1, availability.ratio ?? 0)) * 100);
+  const gaugeLabel = `残り学習可能時間: ${availability.remainingAvailableMinutes ?? 0} / ${availability.availableMinutes ?? 0} min`;
+  const pomodoro = controller?.getPomodoroSnapshot?.() ?? {
+    state: "idle",
+    phase: "work",
+    remainingMinutes: 25,
+    workMinutes: 25,
+    breakMinutes: 5,
+  };
+  const pomodoroPhaseLabel = pomodoro.phase === "break" ? "休憩" : "作業";
+  const pomodoroStatus =
+    pomodoro.state === "idle" ? "待機中" : `${pomodoroPhaseLabel}: ${pomodoro.remainingMinutes} min`;
+  const pomodoroAction = pomodoro.state === "running" ? "pause" : "start";
+  const pomodoroActionLabel = pomodoro.state === "running" ? "Pause" : "Start";
+  const toastHtml = toasts
+    .map((toast) => {
+      const actions = Array.isArray(toast.actions) ? toast.actions : [];
+      const buttons = actions
+        .map(
+          (action) =>
+            `<button data-toast-action="${action}" data-toast-id="${toast.id}">${toast.labels?.[action] ?? action}</button>`,
+        )
+        .join("");
+      return `
+        <div class="lpk-toast" data-toast-id="${toast.id}">
+          <div>${toast.message}</div>
+          <div class="lpk-toast__actions">${buttons}</div>
+        </div>
+      `;
+    })
+    .join("");
   return `
     <div class="app-shell" data-testid="app-root">
       <header class="kanban-appbar" data-testid="app-bar" data-fixed="true">
@@ -539,10 +655,19 @@ export function buildAppShellHtml(now = new Date(), viewportWidth = 1024, contro
           <span data-testid="sprint-range">${sprintLabel}</span>
         </div>
         <div class="kanban-header__gauge" data-testid="availability-gauge">
-          <div class="gauge-bar" aria-hidden="true"><span class="gauge-bar__fill"></span></div>
-          <small>学習可能時間: 0 / 120 min</small>
+          <div class="gauge-bar" data-overload="${availability.overload}" aria-hidden="true">
+            <span class="gauge-bar__fill" style="width:${gaugeFill}%"></span>
+          </div>
+          <small>${gaugeLabel}</small>
         </div>
-        <button class="kanban-header__pomodoro" data-testid="pomodoro-button">Pomodoro Start</button>
+        <div class="pomodoro-controls" data-testid="pomodoro-controls" data-state="${pomodoro.state}">
+          <span data-testid="pomodoro-remaining">${pomodoroStatus}</span>
+          <div class="pomodoro-controls__buttons">
+            <button class="kanban-header__pomodoro" data-testid="pomodoro-button" data-pomodoro-action="${pomodoroAction}">${pomodoroActionLabel}</button>
+            <button data-pomodoro-action="reset">Reset</button>
+            <button data-pomodoro-action="settings">設定</button>
+          </div>
+        </div>
       </section>
       <main class="kanban-main">
         <div class="kanban-board__container">
@@ -554,6 +679,7 @@ export function buildAppShellHtml(now = new Date(), viewportWidth = 1024, contro
       </main>
       ${buildTaskDialogHtml(controller?.getDialogState?.())}
     </div>
+    <section class="lpk-toast-container" data-testid="alert-toast">${toastHtml}</section>
   `;
 }
 
@@ -568,6 +694,30 @@ export function renderAppShell(doc = document) {
   let dropPreviewCell = null;
   let dragGhost = null;
   let touchDrag = null;
+  let toasts = [];
+  let timerId = null;
+
+  const pushToast = (toast) => {
+    toasts = [...toasts, toast];
+  };
+
+  const removeToast = (toastId) => {
+    toasts = toasts.filter((toast) => toast.id !== toastId);
+  };
+
+  const mapAlertToToast = (alert) => {
+    const messageMap = {
+      "pomodoro-started": "ポモドーロを開始しました。",
+      "pomodoro-finished": "ポモドーロが終了しました。",
+      "pomodoro-break-started": "休憩を開始しました。",
+      "pomodoro-break-finished": "休憩が終了しました。",
+      "load-overflow": "学習時間が学習可能時間を超過しています。",
+    };
+    const message = messageMap[alert.type] ?? "通知があります。";
+    const actions = alert.type === "pomodoro-finished" ? ["dismiss", "resend"] : ["dismiss"];
+    const labels = { dismiss: "消音", resend: "再通知" };
+    return { id: Math.random().toString(36).slice(2, 10), message, actions, labels };
+  };
 
   const clearDropPreview = () => {
     if (dropPreview && dropPreview.parentElement) {
@@ -662,7 +812,8 @@ export function renderAppShell(doc = document) {
 
   const render = () => {
     const viewportWidth = doc?.documentElement?.clientWidth ?? 1024;
-    app.innerHTML = buildAppShellHtml(new Date(), viewportWidth, controller);
+    controller.consumeAlerts().forEach((alert) => pushToast(mapAlertToToast(alert)));
+    app.innerHTML = buildAppShellHtml(new Date(), viewportWidth, controller, toasts);
     if (typeof app.querySelectorAll !== "function") {
       return;
     }
@@ -955,9 +1106,52 @@ export function renderAppShell(doc = document) {
         render();
       });
     });
+
+    app.querySelectorAll("[data-pomodoro-action]").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        const action = event.target.dataset.pomodoroAction;
+        if (action === "settings") {
+          const workInput = prompt("作業時間 (分)", `${controller.getPomodoroSnapshot().workMinutes}`);
+          const breakInput = prompt("休憩時間 (分)", `${controller.getPomodoroSnapshot().breakMinutes}`);
+          const workMinutes = Number(workInput);
+          const breakMinutes = Number(breakInput);
+          if (Number.isFinite(workMinutes) && workMinutes > 0 && Number.isFinite(breakMinutes) && breakMinutes > 0) {
+            controller.setPomodoroSettings({ workMinutes, breakMinutes });
+          }
+        } else {
+          controller.triggerPomodoro(action);
+        }
+        render();
+      });
+    });
+
+    app.querySelectorAll("[data-toast-action]").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        const { toastId, toastAction } = event.target.dataset;
+        const toast = toasts.find((item) => item.id === toastId);
+        if (toastAction === "dismiss") {
+          removeToast(toastId);
+          render();
+          return;
+        }
+        if (toastAction === "resend" && toast) {
+          pushToast({ ...toast, id: Math.random().toString(36).slice(2, 10) });
+          render();
+        }
+      });
+    });
   };
 
   render();
+
+  if (!timerId && doc.defaultView?.setInterval) {
+    timerId = doc.defaultView.setInterval(() => {
+      const shouldRender = controller.tickTimers();
+      if (shouldRender) {
+        render();
+      }
+    }, 1000);
+  }
 }
 
 if (typeof document !== "undefined") {

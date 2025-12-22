@@ -49,6 +49,31 @@ test("ステータス表示名とカードの詳細表示を反映する", () =>
   assert.match(html, /10/);
 });
 
+test("InPro カードは経過時間インジケーターを表示する", () => {
+  const subjects = ["English"];
+  const layout = createKanbanLayoutConfig({ subjects, viewportWidth: 900 });
+  const html = renderKanbanBoard({
+    subjects,
+    layout: {
+      ...layout,
+      tasks: [
+        {
+          id: "t1",
+          title: "Focus Task",
+          subjectId: "English",
+          status: "InPro",
+          estimateMinutes: 30,
+          actualMinutes: 5,
+          inProElapsedMinutes: 12,
+        },
+      ],
+    },
+  });
+
+  assert.match(html, /kanban-card__ring/);
+  assert.match(html, /12 min/);
+});
+
 test("レイアウト設定に応じてヘッダー固定・横スクロール・ステータス列の最小幅を反映する", () => {
   const subjects = ["English"];
   const narrowLayout = createKanbanLayoutConfig({ subjects, viewportWidth: 800 });

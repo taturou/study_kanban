@@ -1,4 +1,5 @@
 import { buildCardViewModel } from "../card/tcardView.js";
+import { sumActualMinutes } from "../time/timeCalc.js";
 import { STATUS_ORDER, createKanbanLayoutConfig } from "./layout.js";
 
 function formatDueLabel(task, viewModel) {
@@ -20,9 +21,20 @@ function renderHeader(statuses, config, statusLabels = {}) {
   return `<div class="kanban-header" data-header-fixed="${config.headerFixed}" data-pinned-status-columns="${config.pinned.statusColumns}" data-scroll-horizontal="${config.scroll.horizontal}" style="${headerStyle};--lpk-status-columns:${statusColumns}">${corner}<div class="kanban-header__cells">${statusCells}</div></div>`;
 }
 
-function sumActualMinutes(task) {
-  if (!Array.isArray(task.actuals)) return task.actualMinutes ?? 0;
-  return task.actuals.reduce((sum, actual) => sum + (actual.minutes ?? 0), 0);
+function getActualMinutes(task) {
+  const pending = task.inProPendingMinutes ?? 0;
+  return sumActualMinutes(task) + pending;
+}
+
+function renderInProIndicator(task) {
+  if (task.status !== "InPro") return "";
+  const elapsed = task.inProElapsedMinutes ?? 0;
+  const progress = Math.min(1, (elapsed % 60) / 60);
+  return `
+    <div class="kanban-card__ring" style="--lpk-ring-progress:${progress}">
+      <span class="kanban-card__ring-label">${elapsed} min</span>
+    </div>
+  `;
 }
 
 function renderTasks(tasks) {
@@ -31,13 +43,14 @@ function renderTasks(tasks) {
     .map((task, index) => {
       const viewModel = buildCardViewModel({
         ...task,
-        actualMinutes: sumActualMinutes(task),
+        actualMinutes: getActualMinutes(task),
       });
       const shapeClass = viewModel.shape === "square" ? "kanban-card--square" : "kanban-card--rect";
       const dueLabel = formatDueLabel(task, viewModel);
       return `
         <div class="kanban-card ${shapeClass}" draggable="true" data-task-id="${task.id}" data-status="${task.status}" data-subject="${task.subjectId}" data-index="${index}">
           <div class="kanban-card__title">${viewModel.title}</div>
+          ${renderInProIndicator(task)}
           <div class="kanban-card__meta">
             <span class="kanban-card__due">${dueLabel}</span>
           </div>
