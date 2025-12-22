@@ -84,8 +84,9 @@ body {
   display: flex;
   justify-content: center;
   align-items: flex-start;
+  padding: 0;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   position: relative;
   max-height: calc(100vh - var(--lpk-appbar-height) - var(--lpk-header-height) - 56px);
 }
@@ -157,9 +158,11 @@ body {
   background: #f9fbff;
 }
 .kanban-subject {
-  padding: 12px;
+  padding: 12px 12px 12px 16px;
   font-weight: 700;
   color: var(--lpk-text);
+  display: flex;
+  align-items: center;
 }
 .kanban-cell {
   min-width: var(--lpk-status-col-min-width);

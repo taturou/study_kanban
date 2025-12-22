@@ -1,6 +1,6 @@
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDroppable } from "@dnd-kit/core";
 import { Button } from "@mui/material";
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { STATUS_ORDER } from "../status/policy";
 import { createKanbanLayoutConfig } from "../kanban/layout";
 import { computeInsertIndex, getDropFeedback } from "../kanban/dnd";
@@ -37,7 +37,24 @@ export function KanbanBoard() {
   const statusLabels = useKanbanStore((state) => state.statusLabels);
   const moveTask = useKanbanStore((state) => state.moveTask);
   const previewMove = useKanbanStore((state) => state.previewMove);
-  const layout = createKanbanLayoutConfig({ subjects, viewportWidth: window.innerWidth });
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [viewportWidth, setViewportWidth] = useState<number>(() => window.innerWidth);
+
+  useLayoutEffect(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+    const update = () => setViewportWidth(node.clientWidth || window.innerWidth);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
+  const layout = createKanbanLayoutConfig({ subjects, viewportWidth });
 
   const grouped = useGroupedTasks(tasks);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -96,7 +113,7 @@ export function KanbanBoard() {
 
   return (
     <div className="kanban-board__container">
-      <div className="kanban-board__scroll" data-scroll-horizontal={layout.scroll.horizontal}>
+      <div ref={scrollRef} className="kanban-board__scroll" data-scroll-horizontal={layout.scroll.horizontal}>
         <div
           className="kanban-board"
           style={{
