@@ -578,7 +578,31 @@ function collectDialogValues(dialog) {
   return updates;
 }
 
-export function buildAppShellHtml(now = new Date(), viewportWidth = 1024, controller = null, toasts = []) {
+function buildPomodoroSettingsDialogHtml(pomodoroState) {
+  if (!pomodoroState?.open) return "";
+  const workValue = pomodoroState.workMinutes ?? 25;
+  const breakValue = pomodoroState.breakMinutes ?? 5;
+  return `
+    <div class="task-dialog__backdrop" data-testid="pomodoro-dialog">
+      <div class="task-dialog" role="dialog" aria-modal="true">
+        <div class="task-dialog__row">
+          <label>作業時間 (分)</label>
+          <input type="number" data-pomodoro-field="work" value="${workValue}" min="1" />
+        </div>
+        <div class="task-dialog__row">
+          <label>休憩時間 (分)</label>
+          <input type="number" data-pomodoro-field="break" value="${breakValue}" min="1" />
+        </div>
+        <div class="task-dialog__actions">
+          <button data-pomodoro-action="cancel">キャンセル</button>
+          <button data-pomodoro-action="save">保存</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function buildAppShellHtml(now = new Date(), viewportWidth = 1024, controller = null, toasts = [], pomodoroState = null) {
   const subjects = controller?.getSubjects() ?? DEFAULT_SUBJECTS;
   const adjustedWidth = Math.max(320, viewportWidth - BOARD_HORIZONTAL_PADDING);
   const layout = createKanbanLayoutConfig({ subjects, viewportWidth: adjustedWidth });
@@ -678,6 +702,7 @@ export function buildAppShellHtml(now = new Date(), viewportWidth = 1024, contro
         ${buildSettingsPanelHtml(controller)}
       </main>
       ${buildTaskDialogHtml(controller?.getDialogState?.())}
+      ${buildPomodoroSettingsDialogHtml(pomodoroState)}
     </div>
     <section class="lpk-toast-container" data-testid="alert-toast">${toastHtml}</section>
   `;
@@ -696,6 +721,7 @@ export function renderAppShell(doc = document) {
   let touchDrag = null;
   let toasts = [];
   let timerId = null;
+  let pomodoroDialogOpen = false;
 
   const pushToast = (toast) => {
     toasts = [...toasts, toast];
@@ -813,7 +839,12 @@ export function renderAppShell(doc = document) {
   const render = () => {
     const viewportWidth = doc?.documentElement?.clientWidth ?? 1024;
     controller.consumeAlerts().forEach((alert) => pushToast(mapAlertToToast(alert)));
-    app.innerHTML = buildAppShellHtml(new Date(), viewportWidth, controller, toasts);
+    const pomodoroSnapshot = controller.getPomodoroSnapshot();
+    app.innerHTML = buildAppShellHtml(new Date(), viewportWidth, controller, toasts, {
+      open: pomodoroDialogOpen,
+      workMinutes: pomodoroSnapshot.workMinutes,
+      breakMinutes: pomodoroSnapshot.breakMinutes,
+    });
     if (typeof app.querySelectorAll !== "function") {
       return;
     }
@@ -1111,19 +1142,45 @@ export function renderAppShell(doc = document) {
       button.addEventListener("click", (event) => {
         const action = event.target.dataset.pomodoroAction;
         if (action === "settings") {
-          const workInput = prompt("作業時間 (分)", `${controller.getPomodoroSnapshot().workMinutes}`);
-          const breakInput = prompt("休憩時間 (分)", `${controller.getPomodoroSnapshot().breakMinutes}`);
-          const workMinutes = Number(workInput);
-          const breakMinutes = Number(breakInput);
-          if (Number.isFinite(workMinutes) && workMinutes > 0 && Number.isFinite(breakMinutes) && breakMinutes > 0) {
-            controller.setPomodoroSettings({ workMinutes, breakMinutes });
-          }
+          pomodoroDialogOpen = true;
+          render();
         } else {
           controller.triggerPomodoro(action);
+          render();
         }
-        render();
       });
     });
+
+    const pomodoroDialog = app.querySelector('[data-testid="pomodoro-dialog"]');
+    if (pomodoroDialog) {
+      pomodoroDialog.addEventListener("click", (event) => {
+        if (event.target === pomodoroDialog) {
+          pomodoroDialogOpen = false;
+          render();
+        }
+      });
+      pomodoroDialog.querySelectorAll("[data-pomodoro-action]").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          const action = event.target.dataset.pomodoroAction;
+          if (action === "cancel") {
+            pomodoroDialogOpen = false;
+            render();
+            return;
+          }
+          if (action === "save") {
+            const workValue = pomodoroDialog.querySelector('[data-pomodoro-field="work"]')?.value ?? "";
+            const breakValue = pomodoroDialog.querySelector('[data-pomodoro-field="break"]')?.value ?? "";
+            const workMinutes = Number(workValue);
+            const breakMinutes = Number(breakValue);
+            if (Number.isFinite(workMinutes) && workMinutes > 0 && Number.isFinite(breakMinutes) && breakMinutes > 0) {
+              controller.setPomodoroSettings({ workMinutes, breakMinutes });
+            }
+            pomodoroDialogOpen = false;
+            render();
+          }
+        });
+      });
+    }
 
     app.querySelectorAll("[data-toast-action]").forEach((button) => {
       button.addEventListener("click", (event) => {
