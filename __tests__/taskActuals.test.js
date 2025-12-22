@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { beforeEach, test } from "node:test";
+import { beforeEach, test } from "vitest";
 import {
   createActualsState,
   addActual,
   updateActual,
   deleteActual,
-} from "../src/time/taskActuals.js";
+} from "../src/time/taskActuals";
 
 let actuals;
 

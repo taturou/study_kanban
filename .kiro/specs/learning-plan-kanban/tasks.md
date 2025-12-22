@@ -127,7 +127,7 @@
   - 学習可能時間と予定時間を組み合わせてゲージ表示し、超過時は非モーダルに警告する
   - _Requirements: 3.12,4.12_
 
-- [ ] 12. 設計/ステアリング準拠の実装基盤へ移行する
+- [x] 12. 設計/ステアリング準拠の実装基盤へ移行する
   - React + Vite + TypeScript へ移行し、MUI/dnd-kit/Zustand/TanStack Router を導入する
   - UI/状態/同期の境界を設計に沿って再編し、i18n を i18next/react-i18next に統一する
   - 既存ロジック（StatusPolicy/TimeCalc/Pomodoro など）を新基盤に移植し、機能劣化がないことを確認する

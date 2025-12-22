@@ -1,28 +1,35 @@
 const MINUTE_MS = 60 * 1000;
 
+type PomodoroNotify = (payload: { type: string; phase: "work" | "break" }) => void;
+
 export function createPomodoroTimer({
   workMinutes = 25,
   breakMinutes = 5,
   now = () => new Date(),
   onNotify = () => {},
+}: {
+  workMinutes?: number;
+  breakMinutes?: number;
+  now?: () => Date;
+  onNotify?: PomodoroNotify;
 } = {}) {
-  let state = "idle"; // idle | running | paused
-  let phase = "work"; // work | break
+  let state: "idle" | "running" | "paused" = "idle";
+  let phase: "work" | "break" = "work";
   let remainingMs = workMinutes * MINUTE_MS;
-  let endAt = null;
+  let endAt: Date | null = null;
 
-  function notify(type) {
+  function notify(type: string) {
     onNotify({ type, phase });
   }
 
   function getRemainingMs() {
     if (state === "running" && endAt) {
-      return Math.max(0, endAt - now());
+      return Math.max(0, endAt.getTime() - now().getTime());
     }
     return remainingMs;
   }
 
-  function setPhase(nextPhase) {
+  function setPhase(nextPhase: "work" | "break") {
     phase = nextPhase;
     remainingMs = (nextPhase === "work" ? workMinutes : breakMinutes) * MINUTE_MS;
     if (state === "running") {
@@ -43,7 +50,7 @@ export function createPomodoroTimer({
 
   function pause() {
     if (state !== "running") return;
-    remainingMs = Math.max(0, endAt - now());
+    remainingMs = Math.max(0, (endAt?.getTime() ?? 0) - now().getTime());
     state = "paused";
     endAt = null;
   }
@@ -70,7 +77,7 @@ export function createPomodoroTimer({
     reset();
   }
 
-  function updateSettings({ nextWorkMinutes, nextBreakMinutes } = {}) {
+  function updateSettings({ nextWorkMinutes, nextBreakMinutes }: { nextWorkMinutes?: number; nextBreakMinutes?: number } = {}) {
     if (typeof nextWorkMinutes === "number") {
       workMinutes = nextWorkMinutes;
     }

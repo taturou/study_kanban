@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { computeSprintRange, formatSprintRange } from "../src/sprint/range.js";
+import { test } from "vitest";
+import { computeSprintRange, formatSprintRange } from "../src/sprint/range";
 
 const iso = (d) => d.toISOString().slice(0, 10);
 

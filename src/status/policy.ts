@@ -1,4 +1,6 @@
-export const STATUS_ORDER = ["Backlog", "Today", "InPro", "OnHold", "Done", "WontFix"];
+import type { Status } from "../domain/types";
+
+export const STATUS_ORDER: Status[] = ["Backlog", "Today", "InPro", "OnHold", "Done", "WontFix"];
 
 export const POLICY_ERRORS = {
   INVALID_STATUS: "invalid-status",
@@ -6,14 +8,39 @@ export const POLICY_ERRORS = {
   ONHOLD_NOT_TOP: "onhold-not-top",
   INVALID_INPRO_POSITION: "invalid-inpro-position",
   INVALID_DONE_SOURCE: "invalid-done-source",
+} as const;
+
+type PolicyError = (typeof POLICY_ERRORS)[keyof typeof POLICY_ERRORS];
+
+type MoveContext = {
+  hasOtherInPro: boolean;
+  inProTaskId?: string;
+  inProSubjectId?: string;
+  isTopOfToday: boolean;
+  isTopOfOnHold: boolean;
 };
 
-function isValidStatus(status) {
+type MoveSideEffect =
+  | { kind: "autoMoveToOnHold"; taskId: string }
+  | { kind: "normalizePriorities"; subjectId: string; status: Status };
+
+type MoveInput = {
+  taskId: string;
+  from: { subjectId: string; status: Status; priority: number };
+  to: { subjectId: string; status: Status; insertIndex?: number };
+  context: MoveContext;
+};
+
+type MoveDecision =
+  | { allowed: true; sideEffects: MoveSideEffect[] }
+  | { allowed: false; reason: PolicyError };
+
+function isValidStatus(status: Status) {
   return STATUS_ORDER.includes(status);
 }
 
 export function createStatusPolicy() {
-  function validateMove(input) {
+  function validateMove(input: MoveInput): MoveDecision {
     const { from, to, context } = input;
 
     if (!isValidStatus(from.status) || !isValidStatus(to.status)) {
@@ -44,12 +71,16 @@ export function createStatusPolicy() {
       return { allowed: false, reason: POLICY_ERRORS.ONHOLD_NOT_TOP };
     }
 
-    const sideEffects = [];
+    const sideEffects: MoveSideEffect[] = [];
 
     // 既存 InPro があれば OnHold 先頭へ退避
     if (context.hasOtherInPro && context.inProTaskId) {
       sideEffects.push({ kind: "autoMoveToOnHold", taskId: context.inProTaskId });
-      sideEffects.push({ kind: "normalizePriorities", subjectId: context.inProSubjectId ?? from.subjectId, status: "OnHold" });
+      sideEffects.push({
+        kind: "normalizePriorities",
+        subjectId: context.inProSubjectId ?? from.subjectId,
+        status: "OnHold",
+      });
     }
 
     return { allowed: true, sideEffects };

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { buildCardViewModel, isSquareCard } from "../src/card/tcardView.js";
+import { test } from "vitest";
+import { buildCardViewModel, isSquareCard } from "../src/card/tcardView";
 
 const taskBase = {
   id: "t1",

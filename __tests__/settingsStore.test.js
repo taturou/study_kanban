@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { beforeEach, test } from "node:test";
-import { STATUS_ORDER } from "../src/kanban/layout.js";
+import { beforeEach, test } from "vitest";
+import { STATUS_ORDER } from "../src/status/policy";
 import {
   createSettingsStore,
   STATUS_LOCKED_ERROR,
   VERSION_FIELD,
-} from "../src/settings/store.js";
+} from "../src/settings/store";
 
 let store;
 

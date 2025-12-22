@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { createPomodoroTimer } from "../src/time/pomodoroTimer.js";
+import { test } from "vitest";
+import { createPomodoroTimer } from "../src/time/pomodoroTimer";
 
 function createClock(start = "2025-01-01T00:00:00Z") {
   let current = new Date(start);

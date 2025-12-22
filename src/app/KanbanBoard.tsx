@@ -1,0 +1,178 @@
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDroppable } from "@dnd-kit/core";
+import { Button } from "@mui/material";
+import { useMemo, useState } from "react";
+import { STATUS_ORDER } from "../status/policy";
+import { createKanbanLayoutConfig } from "../kanban/layout";
+import { computeInsertIndex, getDropFeedback } from "../kanban/dnd";
+import { useKanbanStore } from "../store/kanbanStore";
+import type { Status, Task } from "../domain/types";
+import { TCard } from "./TCard";
+
+type DragMeta = { taskId: string; subjectId: string; status: Status; index: number };
+
+function useGroupedTasks(tasks: Task[]) {
+  return useMemo(() => {
+    const map = new Map<string, Task[]>();
+    for (const task of tasks) {
+      const key = `${task.subjectId}:${task.status}`;
+      const list = map.get(key) ?? [];
+      list.push(task);
+      map.set(key, list);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => b.priority - a.priority);
+    }
+    return map;
+  }, [tasks]);
+}
+
+function parseCellId(id: string) {
+  const [, subjectId, status] = id.split(":");
+  return { subjectId, status: status as Status };
+}
+
+export function KanbanBoard() {
+  const tasks = useKanbanStore((state) => state.tasks);
+  const subjects = useKanbanStore((state) => state.subjects);
+  const statusLabels = useKanbanStore((state) => state.statusLabels);
+  const moveTask = useKanbanStore((state) => state.moveTask);
+  const previewMove = useKanbanStore((state) => state.previewMove);
+  const layout = createKanbanLayoutConfig({ subjects, viewportWidth: window.innerWidth });
+
+  const grouped = useGroupedTasks(tasks);
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [dragMeta, setDragMeta] = useState<DragMeta | null>(null);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const task = tasks.find((t) => t.id === event.active.data.current?.taskId);
+    if (task) {
+      const cellTasks = grouped.get(`${task.subjectId}:${task.status}`) ?? [];
+      const index = cellTasks.findIndex((t) => t.id === task.id);
+      setActiveTask(task);
+      setDragMeta({ taskId: task.id, subjectId: task.subjectId, status: task.status, index });
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveTask(null);
+    if (!over) {
+      setDragMeta(null);
+      return;
+    }
+    const activeId = active.data.current?.taskId as string | undefined;
+    if (!activeId) {
+      setDragMeta(null);
+      return;
+    }
+    const overType = over.data.current?.type as string | undefined;
+    let subjectId = "";
+    let status: Status = "Backlog";
+    let targetIndex: number | null = null;
+
+    if (overType === "cell") {
+      ({ subjectId, status } = parseCellId(over.id as string));
+    }
+    if (overType === "card") {
+      subjectId = over.data.current?.subjectId;
+      status = over.data.current?.status;
+      targetIndex = over.data.current?.index ?? null;
+    }
+    if (!subjectId) {
+      setDragMeta(null);
+      return;
+    }
+    const cellTasks = grouped.get(`${subjectId}:${status}`) ?? [];
+    const computedIndex = computeInsertIndex({
+      targetIndex,
+      dragMeta,
+      containerLength: cellTasks.length,
+      isSameCell: dragMeta?.subjectId === subjectId && dragMeta?.status === status,
+    });
+    const insertIndex = status === "InPro" ? 0 : computedIndex;
+    moveTask(activeId, { subjectId, status, insertIndex });
+    setDragMeta(null);
+  };
+
+  return (
+    <div className="kanban-board__container">
+      <div className="kanban-board__scroll" data-scroll-horizontal={layout.scroll.horizontal}>
+        <div
+          className="kanban-board"
+          style={{
+            ["--lpk-grid-template" as string]: layout.grid.template,
+            ["--lpk-total-width" as string]: `${layout.grid.totalWidth}px`,
+            ["--lpk-status-col-min-width" as string]: `${layout.grid.minColumnWidth}px`,
+            ["--lpk-subject-col-width" as string]: `${layout.grid.subjectWidth}px`,
+            ["--lpk-status-columns" as string]: layout.grid.statusWidths.map((w) => `${w}px`).join(" "),
+          }}
+        >
+          <div className="kanban-header__row">
+            <div className="kanban-header__corner" />
+            <div className="kanban-header__cells">
+              {STATUS_ORDER.map((status) => (
+                <div key={status} className="kanban-header__cell">
+                  {statusLabels[status]}
+                </div>
+              ))}
+            </div>
+          </div>
+          <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+            <div className="kanban-container">
+              {subjects.map((subject) => (
+                <div key={subject} className="kanban-row">
+                  <div className="kanban-subject">{subject}</div>
+                  {STATUS_ORDER.map((status) => {
+                    const cellTasks = grouped.get(`${subject}:${status}`) ?? [];
+                    const highlight = activeTask
+                      ? getDropFeedback(
+                          { previewMove: (input) => previewMove(input.taskId, input.to) },
+                          { taskId: activeTask.id, to: { subjectId: subject, status } },
+                        ).highlight
+                      : false;
+                    return (
+                      <KanbanCell
+                        key={`${subject}-${status}`}
+                        subjectId={subject}
+                        status={status}
+                        tasks={cellTasks}
+                        highlight={highlight}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+            <DragOverlay>{activeTask ? <TCard task={activeTask} /> : null}</DragOverlay>
+          </DndContext>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function KanbanCell({ subjectId, status, tasks, highlight }: { subjectId: string; status: Status; tasks: Task[]; highlight: boolean }) {
+  const openNewTaskDialog = useKanbanStore((state) => state.openNewTaskDialog);
+  const { setNodeRef } = useDroppableWithData({
+    id: `cell:${subjectId}:${status}`,
+    data: { type: "cell", subjectId, status },
+  });
+  return (
+    <div ref={setNodeRef} className={`kanban-cell${highlight ? " drop-highlight" : ""}`}>
+      <div className="kanban-cell__tasks">
+        {tasks.map((task, index) => (
+          <TCard key={task.id} task={task} index={index} />
+        ))}
+        {status === "Backlog" ? (
+          <Button variant="outlined" size="small" onClick={() => openNewTaskDialog(subjectId, status)}>
+            +
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function useDroppableWithData({ id, data }: { id: string; data: Record<string, unknown> }) {
+  return useDroppable({ id, data });
+}

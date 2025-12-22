@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 import {
-  STATUS_ORDER,
   createKanbanLayoutConfig,
   guardStatusOrder,
   PERFORMANCE_BASELINE,
   calculateScrollDuringEmptyDrag,
   shouldShowInsertPreview,
   SUBJECT_WIDTH,
-} from "../src/kanban/layout.js";
+} from "../src/kanban/layout";
+import { STATUS_ORDER } from "../src/status/policy";
 
 test("ステータス順序は固定で変更できない", () => {
   assert.deepEqual(STATUS_ORDER, ["Backlog", "Today", "InPro", "OnHold", "Done", "WontFix"]);

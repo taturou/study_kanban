@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { beforeEach, test } from "node:test";
+import { beforeEach, test } from "vitest";
 import {
   createTaskDialogState,
   tabOrder,
@@ -8,7 +8,7 @@ import {
   saveTask,
   cancelDialog,
   deleteTask,
-} from "../src/dialog/taskDialogFlow.js";
+} from "../src/dialog/taskDialogFlow";
 
 let state;
 

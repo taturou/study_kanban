@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { test, beforeEach } from "node:test";
+import { test, beforeEach } from "vitest";
 import {
   createSubjectsManager,
   SUBJECT_DELETE_BLOCK_MESSAGE,
-} from "../src/subjects/manager.js";
+} from "../src/subjects/manager";
 
 let manager;
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { computeRemainingMinutes, summarizeLoad } from "../src/time/timeCalc.js";
+import { test } from "vitest";
+import { computeRemainingMinutes, summarizeLoad } from "../src/time/timeCalc";
 
 test("残り時間は予定 - 実績で計算し負値は 0 に丸める", () => {
   const task = {

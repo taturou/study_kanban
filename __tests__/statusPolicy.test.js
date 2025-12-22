@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { createStatusPolicy, POLICY_ERRORS, STATUS_ORDER } from "../src/status/policy.js";
+import { test } from "vitest";
+import { createStatusPolicy, POLICY_ERRORS, STATUS_ORDER } from "../src/status/policy";
 
 const policy = createStatusPolicy();
 

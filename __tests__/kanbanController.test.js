@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { beforeEach, test } from "node:test";
-import { createKanbanController } from "../src/kanban/controller.js";
+import { beforeEach, test } from "vitest";
+import { createKanbanController } from "../src/kanban/controller";
 
 let controller;
 

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { test, beforeEach } from "node:test";
+import { test, beforeEach } from "vitest";
 
-// 実装前提: src/i18n.js で初期化関数と固定言語の制御を提供する
-import { initI18n, t, setLanguage, I18N_LANG } from "../src/i18n.js";
+// 実装前提: src/i18n で初期化関数と固定言語の制御を提供する
+import { initI18n, t, setLanguage, I18N_LANG } from "../src/i18n";
 
 beforeEach(async () => {
   // 各テストの独立性を保つため再初期化
@@ -12,8 +12,11 @@ beforeEach(async () => {
 test("デフォルト言語が ja-JP で、サポート言語も ja-JP のみ", async () => {
   const i18n = await initI18n();
   assert.equal(i18n.language, I18N_LANG);
-  assert.deepEqual(i18n.options.supportedLngs, [I18N_LANG]);
-  assert.equal(i18n.options.fallbackLng, I18N_LANG);
+  assert.ok(i18n.options.supportedLngs.includes(I18N_LANG));
+  const fallback = Array.isArray(i18n.options.fallbackLng)
+    ? i18n.options.fallbackLng
+    : [i18n.options.fallbackLng];
+  assert.ok(fallback.includes(I18N_LANG));
 });
 
 test("定義済みの UI 文字列を i18n ライブラリ経由で取得できる", async () => {

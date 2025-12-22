@@ -4,10 +4,12 @@
     "module": "ES2020",
     "moduleResolution": "Node",
     "strict": true,
+    "jsx": "react-jsx",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
+    "types": ["vitest/globals", "@testing-library/jest-dom"],
     "noEmit": true
   },
   "include": ["src", "__tests__", "scripts/**/*.ts"]

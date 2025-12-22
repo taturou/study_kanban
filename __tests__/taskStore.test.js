@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { test, beforeEach } from "node:test";
-import { createTaskStore } from "../src/store/taskStore.js";
+import { test, beforeEach } from "vitest";
+import { createTaskStore } from "../src/store/taskStore";
 
 let store;
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { addTaskToLab, createLabState, moveTaskInLab, summarizeLabState } from "../src/e2e/labState.js";
+import { test } from "vitest";
+import { addTaskToLab, createLabState, moveTaskInLab, summarizeLabState } from "../src/e2e/labState";
 
 test("初期状態はバックログにサンプルタスクを1件持つ", () => {
   const state = createLabState();

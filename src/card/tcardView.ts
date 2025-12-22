@@ -1,12 +1,14 @@
+import type { Status, Task } from "../domain/types";
+
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
-export function isSquareCard(status) {
+export function isSquareCard(status: Status) {
   return status === "InPro";
 }
 
-export function buildCardViewModel(task) {
-  const due = new Date(task.dueAt);
-  const dueWeekday = WEEKDAYS[due.getUTCDay()];
+export function buildCardViewModel(task: Task) {
+  const due = task.dueAt ? new Date(task.dueAt) : null;
+  const dueWeekday = due ? WEEKDAYS[due.getUTCDay()] : "";
   return {
     id: task.id,
     title: task.title,

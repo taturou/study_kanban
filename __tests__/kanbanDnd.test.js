@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { computeInsertIndex, getDropFeedback } from "../src/kanban/dnd.js";
-import { createTaskStore } from "../src/store/taskStore.js";
+import { test } from "vitest";
+import { computeInsertIndex, getDropFeedback } from "../src/kanban/dnd";
+import { createTaskStore } from "../src/store/taskStore";
 
 test("許可されないセルはハイライトせず理由を返す", () => {
   const store = createTaskStore();

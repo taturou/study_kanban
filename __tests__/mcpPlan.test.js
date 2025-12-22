@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { E2E_SELECTORS, buildMcpPlan, serializeMcpPlan } from "../src/e2e/mcpPlan.js";
+import { test } from "vitest";
+import { E2E_SELECTORS, buildMcpPlan, serializeMcpPlan } from "../src/e2e/mcpPlan";
 
 test("MCPプランはターゲットURLと主要セレクタを提供する", () => {
   const plan = buildMcpPlan();

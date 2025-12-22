@@ -1,12 +1,15 @@
-import { createStatusPolicy } from "../status/policy.js";
+import type { Status, Task } from "../domain/types";
+import { createStatusPolicy } from "../status/policy";
 
 export const PRIORITY_STEP = 1024;
 
-function sortByPriority(tasks) {
+type MoveTarget = { subjectId: string; status: Status; insertIndex?: number };
+
+function sortByPriority(tasks: Task[]) {
   return [...tasks].sort((a, b) => b.priority - a.priority);
 }
 
-function normalizeCell(tasks) {
+function normalizeCell(tasks: Task[]) {
   return tasks.map((task, index) => ({
     ...task,
     priority: PRIORITY_STEP * (tasks.length - index),
@@ -14,34 +17,34 @@ function normalizeCell(tasks) {
 }
 
 export function createTaskStore(policy = createStatusPolicy()) {
-  let tasks = [];
+  let tasks: Task[] = [];
 
-  function getTask(taskId) {
+  function getTask(taskId: string) {
     return tasks.find((t) => t.id === taskId);
   }
 
-  function getTasksByCell(subjectId, status) {
+  function getTasksByCell(subjectId: string, status: Status) {
     return sortByPriority(tasks.filter((t) => t.subjectId === subjectId && t.status === status));
   }
 
-  function setCell(subjectId, status, cellTasks) {
+  function setCell(subjectId: string, status: Status, cellTasks: Task[]) {
     tasks = tasks.filter((t) => !(t.subjectId === subjectId && t.status === status)).concat(cellTasks);
   }
 
-  function addTask(task) {
+  function addTask(task: Task) {
     const priority = typeof task.priority === "number" ? task.priority : PRIORITY_STEP;
     tasks.push({ ...task, priority });
     return getTask(task.id);
   }
 
-  function updateTask(taskId, updates) {
+  function updateTask(taskId: string, updates: Partial<Task>) {
     const target = getTask(taskId);
     if (!target) return null;
     tasks = tasks.map((task) => (task.id === taskId ? { ...task, ...updates, priority: task.priority } : task));
     return getTask(taskId);
   }
 
-  function deleteTask(taskId) {
+  function deleteTask(taskId: string) {
     const before = tasks.length;
     tasks = tasks.filter((task) => task.id !== taskId);
     return tasks.length !== before;
@@ -51,7 +54,7 @@ export function createTaskStore(policy = createStatusPolicy()) {
     return tasks.map((task) => ({ ...task }));
   }
 
-  function buildContext(task) {
+  function buildContext(task: Task) {
     const today = getTasksByCell(task.subjectId, "Today");
     const onHold = getTasksByCell(task.subjectId, "OnHold");
     const inPro = tasks.filter((t) => t.status === "InPro");
@@ -67,44 +70,42 @@ export function createTaskStore(policy = createStatusPolicy()) {
     };
   }
 
-  function applySideEffects(effects) {
+  function applySideEffects(effects: Array<{ kind: string; taskId?: string; subjectId?: string; status?: Status }>) {
     for (const effect of effects ?? []) {
-      if (effect.kind === "autoMoveToOnHold") {
+      if (effect.kind === "autoMoveToOnHold" && effect.taskId) {
         const target = getTask(effect.taskId);
         if (!target) continue;
         placeTaskOnHoldTop(target, effect.subjectId);
       }
-      if (effect.kind === "normalizePriorities") {
+      if (effect.kind === "normalizePriorities" && effect.subjectId && effect.status) {
         const cell = getTasksByCell(effect.subjectId, effect.status);
         setCell(effect.subjectId, effect.status, normalizeCell(cell));
       }
     }
   }
 
-  function placeTaskOnHoldTop(task, subjectOverride) {
+  function placeTaskOnHoldTop(task: Task, subjectOverride?: string) {
     const subjectId = subjectOverride ?? task.subjectId;
     const cell = getTasksByCell(subjectId, "OnHold").filter((t) => t.id !== task.id);
     const next = normalizeCell([{ ...task, subjectId, status: "OnHold" }, ...cell]);
     setCell(subjectId, "OnHold", next);
-    // 元のセルから削除
     tasks = tasks.filter((t) => !(t.id === task.id && t.status !== "OnHold"));
   }
 
   function normalizeInProConflicts() {
     const inProTasks = tasks.filter((task) => task.status === "InPro");
     if (inProTasks.length <= 1) {
-      return { moved: [] };
+      return { moved: [] as string[] };
     }
 
-    const moved = [];
-    const onHoldMap = new Map();
+    const moved: string[] = [];
+    const onHoldMap = new Map<string, Task[]>();
 
-    // 競合タスクを発見順に OnHold の先頭へ積む
     for (const task of inProTasks) {
       tasks = tasks.filter((t) => t.id !== task.id);
       const subjectId = task.subjectId;
       const cell = onHoldMap.get(subjectId) ?? getTasksByCell(subjectId, "OnHold");
-      const nextCell = [{ ...task, status: "OnHold" }, ...cell];
+      const nextCell: Task[] = [{ ...task, status: "OnHold" as const }, ...cell];
       onHoldMap.set(subjectId, nextCell);
       moved.push(task.id);
     }
@@ -116,8 +117,7 @@ export function createTaskStore(policy = createStatusPolicy()) {
     return { moved };
   }
 
-  function placeTask(task, to) {
-    // remove from current cell
+  function placeTask(task: Task, to: MoveTarget) {
     tasks = tasks.filter((t) => t.id !== task.id);
     const cell = getTasksByCell(to.subjectId, to.status);
     const insertIndex = to.insertIndex ?? cell.length;
@@ -128,9 +128,9 @@ export function createTaskStore(policy = createStatusPolicy()) {
     return getTask(task.id);
   }
 
-  function moveTask({ taskId, to }) {
+  function moveTask({ taskId, to }: { taskId: string; to: MoveTarget }) {
     const task = getTask(taskId);
-    if (!task) return { ok: false, reason: "not-found" };
+    if (!task) return { ok: false, reason: "not-found" as const };
 
     const decision = policy.validateMove({
       taskId,
@@ -142,12 +142,12 @@ export function createTaskStore(policy = createStatusPolicy()) {
 
     applySideEffects(decision.sideEffects);
     placeTask(task, to);
-    return { ok: true };
+    return { ok: true as const };
   }
 
-  function previewMove({ taskId, to }) {
+  function previewMove({ taskId, to }: { taskId: string; to: MoveTarget }) {
     const task = getTask(taskId);
-    if (!task) return { allowed: false, reason: "not-found" };
+    if (!task) return { allowed: false, reason: "not-found" as const };
     return policy.validateMove({
       taskId,
       from: { subjectId: task.subjectId, status: task.status, priority: task.priority },
