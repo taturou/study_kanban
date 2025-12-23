@@ -8,6 +8,7 @@ import {
   Stack,
   IconButton,
   Typography,
+  DialogContentText,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useEffect, useRef, useState } from "react";
@@ -48,6 +49,7 @@ export function TaskDialog() {
   const [estimateInput, setEstimateInput] = useState(
     dialogState?.task?.estimateMinutes != null ? String(dialogState.task.estimateMinutes) : "0",
   );
+  const [titleErrorOpen, setTitleErrorOpen] = useState(false);
 
   useEffect(() => {
     if (!dialogState) return;
@@ -59,6 +61,7 @@ export function TaskDialog() {
       actuals: dialogState.task?.actuals ?? [],
     });
     setEstimateInput(dialogState.task?.estimateMinutes != null ? String(dialogState.task.estimateMinutes) : "0");
+    setTitleErrorOpen(false);
     requestAnimationFrame(() => {
       titleRef.current?.focus();
       titleRef.current?.select();
@@ -68,10 +71,15 @@ export function TaskDialog() {
   if (!dialogState) return null;
 
   const handleSave = () => {
+    const normalizedTitle = form.title.trim();
+    if (!normalizedTitle) {
+      setTitleErrorOpen(true);
+      return;
+    }
     const estimateParsed = Number.parseInt(estimateInput, 10);
     const estimateNormalized = Number.isFinite(estimateParsed) ? estimateParsed : 0;
     saveDialog({
-      title: form.title,
+      title: normalizedTitle,
       detail: form.detail,
       dueAt: form.dueAt ? new Date(form.dueAt).toISOString() : undefined,
       estimateMinutes: estimateNormalized,
@@ -82,6 +90,7 @@ export function TaskDialog() {
   };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (titleErrorOpen) return;
     if (event.key === "Escape") {
       closeDialog();
     }
@@ -143,6 +152,17 @@ export function TaskDialog() {
           <DeleteIcon />
         </IconButton>
       </DialogActions>
+      <Dialog open={titleErrorOpen} onClose={() => setTitleErrorOpen(false)}>
+        <DialogTitle>タイトル未入力</DialogTitle>
+        <DialogContent>
+          <DialogContentText>タイトルを入力してから保存してください。</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTitleErrorOpen(false)} autoFocus>
+            閉じる
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 }
