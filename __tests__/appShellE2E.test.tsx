@@ -13,5 +13,5 @@ test("AppShell はアプリタイトルとヘッダー要素を表示する", as
     </AppShell>,
   );
   expect(screen.getByText("学習計画カンバン")).toBeInTheDocument();
-  expect(screen.getByText(/Pomodoro Start/)).toBeInTheDocument();
+  expect(screen.getByText("残り学習可能時間")).toBeInTheDocument();
 });

@@ -16,6 +16,8 @@ export type Task = {
   estimateMinutes?: number;
   actualMinutes?: number;
   dueAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
   actuals?: TaskActual[];
   inProElapsedMinutes?: number;
   inProPendingMinutes?: number;

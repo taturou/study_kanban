@@ -74,8 +74,9 @@ export function createPomodoroTimer({
     }
 
     notify("pomodoro-break-finished");
+    state = "idle";
     setPhase("work");
-    notify("pomodoro-started");
+    endAt = null;
   }
 
   function updateSettings({ nextWorkMinutes, nextBreakMinutes }: { nextWorkMinutes?: number; nextBreakMinutes?: number } = {}) {

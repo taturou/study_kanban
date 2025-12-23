@@ -126,7 +126,10 @@ export function createKanbanController({ subjects, now = new Date(), settings = 
     if (result.action !== "save") return { ok: false, reason: "invalid-action" as const };
 
     const task = { ...result.task } as Task;
+    const nowIso = new Date().toISOString();
     if (!task.id) task.id = generateId();
+    if (!task.createdAt) task.createdAt = nowIso;
+    task.updatedAt = nowIso;
     if (task.actuals) {
       task.actualMinutes = task.actuals.reduce((sum, actual) => sum + (actual.minutes ?? 0), 0);
     }

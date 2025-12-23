@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { beforeEach, test } from "vitest";
+import { beforeEach, test, vi } from "vitest";
 import { createKanbanController } from "../src/kanban/controller";
 
 let controller;
@@ -38,6 +38,27 @@ test("TCard 編集ダイアログで内容を更新できる", () => {
 
   const tasks = controller.getTasksByCell("English", "Backlog");
   assert.equal(tasks[0].title, "Task B");
+});
+
+test("保存時に createdAt/updatedAt を付与し更新で updatedAt を更新する", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2025-01-16T10:00:00Z"));
+
+  controller.openNewTaskDialog({ subjectId: "English", status: "Backlog" });
+  const created = controller.saveDialog({ title: "Task A", dueAt: "2025-01-16" });
+
+  const tasks = controller.getTasksByCell("English", "Backlog");
+  assert.ok(tasks[0].createdAt);
+  assert.ok(tasks[0].updatedAt);
+  const firstUpdatedAt = tasks[0].updatedAt;
+
+  vi.setSystemTime(new Date("2025-01-17T10:00:00Z"));
+  controller.openEditTaskDialog(created.taskId);
+  controller.saveDialog({ title: "Task B" });
+  const updated = controller.getTasksByCell("English", "Backlog");
+  assert.notEqual(updated[0].updatedAt, firstUpdatedAt);
+
+  vi.useRealTimers();
 });
 
 test("DnD プレビューがポリシー違反時に理由を返す", () => {
