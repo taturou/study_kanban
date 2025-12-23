@@ -1,14 +1,13 @@
-import {
-  Box,
-  Button,
-  Chip,
-  Divider,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
+import { Box, Button, Chip, Divider, Stack, TextField, Typography } from "@mui/material";
+import { styled } from "@mui/material/styles";
 import { useEffect, useMemo, useState } from "react";
-import { buildCalendarGrid, getWeekStart } from "../calendar/utils";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { DateCalendar } from "@mui/x-date-pickers/DateCalendar";
+import { PickersDay } from "@mui/x-date-pickers/PickersDay";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import { ja } from "date-fns/locale";
+import { endOfWeek, isWithinInterval, startOfWeek } from "date-fns";
+import { getWeekStart } from "../calendar/utils";
 import { buildDayViewLists } from "../calendar/dayView";
 import { createCalendarService } from "../calendar/service";
 import { createInMemoryCalendarAdapter } from "../calendar/inMemoryAdapter";
@@ -18,6 +17,10 @@ import { useKanbanStore } from "../store/kanbanStore";
 
 const STORAGE_KEY = "lpk.currentSprintId";
 const DEFAULT_AVAILABILITY_MINUTES = 120;
+const jaMonday = {
+  ...ja,
+  options: { ...ja.options, weekStartsOn: 1 },
+};
 
 const toIsoDate = (value: Date | string) => {
   const date = typeof value === "string" ? new Date(value) : value;
@@ -35,10 +38,75 @@ function storeSprintDate(date: Date) {
   window.localStorage.setItem(STORAGE_KEY, toIsoDate(date));
 }
 
+type CustomPickersDayProps = React.ComponentProps<typeof PickersDay> & {
+  isSelected?: boolean;
+  isHovered?: boolean;
+};
+
+const CustomPickersDay = styled(PickersDay, {
+  shouldForwardProp: (prop) => prop !== "isSelected" && prop !== "isHovered",
+})<CustomPickersDayProps>(({ theme, isSelected, isHovered, day }) => ({
+  borderRadius: 0,
+  ...(isSelected && {
+    backgroundColor: theme.palette.primary.main,
+    color: theme.palette.primary.contrastText,
+    "&:hover, &:focus": {
+      backgroundColor: theme.palette.primary.main,
+    },
+  }),
+  ...(isHovered && {
+    backgroundColor: theme.palette.primary.light,
+    "&:hover, &:focus": {
+      backgroundColor: theme.palette.primary.light,
+    },
+  }),
+  ...(day.getDay() === 1 && {
+    borderTopLeftRadius: "50%",
+    borderBottomLeftRadius: "50%",
+  }),
+  ...(day.getDay() === 0 && {
+    borderTopRightRadius: "50%",
+    borderBottomRightRadius: "50%",
+  }),
+}));
+
+type WeekPickersDayProps = React.ComponentProps<typeof PickersDay> & {
+  selectedDay?: Date | null;
+  hoveredDay?: Date | null;
+  onDayEnter?: (day: Date) => void;
+  onDayLeave?: () => void;
+};
+
+function WeekPickersDay(props: WeekPickersDayProps) {
+  const { day, selectedDay, hoveredDay, onDayEnter, onDayLeave, ...other } = props;
+  const weekStart = selectedDay ? startOfWeek(selectedDay, { weekStartsOn: 1 }) : null;
+  const weekEnd = selectedDay ? endOfWeek(selectedDay, { weekStartsOn: 1 }) : null;
+  const isSelected =
+    Boolean(weekStart && weekEnd) && isWithinInterval(day, { start: weekStart, end: weekEnd });
+  const hoverStart = hoveredDay ? startOfWeek(hoveredDay, { weekStartsOn: 1 }) : null;
+  const hoverEnd = hoveredDay ? endOfWeek(hoveredDay, { weekStartsOn: 1 }) : null;
+  const isHovered =
+    Boolean(hoverStart && hoverEnd) && isWithinInterval(day, { start: hoverStart, end: hoverEnd });
+
+  return (
+    <CustomPickersDay
+      {...other}
+      day={day}
+      disableMargin
+      selected={isSelected}
+      isSelected={isSelected}
+      isHovered={isHovered}
+      onPointerEnter={() => onDayEnter?.(day)}
+      onPointerLeave={() => onDayLeave?.()}
+    />
+  );
+}
+
 export function CalendarView() {
   const tasks = useKanbanStore((state) => state.tasks);
   const [viewDate, setViewDate] = useState(() => loadStoredSprintDate() ?? new Date());
   const [selectedDate, setSelectedDate] = useState(() => loadStoredSprintDate() ?? new Date());
+  const [hoveredDay, setHoveredDay] = useState<Date | null>(null);
   const [availabilityOverrides, setAvailabilityOverrides] = useState<Record<string, number>>({});
   const [eventTitle, setEventTitle] = useState("");
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -55,11 +123,9 @@ export function CalendarView() {
 
   const sprintRange = useMemo(() => computeSprintRange(selectedDate), [selectedDate]);
   useEffect(() => {
-    const weekStart = getWeekStart(selectedDate);
-    storeSprintDate(weekStart);
+    storeSprintDate(getWeekStart(selectedDate));
   }, [selectedDate]);
 
-  const grid = useMemo(() => buildCalendarGrid(viewDate), [viewDate]);
   const dayLists = useMemo(
     () =>
       buildDayViewLists({
@@ -98,46 +164,28 @@ export function CalendarView() {
     <Box sx={{ p: 3 }}>
       <Stack spacing={2}>
         <Typography variant="h5">カレンダー</Typography>
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}
-          >
-            前月
-          </Button>
-          <Typography variant="subtitle1">
-            {viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月
-          </Typography>
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}
-          >
-            次月
-          </Button>
-          <Chip label={`スプリント ${toIsoDate(sprintRange.start)} 〜 ${toIsoDate(sprintRange.end)}`} />
-        </Stack>
-        <Stack spacing={1}>
-          {grid.map((week, weekIndex) => (
-            <Stack key={weekIndex} direction="row" spacing={1}>
-              {week.map((day) => {
-                const iso = toIsoDate(day);
-                const isSelected = iso === selectedIso;
-                return (
-                  <Button
-                    key={iso}
-                    size="small"
-                    variant={isSelected ? "contained" : "outlined"}
-                    onClick={() => setSelectedDate(day)}
-                  >
-                    {day.getUTCDate()}
-                  </Button>
-                );
-              })}
-            </Stack>
-          ))}
-        </Stack>
+        <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={jaMonday}>
+          <DateCalendar
+            value={selectedDate}
+            onChange={(next) => {
+              if (!next) return;
+              setSelectedDate(next);
+            }}
+            onMonthChange={(next) => {
+              setViewDate(next);
+            }}
+            showDaysOutsideCurrentMonth
+            slots={{ day: WeekPickersDay }}
+            slotProps={{
+              day: {
+                selectedDay: selectedDate,
+                hoveredDay,
+                onDayEnter: setHoveredDay,
+                onDayLeave: () => setHoveredDay(null),
+              } as WeekPickersDayProps,
+            }}
+          />
+        </LocalizationProvider>
         <Divider />
         <Typography variant="h6">日付ビュー</Typography>
         <Typography variant="body2">選択日: {selectedIso}</Typography>

@@ -10,5 +10,8 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: "./vitest.setup.ts",
+    deps: {
+      inline: ["@mui/material", "@mui/system", "@mui/utils", "@mui/x-date-pickers", "@mui/icons-material"],
+    },
   },
 });
