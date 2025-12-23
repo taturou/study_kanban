@@ -111,7 +111,7 @@ export function AppShell({ children }: AppShellProps) {
           </Box>
         </Toolbar>
       </AppBar>
-      <KanbanHeader />
+      {isKanban ? <KanbanHeader /> : null}
       {children}
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Dialog open={syncOpen} onClose={() => setSyncOpen(false)}>
