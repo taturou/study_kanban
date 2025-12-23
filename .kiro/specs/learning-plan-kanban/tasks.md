@@ -150,20 +150,20 @@
   - カンバン操作、ステータス遷移ルール、ダイアログ、カレンダー、時間設定の説明を掲載する
   - _Requirements: 4.15_
 
-- [ ] 14. AppBar の操作を実装する
-- [ ] 14.1 AppBar のメニューボタンから SettingsPanel を開く
+- [x] 14. AppBar の操作を実装する
+- [x] 14.1 AppBar のメニューボタンから SettingsPanel を開く
   - メニューボタンをクリックで SettingsPanel を開閉する
   - _Requirements: 1.3,4.15_
-- [ ] 14.2 AppBar の日付表示クリックで日付ビューへ遷移する
+- [x] 14.2 AppBar の日付表示クリックで日付ビューへ遷移する
   - 現在日時表示をクリックで日付ビューへ切り替える
   - _Requirements: 4.2,4.3_
-- [ ] 14.3 AppBar の KANBAN/DASHBOARD ナビゲーションを実装する
+- [x] 14.3 AppBar の KANBAN/DASHBOARD ナビゲーションを実装する
   - KANBAN はカンバンビューへ遷移し、DASHBOARD は週次ダッシュボードへ遷移する
   - _Requirements: 1.3,4.1,4.4,4.13_
-- [ ] 14.4 AppBar の sync status クリックで同期状態の詳細/手動同期を提供する
+- [x] 14.4 AppBar の sync status クリックで同期状態の詳細/手動同期を提供する
   - 同期状態の詳細表示と「今すぐ同期」トリガーを提供する
   - _Requirements: 5.6,5.10,5.11_
-- [ ] 14.5 AppBar のアバターから認証/閲覧専用の操作を開く
+- [x] 14.5 AppBar のアバターから認証/閲覧専用の操作を開く
   - サインイン/サインアウト、閲覧専用リンクの導線を提供する
   - _Requirements: 5.3,6.1,6.2,6.3,6.4_
 
