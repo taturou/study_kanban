@@ -111,6 +111,10 @@
 24. When 学習者が Dashboard を閲覧するとき, the LPK shall 教科別ステータス集計を教科ごとに1行で表示し、Backlog/Today/InPro/OnHold/Done/WontFix の順で件数を示す。
 25. When 週次サマリを表示するとき, the LPK shall 教科ごとに完了件数と実績時間（分）を一覧表示し、該当がない場合は 0 を表示する。
 26. When バーンダウンを表示するとき, the LPK shall スプリント期間の日付ごとに残タスク件数と残予定時間を一覧で表示し、日付昇順に並べる。
+27. The LPK shall CalendarView の週次ヘッダーに週範囲と合計可能/計画/実績時間を表示する。
+28. The LPK shall CalendarView を画面幅に応じて 1〜3 列でレイアウトし、横幅に余裕がある場合は左列に月カレンダーを表示する。
+29. The LPK shall CalendarView の main panel と side panel を画面高に合わせて伸長し、縦方向の余白を最小化する。
+30. When `seed=massive` を URL クエリに指定する, the LPK shall 学習可能時間・タスク・予定を UI パターン網羅用の固定データで初期化し、ナビゲーション時もクエリを保持する。
 
 ### Requirement 5: アプリ基盤・デプロイ・同期
 **Objective:** 学習者として、マルチデバイスで途切れず使えるように、PWA・クラウド同期・ブラウザ対応を備えた基盤が欲しい。
