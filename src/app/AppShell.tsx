@@ -70,14 +70,19 @@ export function AppShell({ children }: AppShellProps) {
           </Button>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <Typography variant="h6">{t("appTitle")}</Typography>
-            <Chip label={sprintLabel} size="small" />
+            <Chip
+              label={sprintLabel}
+              size="small"
+              onClick={() => navigate({ to: "/calendar", search: (prev) => prev })}
+              sx={{ cursor: "pointer" }}
+            />
             <Button
               variant="text"
               color="inherit"
               size="small"
               aria-label="日付ビューへ"
               sx={{ minWidth: "auto", padding: 0.5, opacity: 0.8 }}
-              onClick={() => navigate({ to: "/calendar" })}
+              onClick={() => navigate({ to: "/calendar", search: (prev) => prev })}
             >
               {nowText}
             </Button>
@@ -87,7 +92,7 @@ export function AppShell({ children }: AppShellProps) {
               color="inherit"
               size="small"
               variant={isKanban ? "outlined" : "text"}
-              onClick={() => navigate({ to: "/" })}
+              onClick={() => navigate({ to: "/", search: (prev) => prev })}
             >
               Kanban
             </Button>
@@ -95,7 +100,7 @@ export function AppShell({ children }: AppShellProps) {
               color="inherit"
               size="small"
               variant={isDashboard ? "outlined" : "text"}
-              onClick={() => navigate({ to: "/dashboard" })}
+              onClick={() => navigate({ to: "/dashboard", search: (prev) => prev })}
             >
               Dashboard
             </Button>
