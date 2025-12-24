@@ -112,7 +112,9 @@ export function AppShell({ children }: AppShellProps) {
         </Toolbar>
       </AppBar>
       {isKanban ? <KanbanHeader /> : null}
-      {children}
+      <div className="app-shell__content" data-view={isKanban ? "kanban" : "standard"}>
+        {children}
+      </div>
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Dialog open={syncOpen} onClose={() => setSyncOpen(false)}>
         <DialogTitle>同期状態</DialogTitle>

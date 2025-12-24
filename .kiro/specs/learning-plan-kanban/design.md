@@ -392,33 +392,26 @@ flowchart TD
 +--------------------------+
 ```
 
-#### CalendarVIew
+#### CalendarView
 
 ```ditaa
 +---------------------------------------------------------------------------------------------+
 | AppBar: [Menu Button] [Logo] [YYYY-MM-DD HH:MM] [Kanban | Dashboard] [sync status] [avatar] |
 +---------------------------------------------------------------------------------------------+
-| +----------------------------------------+ +----------------------------------------------+ |
-| | Calendar                               | | Weekly Progress Panel                        | |
-| |                                        | |                                              | |
-| |                                        | |                                              | |
-| |                                        | |                                              | |
-| |                                        | |                                              | |
-| |                                        | |                                              | |
-| |                                        | |                                              | |
-| |                                        | |                                              | |
-| |                                        | +----------------------------------------------+ |
-| |                                        | +----------------------------------------------+ |
-| |                                        | | Details for YY/MM                            | |
-| |                                        | |                                              | |
-| |                                        | |                                              | |
-| |                                        | |                                              | |
-| |                                        | |                                              | |
-| |                                        | |                                              | |
-| |                                        | |                                              | |
-| |                                        | |                                              | |
-| |                                        | |                                              | |
-| +----------------------------------------+ +----------------------------------------------+ |
+| Calendar                                                                                    |
+| +-----------------------------------------------------------------------------------------+ |
+| | DateCalendar (Mon start, week highlight, hover highlight)                                | |
+| +-----------------------------------------------------------------------------------------+ |
+| | Day View: Selected Date                                                                  | |
+| | - Due Tasks                                                                              | |
+| | - Overdue                                                                                | |
+| | - Added Today                                                                            | |
+| | - Actual                                                                                | |
+| +-----------------------------------------------------------------------------------------+ |
+| | Availability (minutes)                                                                   | |
+| +-----------------------------------------------------------------------------------------+ |
+| | Events: Title input + Add, list with empty state + offline error                          | |
+| +-----------------------------------------------------------------------------------------+ |
 +---------------------------------------------------------------------------------------------+
 ```
 
@@ -428,26 +421,13 @@ flowchart TD
 +---------------------------------------------------------------------------------------------+
 | AppBar: [Menu Button] [Logo] [YYYY-MM-DD HH:MM] [Kanban | Dashboard] [sync status] [avatar] |
 +---------------------------------------------------------------------------------------------+
-| Dashboard View                                                                              |
-| +-----------------------------------------+ +---------------------------------------------+ |
-| | Summary by Subject                      | | Summary by Day                              | |
-| |                                         | |                                             | |
-| |                                         | |                                             | |
-| |                                         | |                                             | |
-| |                                         | |                                             | |
-| |                                         | |                                             | |
-| |                                         | |                                             | |
-| |                                         | |                                             | |
-| |                                         | |                                             | |
-| +-----------------------------------------+ +---------------------------------------------+ |
+| Weekly Dashboard                                                                            |
 | +-----------------------------------------------------------------------------------------+ |
-| | Burndown Chart                                                                          | |
-| |                                                                                         | |
-| |                                                                                         | |
-| |                                                                                         | |
-| |                                                                                         | |
-| |                                                                                         | |
-| |                                                                                         | |
+| | Status Summary by Subject (Backlog/Today/InPro/OnHold/Done/WontFix)                       | |
+| +-----------------------------------------------------------------------------------------+ |
+| | Weekly Summary (Done count, Actual minutes)                                              | |
+| +-----------------------------------------------------------------------------------------+ |
+| | Burndown (Daily remaining count/minutes)                                                 | |
 | +-----------------------------------------------------------------------------------------+ |
 +---------------------------------------------------------------------------------------------+
 ```
@@ -543,6 +523,16 @@ flowchart TD
 | 4.14 | 当日追加タスクのみ表示 | CalendarView | TaskStore | - |
 | 4.15 | ヘルプページ提供（SettingsPanel から起動） | HelpPage, SettingsPanel | Router | - |
 | 4.16 | 予定/実績時間グラフ表示 | CalendarView | TimeCalc | - |
+| 4.17 | バーンダウン日次残工数を記録しスナップショットで再現 | Burndown, TaskStore | StorageAdapter | - |
+| 4.18 | 選択週のハイライトと日付ビュー反映 | CalendarView | - | - |
+| 4.19 | 日付ビューの4セクションと空状態 | CalendarView | TaskStore | - |
+| 4.20 | 学習可能時間の日別上書き保持 | Availability | TaskStore | - |
+| 4.21 | 予定タイトル必須で選択日基準の登録 | CalendarView | CalendarAdapter | カレンダーフロー |
+| 4.22 | オフライン予定追加の拒否とエラー表示 | CalendarView | CalendarAdapter | カレンダーフロー |
+| 4.23 | 予定一覧と空状態表示 | CalendarView | CalendarAdapter | - |
+| 4.24 | 教科別ステータス集計の表示順 | Dashboard | TaskStore | - |
+| 4.25 | 週次サマリの完了件数/実績時間表示 | Dashboard | Burndown, TimeCalc | - |
+| 4.26 | バーンダウン一覧の日付昇順表示 | Dashboard | Burndown | - |
 | 5.1 | PWA インストール、主要ブラウザ対応 | AppShell, ServiceWorker | UpdateManager | - |
 | 5.2 | GitHub Pages 配信 | Build/Hosting | - | - |
 | 5.3 | Google サインインで Drive 保存 | Auth, DriveAdapter | SyncEngine | - |
@@ -576,9 +566,9 @@ flowchart TD
 | KanbanBoard | UI | 教科×ステータスグリッドと DnD | 1.x,3.x,4.2,4.12,3.17-3.19 | StatusPolicy (P0), TaskStore (P0), DnD Kit (P1) | State |
 | TaskCard | UI | タスク表示（ゲージ/円形インジケータ） | 2.3,3.6,3.12,3.14 | TimeCalc (P0), PomodoroTimer (P1), InProAutoTracker (P0) | State |
 | TaskDialog | UI | 作成/編集/消去と入力制御 | 1.8,2.x | TaskStore (P0) | Service |
-| Dashboard | UI | 週次集計・バーンダウン | 4.1,4.3,4.4,4.13 | Burndown (P0) | State |
+| Dashboard | UI | 週次集計・バーンダウン | 4.1,4.3,4.4,4.13,4.24-4.26 | Burndown (P0) | State |
 | SettingsPanel | UI | ステータス表示名を設定し、バージョン/アップデート状態、PT デフォルト時間、手動同期、ヘルプ導線を提供 | 1.5,5.8,5.9,5.14,3.13,5.6,4.15 | TaskStore (P0), UpdateManager (P1), SyncEngine (P1) | State |
-| CalendarView | UI | 月曜始まりカレンダーと予定/学習時間表示 | 4.5-4.16 | CalendarAdapter (P0), Availability (P0) | State |
+| CalendarView | UI | 月曜始まりカレンダーと予定/学習時間表示 | 4.5-4.23 | CalendarAdapter (P0), Availability (P0) | State |
 | HelpPage | UI | 操作説明 | 4.15 | - | - |
 | AlertToast | UI | 非モーダル通知（トースト: 同期/PT/過負荷） | 3.11,3.13,3.15,3.16,4.6,5.6,5.8 | SyncEngine (P0), TimeCalc (P0) | State |
 | TaskStore | State | タスク/教科/スプリント状態と IndexedDB 永続 | 全般 | StorageAdapter (P0), SyncEngine (P0) | State |
@@ -586,13 +576,13 @@ flowchart TD
 | PrioritySorter | Domain | セル内優先度（並び順）正規化 | 3.3,3.4 | TaskStore (P1) | Service |
 | InProAutoTracker | Domain | InPro 滞在中の自動実績反映 | 3.12 | TaskStore (P0) | Service |
 | TimeCalc | Domain | 残り時間計算と Today 負荷 | 2.3,3.11,4.2,4.12 | TaskStore (P1) | Service |
-| Burndown | Domain | バーンダウン計算と週次サマリ | 4.1,4.4,4.13 | TaskStore (P1) | Service |
-| Availability | Domain | 学習可能時間（予定/上書き/曜日）計算 | 4.6,4.9-4.12 | CalendarAdapter (P1), SettingsStore (P1) | Service |
+| Burndown | Domain | バーンダウン計算と週次サマリ | 4.1,4.4,4.13,4.17,4.26 | TaskStore (P1) | Service |
+| Availability | Domain | 学習可能時間（予定/上書き/曜日）計算 | 4.6,4.9-4.12,4.20 | CalendarAdapter (P1), SettingsStore (P1) | Service |
 | PomodoroTimer | Domain | PT 計測と通知 | 3.12-3.19 | AlertToast (P1) | Service |
 | SyncEngine | Sync | スナップショットの双方向同期 | 5.3-5.6,6.3 | DriveAdapter (P0), CalendarAdapter (P0), StorageAdapter (P0) | Service |
 | BackupService | Sync | バックアップ取得・保持・復元 | 5.13 | DriveAdapter (P0), StorageAdapter (P0) | Service |
 | DriveAdapter | Integration | Drive API 呼び出し | 5.3,5.10 | Auth (P0) | API |
-| CalendarAdapter | Integration | Calendar API 呼び出し | 4.6-4.12 | Auth (P0) | API |
+| CalendarAdapter | Integration | Calendar API 呼び出し | 4.6-4.12,4.21-4.23 | Auth (P0) | API |
 | StorageAdapter | Infra | IndexedDB CRUD | 5.4,5.5 | - | Service |
 | UpdateManager | Infra | バージョン検知と強制アップデート | 4.1,5.8,5.9 | ServiceWorker (P0) | Service |
 | Auth | Infra | Google 認証とトークン管理 | 5.3,6.1 | Google OAuth (P0) | Service |
@@ -680,11 +670,14 @@ interface TaskDialogService {
 | Field | Detail |
 |-------|--------|
 | Intent | 週次集計、バーンダウン |
-| Requirements | 4.1,4.3,4.4,4.13 |
+| Requirements | 4.1,4.3,4.4,4.13,4.24-4.26 |
 | Contracts | State |
 
 **Responsibilities & Constraints**
 - バーンダウン計算、期日超過リスト、教科別完了/学習時間集計。
+- 教科別ステータス集計は 1 行で Backlog/Today/InPro/OnHold/Done/WontFix の順に件数を表示する。
+- 週次サマリは教科ごとに完了件数と実績時間（分）を表示し、空の場合は 0 を表示する。
+- バーンダウン一覧はスプリント期間の日付を昇順で並べる。
 - viewMode が readonly の場合は閲覧のみとし、編集/保存操作は提供しない。
 
 **Dependencies**
@@ -698,15 +691,20 @@ interface TaskDialogService {
 | Field | Detail |
 |-------|--------|
 | Intent | 月曜始まりカレンダーと学習可能時間表示、予定双方向同期 |
-| Requirements | 4.5-4.16 |
+| Requirements | 4.5-4.23 |
 | Contracts | State |
 
 **Responsibilities & Constraints**
 - 月曜始まり固定のカレンダーで週（スプリント）を選択し、現在表示中のスプリントを切替する（`UiSettings.currentSprintId` を更新）。viewMode=readonly でも切替は許可する（UI 専用のローカル状態）。
   - 選択先の `sprint-{sprintId}.json` が Drive 上に存在しない場合、viewMode=editable では必要に応じて作成フローへ誘導できるが、viewMode=readonly では作成せず「この週のスプリントは未作成」を表示する。
 - 特定日ビューで実施/期日/追加タスクを表示。
+- 日付選択時に選択週のハイライトを表示し、日付ビューに選択日を表示する。
+- 日付ビューの各セクションは該当なしの場合に空状態（「該当なし」）を表示する。
 - Google Calendar 予定を取得して表示し、ユーザーが dayDefaultAvailability/当日上書き値を手動調整する際の参考情報として提示（自動控除はしない）。
+- 学習可能時間は選択日ごとの上書き値を保持し、未設定の場合はデフォルト値を表示する。
 - LPK 側の予定追加/更新はオンライン時のみ CalendarAdapter 経由で同期する（オフライン時は追加/更新を受け付けず、再試行を促す）。
+- 予定追加はタイトルを必須とし、選択日を基準にデフォルト時刻を付与する（初期は 09:00-10:00）。エラー時は予定セクションで理由を表示する。
+- 予定一覧は日付を併記して表示し、予定がない場合は空状態を表示する。
 - viewMode が readonly の場合は予定追加/編集を無効化し、閲覧のみとする。CalendarAdapter への書き込み API は呼ばない。
 
 **Dependencies**
@@ -922,7 +920,7 @@ type MoveDecision =
 | Field | Detail |
 |-------|--------|
 | Intent | バーンダウンと週次サマリ算出 |
-| Requirements | 4.1,4.4,4.13 |
+| Requirements | 4.1,4.4,4.13,4.17,4.26 |
 | Contracts | Service |
 
 **Implementation Notes**
@@ -934,7 +932,7 @@ type MoveDecision =
 | Field | Detail |
 |-------|--------|
 | Intent | 学習可能時間（曜日デフォルト＋当日上書き＋予定表示を参考にした手動調整） |
-| Requirements | 4.9-4.12 |
+| Requirements | 4.6,4.9-4.12,4.20 |
 | Contracts | Service |
 
 **Implementation Notes**
@@ -1022,7 +1020,7 @@ interface SyncEngine {
 | Field | Detail |
 |-------|--------|
 | Intent | 各 API の呼び出しとトークン管理 | 
-| Requirements | 4.6-4.7,5.3,5.10 |
+| Requirements | 4.6-4.7,4.21-4.23,5.3,5.10 |
 | Contracts | API |
 
 **Implementation Notes**

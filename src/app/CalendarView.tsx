@@ -1,4 +1,4 @@
-import { Box, Button, Chip, Divider, Stack, TextField, Typography } from "@mui/material";
+import { Box, Button, Chip, Divider, Paper, Stack, TextField, Typography } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { useEffect, useMemo, useState } from "react";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -161,9 +161,33 @@ export function CalendarView() {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Stack spacing={2}>
-        <Typography variant="h5">カレンダー</Typography>
+    <Box
+      sx={{
+        maxWidth: 1120,
+        mx: "auto",
+        display: "grid",
+        gridTemplateColumns: {
+          xs: "1fr",
+          md: "minmax(340px, 1.1fr) minmax(280px, 0.95fr) minmax(280px, 0.95fr)",
+        },
+        gap: 1.5,
+        alignItems: "stretch",
+      }}
+    >
+      <Paper
+        elevation={0}
+        sx={{
+          p: 1.25,
+          borderRadius: 2,
+          border: "1px solid #d5deea",
+          display: "flex",
+          flexDirection: "column",
+          gap: 1,
+        }}
+      >
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          カレンダー
+        </Typography>
         <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={jaMonday}>
           <DateCalendar
             value={selectedDate}
@@ -186,74 +210,127 @@ export function CalendarView() {
             }}
           />
         </LocalizationProvider>
+      </Paper>
+      <Paper
+        elevation={0}
+        sx={{
+          p: 1.25,
+          borderRadius: 2,
+          border: "1px solid #d5deea",
+          display: "flex",
+          flexDirection: "column",
+          gap: 1,
+        }}
+      >
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          日付ビュー
+        </Typography>
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          選択日: {selectedIso}
+        </Typography>
         <Divider />
-        <Typography variant="h6">日付ビュー</Typography>
-        <Typography variant="body2">選択日: {selectedIso}</Typography>
-        <Stack spacing={1}>
-          <Typography variant="subtitle2">期日タスク</Typography>
-          {dayLists.due.length ? (
-            dayLists.due.map((task) => <Typography key={task.id}>{task.title}</Typography>)
-          ) : (
-            <Typography variant="body2">該当なし</Typography>
-          )}
-          <Typography variant="subtitle2">期限超過</Typography>
-          {dayLists.overdue.length ? (
-            dayLists.overdue.map((task) => <Typography key={task.id}>{task.title}</Typography>)
-          ) : (
-            <Typography variant="body2">該当なし</Typography>
-          )}
-          <Typography variant="subtitle2">当日追加タスク</Typography>
-          {dayLists.added.length ? (
-            dayLists.added.map((task) => <Typography key={task.id}>{task.title}</Typography>)
-          ) : (
-            <Typography variant="body2">該当なし</Typography>
-          )}
-          <Typography variant="subtitle2">実施タスク</Typography>
-          {dayLists.actual.length ? (
-            dayLists.actual.map((task) => <Typography key={task.id}>{task.title}</Typography>)
-          ) : (
-            <Typography variant="body2">該当なし</Typography>
-          )}
-        </Stack>
-        <Divider />
-        <Stack spacing={1}>
-          <Typography variant="h6">学習可能時間</Typography>
-          <TextField
-            label="学習可能時間(分)"
-            type="number"
-            value={availability}
-            onChange={(event) => {
-              const next = Number.parseInt(event.target.value, 10);
-              setAvailabilityOverrides((prev) => ({
-                ...prev,
-                [selectedIso]: Number.isFinite(next) ? next : DEFAULT_AVAILABILITY_MINUTES,
-              }));
-            }}
-          />
-        </Stack>
-        <Divider />
-        <Stack spacing={1}>
-          <Typography variant="h6">予定</Typography>
-          <TextField
-            label="予定タイトル"
-            value={eventTitle}
-            onChange={(event) => setEventTitle(event.target.value)}
-          />
-          <Button variant="contained" onClick={handleAddEvent}>
-            予定を追加
-          </Button>
-          {calendarError ? <Typography color="error">{calendarError}</Typography> : null}
-          {events.length ? (
-            events.map((event) => (
-              <Typography key={event.id}>
-                {event.title} ({event.start.slice(0, 10)})
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 1,
+          }}
+        >
+          <Stack spacing={0.5}>
+            <Typography variant="subtitle2">期日タスク</Typography>
+            {dayLists.due.length ? (
+              dayLists.due.map((task) => <Typography key={task.id} variant="caption">{task.title}</Typography>)
+            ) : (
+              <Typography variant="caption">該当なし</Typography>
+            )}
+          </Stack>
+          <Stack spacing={0.5}>
+            <Typography variant="subtitle2">期限超過</Typography>
+            {dayLists.overdue.length ? (
+              dayLists.overdue.map((task) => <Typography key={task.id} variant="caption">{task.title}</Typography>)
+            ) : (
+              <Typography variant="caption">該当なし</Typography>
+            )}
+          </Stack>
+          <Stack spacing={0.5}>
+            <Typography variant="subtitle2">当日追加タスク</Typography>
+            {dayLists.added.length ? (
+              dayLists.added.map((task) => <Typography key={task.id} variant="caption">{task.title}</Typography>)
+            ) : (
+              <Typography variant="caption">該当なし</Typography>
+            )}
+          </Stack>
+          <Stack spacing={0.5}>
+            <Typography variant="subtitle2">実施タスク</Typography>
+            {dayLists.actual.length ? (
+              dayLists.actual.map((task) => <Typography key={task.id} variant="caption">{task.title}</Typography>)
+            ) : (
+              <Typography variant="caption">該当なし</Typography>
+            )}
+          </Stack>
+        </Box>
+      </Paper>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateRows: "auto 1fr",
+          gap: 1.5,
+        }}
+      >
+        <Paper elevation={0} sx={{ p: 1.25, borderRadius: 2, border: "1px solid #d5deea" }}>
+          <Stack spacing={1}>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              学習可能時間
+            </Typography>
+            <TextField
+              label="学習可能時間(分)"
+              type="number"
+              size="small"
+              value={availability}
+              onChange={(event) => {
+                const next = Number.parseInt(event.target.value, 10);
+                setAvailabilityOverrides((prev) => ({
+                  ...prev,
+                  [selectedIso]: Number.isFinite(next) ? next : DEFAULT_AVAILABILITY_MINUTES,
+                }));
+              }}
+            />
+          </Stack>
+        </Paper>
+        <Paper elevation={0} sx={{ p: 1.25, borderRadius: 2, border: "1px solid #d5deea" }}>
+          <Stack spacing={1}>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              予定
+            </Typography>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+              <TextField
+                label="予定タイトル"
+                size="small"
+                value={eventTitle}
+                onChange={(event) => setEventTitle(event.target.value)}
+                sx={{ flex: 1 }}
+              />
+              <Button variant="contained" size="small" onClick={handleAddEvent}>
+                追加
+              </Button>
+            </Stack>
+            {calendarError ? (
+              <Typography color="error" variant="caption">
+                {calendarError}
               </Typography>
-            ))
-          ) : (
-            <Typography variant="body2">予定はありません</Typography>
-          )}
-        </Stack>
-      </Stack>
+            ) : null}
+            {events.length ? (
+              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                {events.map((event) => (
+                  <Chip key={event.id} size="small" label={`${event.title} (${event.start.slice(0, 10)})`} />
+                ))}
+              </Stack>
+            ) : (
+              <Typography variant="caption">予定はありません</Typography>
+            )}
+          </Stack>
+        </Paper>
+      </Box>
     </Box>
   );
 }
