@@ -12,7 +12,9 @@ import {
   Stack,
   TextField,
   Typography,
+  useMediaQuery,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import { useEffect, useMemo, useState } from "react";
 import { ja } from "date-fns/locale";
 import { eachDayOfInterval, endOfWeek, format, startOfWeek } from "date-fns";
@@ -71,6 +73,8 @@ function buildEventsByDate(events: CalendarEvent[]) {
 }
 
 export function CalendarView() {
+  const theme = useTheme();
+  const showMonthCalendar = useMediaQuery(theme.breakpoints.up("lg"));
   const tasks = useKanbanStore((state) => state.tasks);
   const massiveSeedEnabled = isMassiveSeedEnabled();
   const massiveSeedDate = useMemo(
@@ -202,12 +206,18 @@ export function CalendarView() {
 
   const dailyGap = (plannedByDate[selectedIso] ?? 0) - availability;
   const dailyOver = dailyGap > 0;
+  const layoutColumns = showMonthCalendar
+    ? "minmax(240px, 320px) minmax(0, 1fr) minmax(260px, 360px)"
+    : { xs: "1fr", md: "minmax(0, 1fr) minmax(260px, 360px)" };
 
   return (
     <Box
       sx={{
-        maxWidth: 1120,
+        width: "100%",
+        maxWidth: { xs: "100%", xl: 1440 },
         mx: "auto",
+        px: { xs: 1, md: 2 },
+        flex: 1,
         display: "grid",
         gridTemplateRows: "auto 1fr",
         gap: 1.25,
@@ -270,12 +280,50 @@ export function CalendarView() {
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: "minmax(720px, 1fr) 320px" },
+          gridTemplateColumns: layoutColumns,
           gap: 1.5,
+          alignItems: "stretch",
           minHeight: 0,
         }}
       >
-        <Paper elevation={0} sx={{ p: 1.25, borderRadius: 2, border: "1px solid #d5deea", background: "#f8fafc" }}>
+        {showMonthCalendar ? (
+          <Paper
+            elevation={0}
+            sx={{
+              p: 1.25,
+              borderRadius: 2,
+              border: "1px solid #d5deea",
+              background: "#f8fafc",
+              alignSelf: "start",
+            }}
+          >
+            <Stack spacing={1}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                月カレンダー
+              </Typography>
+              <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ja}>
+                <DateCalendar
+                  value={selectedDate}
+                  onChange={(value) => {
+                    if (!value) return;
+                    setSelectedDate(value);
+                  }}
+                  showDaysOutsideCurrentMonth
+                />
+              </LocalizationProvider>
+            </Stack>
+          </Paper>
+        ) : null}
+        <Paper
+          elevation={0}
+          sx={{
+            p: 1.25,
+            borderRadius: 2,
+            border: "1px solid #d5deea",
+            background: "#f8fafc",
+            height: "100%",
+          }}
+        >
           <Stack spacing={1.25}>
             <Stack spacing={0.5}>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
@@ -284,8 +332,8 @@ export function CalendarView() {
               <Box
                 sx={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(7, minmax(80px, 1fr))",
-                  gap: 1,
+                  gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                  gap: { xs: 0.5, sm: 1 },
                   alignItems: "center",
                 }}
               >
@@ -344,8 +392,8 @@ export function CalendarView() {
               <Box
                 sx={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(7, minmax(80px, 1fr))",
-                  gap: 1,
+                  gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                  gap: { xs: 0.5, sm: 1 },
                   alignItems: "end",
                   minHeight: 260,
                 }}
@@ -374,7 +422,7 @@ export function CalendarView() {
                       background: isSelected ? "rgba(56, 189, 248, 0.08)" : "transparent",
                     }}
                   >
-                    <Box sx={{ position: "relative", width: 72, height: 220 }}>
+                    <Box sx={{ position: "relative", width: "100%", maxWidth: 72, minWidth: 44, height: 220 }}>
                       <Box
                         sx={{
                           position: "absolute",
@@ -474,8 +522,8 @@ export function CalendarView() {
             <Box
               sx={{
                 display: "grid",
-                gridTemplateColumns: "repeat(7, minmax(80px, 1fr))",
-                gap: 1,
+                gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                gap: { xs: 0.5, sm: 1 },
                 alignItems: "start",
               }}
             >
@@ -503,7 +551,16 @@ export function CalendarView() {
             </Box>
           </Stack>
         </Paper>
-        <Paper elevation={0} sx={{ p: 1.25, borderRadius: 2, border: "1px solid #d5deea", background: "#f8fafc" }}>
+        <Paper
+          elevation={0}
+          sx={{
+            p: 1.25,
+            borderRadius: 2,
+            border: "1px solid #d5deea",
+            background: "#f8fafc",
+            height: "100%",
+          }}
+        >
           <Stack spacing={1}>
             <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
               日付: {format(selectedDate, "MM/dd (EEE)", { locale: ja })}

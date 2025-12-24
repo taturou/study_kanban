@@ -41,6 +41,10 @@ body {
   overflow: auto;
   padding: 10px 12px 12px;
 }
+.app-shell__content[data-view="standard"] {
+  display: flex;
+  flex-direction: column;
+}
 .app-shell__content[data-view="kanban"] {
   padding: 0;
   overflow: auto;
