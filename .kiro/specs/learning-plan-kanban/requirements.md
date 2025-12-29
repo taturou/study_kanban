@@ -115,6 +115,12 @@
 28. The LPK shall CalendarView を画面幅に応じて 1〜3 列でレイアウトし、横幅に余裕がある場合は左列に月カレンダーを表示する。
 29. The LPK shall CalendarView の main panel と side panel を画面高に合わせて伸長し、縦方向の余白を最小化する。
 30. When `seed=massive` を URL クエリに指定する, the LPK shall 学習可能時間・タスク・予定を UI パターン網羅用の固定データで初期化し、ナビゲーション時もクエリを保持する。
+31. The LPK shall Dashboard で週次リソース調整 HUD を表示し、今週/来週の残作業・可用枠・収支を対比表示する。
+32. The LPK shall Dashboard の日別負荷ストリップで、残作業と可用枠を日別に並べて表示する。
+33. When 推定枠が含まれる, the LPK shall HUD と日別負荷ストリップに推定枠の警告バッジ/ハッチングを表示する。
+34. The LPK shall Dashboard のアクションテーブルで、提案理由と影響（今週の負荷減/来週の負荷増）を明示する。
+35. When 提案がないタスクを表示する, the LPK shall Backlog への戻しのみを提供し、無理な日付指定操作を提供しない。
+36. The LPK shall Dashboard のアクションテーブルに InPro タスクを含めず、除外理由を注記する。
 
 ### Requirement 5: アプリ基盤・デプロイ・同期
 **Objective:** 学習者として、マルチデバイスで途切れず使えるように、PWA・クラウド同期・ブラウザ対応を備えた基盤が欲しい。
