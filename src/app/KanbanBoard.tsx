@@ -43,7 +43,7 @@ function parseCellId(id: string) {
 }
 
 export function KanbanBoard() {
-  const tasks = useKanbanStore((state) => state.tasks);
+  const tasks = useKanbanStore((state) => state.sprintTasks);
   const subjects = useKanbanStore((state) => state.subjects);
   const statusLabels = useKanbanStore((state) => state.statusLabels);
   const moveTask = useKanbanStore((state) => state.moveTask);

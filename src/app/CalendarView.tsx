@@ -75,18 +75,21 @@ function buildEventsByDate(events: CalendarEvent[]) {
 export function CalendarView() {
   const theme = useTheme();
   const showMonthCalendar = useMediaQuery(theme.breakpoints.up("lg"));
-  const tasks = useKanbanStore((state) => state.tasks);
+  const tasks = useKanbanStore((state) => state.sprintTasks);
+  const setSprintLabelOverride = useKanbanStore((state) => state.setSprintLabelOverride);
+  const setCurrentSprintDate = useKanbanStore((state) => state.setCurrentSprintDate);
   const massiveSeedEnabled = isMassiveSeedEnabled();
   const massiveSeedDate = useMemo(
     () => (massiveSeedEnabled ? new Date(`${MASSIVE_SPRINT_START}T00:00:00.000Z`) : null),
     [massiveSeedEnabled],
   );
+  const storedSprintDate = loadStoredSprintDate();
   const [selectedDate, setSelectedDate] = useState(
-    () => massiveSeedDate ?? loadStoredSprintDate() ?? new Date(),
+    () => storedSprintDate ?? massiveSeedDate ?? new Date(),
   );
   const [availabilityOverrides, setAvailabilityOverrides] = useState<Record<string, number>>(
     () =>
-      massiveSeedDate
+      massiveSeedDate && !storedSprintDate
         ? buildMassiveAvailabilityOverrides(massiveSeedDate, DEFAULT_AVAILABILITY_MINUTES)
         : {},
   );
@@ -109,8 +112,11 @@ export function CalendarView() {
 
   useEffect(() => {
     const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
+    const sprintKey = toIsoDate(weekStart);
+    const sprintDate = new Date(`${sprintKey}T00:00:00.000Z`);
     storeSprintDate(weekStart);
-  }, [selectedDate]);
+    setCurrentSprintDate(sprintDate);
+  }, [selectedDate, setCurrentSprintDate]);
 
   useEffect(() => {
     if (!massiveSeedEnabled || !massiveSeedDate) return;
@@ -203,6 +209,9 @@ export function CalendarView() {
   const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });
   const weekLabel = `${format(weekStart, "yyyy/MM/dd", { locale: ja })} - ${format(weekEnd, "MM/dd", { locale: ja })}`;
+  useEffect(() => {
+    setSprintLabelOverride(weekLabel);
+  }, [setSprintLabelOverride, weekLabel]);
 
   const dailyGap = (plannedByDate[selectedIso] ?? 0) - availability;
   const dailyOver = dailyGap > 0;

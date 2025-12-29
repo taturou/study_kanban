@@ -182,7 +182,8 @@ flowchart TD
 #### KanbanView
 
 - `Menu Button` をクリックすると SettingsPanel を表示する。
-- `YYYY-MM-DD HH:MM` をクリックすると Calendar View を表示する。
+- `YYYY/MM/DD - MM/DD` のスプリント期間表示をクリックすると Calendar View を表示する。
+- スプリント期間表示はカレンダーで選択した週に連動して更新する。
 - `Kanban` と `Dashboard` はトグルで、表示している方をグレーアウトする
 - `sync status` は Google Drive との同期状態をアイコンで示す
 - `avator` は Google アカウントのアバターを表示
@@ -192,7 +193,7 @@ flowchart TD
 
 ```ditaa
 +---------------------------------------------------------------------------------------------+
-| AppBar: [Menu Button] [Logo] [YYYY-MM-DD HH:MM] [Kanban | Dashboard] [sync status] [avatar] |
+| AppBar: [Menu Button] [Logo] [YYYY/MM/DD - MM/DD] [Kanban | Dashboard] [sync status] [avatar] |
 +---------------------------------------------------------------------------------------------+
 | Kanban Header: Num of Today/Done Tasks | Estimate/Done Time                           [🍅] |
 +---------+-------------+-------------+---------------+-------------+------------+------------+
@@ -228,7 +229,7 @@ flowchart TD
 
 ```ditaa
 +---------------------------------------------------------------------------------------------+
-| AppBar: [Menu Button] [Logo] [YYYY-MM-DD HH:MM] [Kanban | Dashboard] [sync status] [avatar] |
+| AppBar: [Menu Button] [Logo] [YYYY/MM/DD - MM/DD] [Kanban | Dashboard] [sync status] [avatar] |
 +---------------------------------------------------------------------------------------------+
 | Kanban Header: Num of Today/Done Tasks | Estimate/Done Time                           [🍅] |
 |                                                                     +---------------------+ |
@@ -261,7 +262,7 @@ flowchart TD
 
 ```ditaa
 +---------------------------------------------------------------------------------------------+
-| AppBar: [Menu Button] [Logo] [YYYY-MM-DD HH:MM] [Kanban | Dashboard] [sync status] [avatar] |
+| AppBar: [Menu Button] [Logo] [YYYY/MM/DD - MM/DD] [Kanban | Dashboard] [sync status] [avatar] |
 +---------------------------------------------------------------------------------------------+
 | Kanban Header: Num of Today/Done tasks | Estimate/Done tasks                          [🍅] |
 +---------+-------------+-------------+---------------+-------------+------------+------------+
@@ -293,7 +294,7 @@ flowchart TD
 
 ```ditaa
 +---------------------------------------------------------------------------------------------+
-| AppBar: [Menu Button] [Logo] [YYYY-MM-DD HH:MM] [Kanban | Dashboard] [sync status] [avatar] |
+| AppBar: [Menu Button] [Logo] [YYYY/MM/DD - MM/DD] [Kanban | Dashboard] [sync status] [avatar] |
 +---------------------------------------------------------------------------------------------+
 | Kanban Header: Num of Today/Done Tasks | Estimate/Done Time                           [🍅] |
 +---------+-------------+-------------+---------------+-------------+------------+------------+
@@ -396,7 +397,7 @@ flowchart TD
 
 ```ditaa
 +---------------------------------------------------------------------------------------------+
-| AppBar: [Menu Button] [Logo] [YYYY-MM-DD HH:MM] [Kanban | Dashboard] [sync status] [avatar] |
+| AppBar: [Menu Button] [Logo] [YYYY/MM/DD - MM/DD] [Kanban | Dashboard] [sync status] [avatar] |
 +---------------------------------------------------------------------------------------------+
 | Calendar                                                                                    |
 | +-----------------------------------------------------------------------------------------+ |
@@ -425,7 +426,7 @@ flowchart TD
 
 ```ditaa
 +---------------------------------------------------------------------------------------------+
-| AppBar: [Menu Button] [Logo] [YYYY-MM-DD HH:MM] [Kanban | Dashboard] [sync status] [avatar] |
+| AppBar: [Menu Button] [Logo] [YYYY/MM/DD - MM/DD] [Kanban | Dashboard] [sync status] [avatar] |
 +---------------------------------------------------------------------------------------------+
 | Weekly Dashboard                                                                            |
 | +-----------------------------------------------------------------------------------------+ |

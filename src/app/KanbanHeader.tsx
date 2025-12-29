@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useKanbanStore } from "../store/kanbanStore";
 
 export function KanbanHeader() {
-  const tasks = useKanbanStore((state) => state.tasks);
+  const tasks = useKanbanStore((state) => state.sprintTasks);
   const availability = useKanbanStore((state) => state.availability);
   const pomodoro = useKanbanStore((state) => state.pomodoro);
   const triggerPomodoro = useKanbanStore((state) => state.triggerPomodoro);

@@ -12,9 +12,10 @@ type DashboardViewProps = {
 };
 
 export function DashboardView({ tasks, subjects, sprintRange }: DashboardViewProps) {
-  const storeTasks = useKanbanStore((state) => state.tasks);
+  const storeTasks = useKanbanStore((state) => state.sprintTasks);
   const storeSubjects = useKanbanStore((state) => state.subjects);
-  const range = sprintRange ?? computeSprintRange(new Date());
+  const storeSprintRange = useKanbanStore((state) => state.sprintRange);
+  const range = sprintRange ?? storeSprintRange ?? computeSprintRange(new Date());
   const summary = useMemo(
     () =>
       buildDashboardSummary({

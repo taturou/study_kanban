@@ -31,9 +31,9 @@ type AppShellProps = {
 export function AppShell({ children }: AppShellProps) {
   const { t } = useTranslation("common");
   const sprintLabel = useKanbanStore((state) => state.sprintLabel);
+  const sprintLabelOverride = useKanbanStore((state) => state.sprintLabelOverride);
   const navigate = useNavigate();
   const currentPath = useRouterState({ select: (state) => state.location.pathname });
-  const [nowText, setNowText] = useState(() => formatDateTime(new Date()));
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const syncLabel = useMemo(() => (isOnline ? "Sync Online" : "Sync Offline"), [isOnline]);
   const syncIcon = isOnline ? <CloudDoneIcon /> : <CloudOffIcon />;
@@ -43,12 +43,6 @@ export function AppShell({ children }: AppShellProps) {
 
   const isKanban = currentPath === "/";
   const isDashboard = currentPath === "/dashboard";
-
-  useEffect(() => {
-    const tick = () => setNowText(formatDateTime(new Date()));
-    const timer = window.setInterval(tick, 1000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -84,7 +78,7 @@ export function AppShell({ children }: AppShellProps) {
               sx={{ minWidth: "auto", padding: 0.5, opacity: 0.8 }}
               onClick={() => navigate({ to: "/calendar", search: (prev) => prev })}
             >
-              {nowText}
+              {formatSprintLabel(sprintLabelOverride ?? sprintLabel)}
             </Button>
           </Box>
           <Box sx={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 1 }}>
@@ -152,11 +146,10 @@ export function AppShell({ children }: AppShellProps) {
   );
 }
 
-function formatDateTime(date: Date) {
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  const hh = String(date.getHours()).padStart(2, "0");
-  const min = String(date.getMinutes()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+function formatSprintLabel(label: string) {
+  const [startRaw, endRaw] = label.split("〜").map((part) => part.trim());
+  if (!startRaw || !endRaw) return label;
+  const start = startRaw.replace(/-/g, "/");
+  const end = endRaw.replace(/-/g, "/");
+  return `${start} - ${end.slice(5)}`;
 }
