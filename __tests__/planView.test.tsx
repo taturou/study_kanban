@@ -2,26 +2,26 @@ import React from "react";
 import { test } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { CalendarView } from "../src/app/CalendarView";
+import { PlanView } from "../src/app/PlanView";
 
-test("CalendarView は週次ヘッダーと日次パネルを表示する", () => {
+test("PlanView は週次サマリと日次パネルを表示する", () => {
   window.localStorage.clear();
-  render(<CalendarView />);
+  render(<PlanView />);
   expect(screen.getByText(/合計可能:/)).toBeInTheDocument();
   expect(screen.getByText(/日付:/)).toBeInTheDocument();
 });
 
-test("CalendarView は予定の空状態を表示する", async () => {
+test("PlanView は予定の空状態を表示する", async () => {
   window.localStorage.clear();
-  render(<CalendarView />);
+  render(<PlanView />);
 
   expect(await screen.findByText("予定はありません")).toBeInTheDocument();
 });
 
-test("CalendarView は選択日を更新し学習可能時間を上書きできる", async () => {
+test("PlanView は選択日を更新し学習可能時間を上書きできる", async () => {
   window.localStorage.setItem("lpk.currentSprintId", "2025-12-22");
   const user = userEvent.setup();
-  render(<CalendarView />);
+  render(<PlanView />);
 
   expect(screen.getByText(/日付: 12\/22/)).toBeInTheDocument();
 
@@ -29,17 +29,17 @@ test("CalendarView は選択日を更新し学習可能時間を上書きでき�
   expect(screen.getByText(/日付: 12\/24/)).toBeInTheDocument();
 
   const availabilityInput = screen.getByLabelText("月");
-  fireEvent.change(availabilityInput, { target: { value: "1.5" } });
-  expect(availabilityInput).toHaveValue(1.5);
+  fireEvent.change(availabilityInput, { target: { value: "90" } });
+  expect(availabilityInput).toHaveValue("90");
 });
 
-test("CalendarView はオフライン時の予定追加エラーを表示する", async () => {
+test("PlanView はオフライン時の予定追加エラーを表示する", async () => {
   window.localStorage.clear();
   const user = userEvent.setup();
   const original = Object.getOwnPropertyDescriptor(navigator, "onLine");
   Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });
 
-  render(<CalendarView />);
+  render(<PlanView />);
 
   const titleInput = screen.getByLabelText("予定タイトル");
   await user.type(titleInput, "塾の予定");

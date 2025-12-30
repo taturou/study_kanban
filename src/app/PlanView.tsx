@@ -2,12 +2,8 @@ import {
   Box,
   Button,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Divider,
-  InputAdornment,
+  MenuItem,
   Paper,
   Stack,
   TextField,
@@ -33,6 +29,9 @@ import {
 
 const STORAGE_KEY = "lpk.currentSprintId";
 const DEFAULT_AVAILABILITY_MINUTES = 120;
+const MIN_AVAILABILITY_HOURS = 0.5;
+const MAX_AVAILABILITY_HOURS = 15.0;
+const AVAILABILITY_STEP_HOURS = 0.5;
 
 const JST_OFFSET_MINUTES = 9 * 60;
 
@@ -58,10 +57,16 @@ function formatMinutesAsHours(value: number) {
   return hours.toFixed(1);
 }
 
-function parseHoursToMinutes(value: string) {
-  const hours = Number.parseFloat(value);
-  if (!Number.isFinite(hours)) return null;
-  return Math.max(0, Math.round(hours * 60));
+function clampHours(value: number) {
+  return Math.min(MAX_AVAILABILITY_HOURS, Math.max(MIN_AVAILABILITY_HOURS, value));
+}
+
+function buildAvailabilityOptions() {
+  const options: Array<{ label: string; value: number }> = [];
+  for (let hours = MIN_AVAILABILITY_HOURS; hours <= MAX_AVAILABILITY_HOURS + 0.001; hours += AVAILABILITY_STEP_HOURS) {
+    options.push({ label: hours.toFixed(1), value: Math.round(hours * 60) });
+  }
+  return options;
 }
 
 function buildEventsByDate(events: CalendarEvent[]) {
@@ -72,12 +77,12 @@ function buildEventsByDate(events: CalendarEvent[]) {
   }, {});
 }
 
-export function CalendarView() {
+export function PlanView() {
   const theme = useTheme();
   const showMonthCalendar = useMediaQuery(theme.breakpoints.up("lg"));
   const tasks = useKanbanStore((state) => state.sprintTasks);
-  const setSprintLabelOverride = useKanbanStore((state) => state.setSprintLabelOverride);
   const setCurrentSprintDate = useKanbanStore((state) => state.setCurrentSprintDate);
+  const currentSprintDate = useKanbanStore((state) => state.currentSprintDate);
   const massiveSeedEnabled = isMassiveSeedEnabled();
   const massiveSeedDate = useMemo(
     () => (massiveSeedEnabled ? new Date(`${MASSIVE_SPRINT_START}T00:00:00.000Z`) : null),
@@ -96,7 +101,7 @@ export function CalendarView() {
   const [eventTitle, setEventTitle] = useState("");
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [calendarError, setCalendarError] = useState<string | null>(null);
-  const [calendarOpen, setCalendarOpen] = useState(false);
+  const availabilityOptions = useMemo(() => buildAvailabilityOptions(), []);
 
   const calendarService = useMemo(() => {
     const seedDate = massiveSeedDate ?? new Date();
@@ -117,6 +122,15 @@ export function CalendarView() {
     storeSprintDate(weekStart);
     setCurrentSprintDate(sprintDate);
   }, [selectedDate, setCurrentSprintDate]);
+
+  useEffect(() => {
+    if (!currentSprintDate) return;
+    const normalized = new Date(currentSprintDate);
+    const isSameDay = toIsoDate(normalized) === toIsoDate(selectedDate);
+    if (!isSameDay) {
+      setSelectedDate(normalized);
+    }
+  }, [currentSprintDate, selectedDate]);
 
   useEffect(() => {
     if (!massiveSeedEnabled || !massiveSeedDate) return;
@@ -206,13 +220,6 @@ export function CalendarView() {
     setEvents(next);
   };
 
-  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });
-  const weekLabel = `${format(weekStart, "yyyy/MM/dd", { locale: ja })} - ${format(weekEnd, "MM/dd", { locale: ja })}`;
-  useEffect(() => {
-    setSprintLabelOverride(weekLabel);
-  }, [setSprintLabelOverride, weekLabel]);
-
   const dailyGap = (plannedByDate[selectedIso] ?? 0) - availability;
   const dailyOver = dailyGap > 0;
   const layoutColumns = showMonthCalendar
@@ -243,47 +250,19 @@ export function CalendarView() {
           color: "#e2e8f0",
         }}
       >
-        <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Button
-              size="small"
-              onClick={() => setSelectedDate(new Date(selectedDate.getTime() - 7 * 86400000))}
-              sx={{ color: "#e2e8f0", borderColor: "rgba(226, 232, 240, 0.4)" }}
-              variant="outlined"
-            >
-              ◀
-            </Button>
-            <Button
-              size="small"
-              variant="text"
-              onClick={() => setCalendarOpen(true)}
-              sx={{ color: "#e2e8f0", fontWeight: 700 }}
-            >
-              {weekLabel}
-            </Button>
-            <Button
-              size="small"
-              onClick={() => setSelectedDate(new Date(selectedDate.getTime() + 7 * 86400000))}
-              sx={{ color: "#e2e8f0", borderColor: "rgba(226, 232, 240, 0.4)" }}
-              variant="outlined"
-            >
-              ▶
-            </Button>
-          </Stack>
-          <Stack direction="row" spacing={2} alignItems="center">
-            <Typography variant="caption">合計可能: {formatMinutesAsHours(availableTotal)} h</Typography>
-            <Typography variant="caption">計画: {formatMinutesAsHours(plannedTotal)} h</Typography>
-            <Typography variant="caption">実績: {formatMinutesAsHours(actualTotal)} h</Typography>
-            <Chip
-              size="small"
-              label={`状態: ${planGap > 0 ? "⚠" : "OK"} ${formatMinutesAsHours(planGap)} h`}
-              sx={{
-                background: planGap > 0 ? "rgba(248, 113, 113, 0.2)" : "rgba(56, 189, 248, 0.2)",
-                color: "#e2e8f0",
-                border: "1px solid rgba(226, 232, 240, 0.3)",
-              }}
-            />
-          </Stack>
+        <Stack direction="row" spacing={2} alignItems="center" justifyContent="flex-end">
+          <Typography variant="caption">合計可能: {formatMinutesAsHours(availableTotal)} h</Typography>
+          <Typography variant="caption">計画: {formatMinutesAsHours(plannedTotal)} h</Typography>
+          <Typography variant="caption">実績: {formatMinutesAsHours(actualTotal)} h</Typography>
+          <Chip
+            size="small"
+            label={`状態: ${planGap > 0 ? "⚠" : "OK"} ${formatMinutesAsHours(planGap)} h`}
+            sx={{
+              background: planGap > 0 ? "rgba(248, 113, 113, 0.2)" : "rgba(56, 189, 248, 0.2)",
+              color: "#e2e8f0",
+              border: "1px solid rgba(226, 232, 240, 0.3)",
+            }}
+          />
         </Stack>
       </Paper>
       <Box
@@ -336,7 +315,7 @@ export function CalendarView() {
           <Stack spacing={1.25}>
             <Stack spacing={0.5}>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                学習可能時間（h）を日別に入力します。
+                学習可能時間（h）を 0.5〜15.0 まで選択します。
               </Typography>
               <Box
                 sx={{
@@ -349,32 +328,30 @@ export function CalendarView() {
                 {weekDays.map((day) => {
                   const iso = toIsoDate(day);
                   const minutes = availabilityByDate[iso] ?? DEFAULT_AVAILABILITY_MINUTES;
+                  const clampedHours = clampHours(minutes / 60);
+                  const clampedMinutes = Math.round(clampedHours * 60);
                   return (
                     <TextField
                       key={iso}
                       label={format(day, "E", { locale: ja })}
                       size="small"
-                      type="number"
-                      inputProps={{ step: 0.5, min: 0 }}
-                      value={formatMinutesAsHours(minutes)}
+                      select
+                      value={clampedMinutes}
                       onChange={(event) => {
-                        const nextMinutes = parseHoursToMinutes(event.target.value);
+                        const nextMinutes = Number(event.target.value);
                         setAvailabilityOverrides((prev) => ({
                           ...prev,
-                          [iso]: nextMinutes ?? DEFAULT_AVAILABILITY_MINUTES,
+                          [iso]: Number.isFinite(nextMinutes) ? nextMinutes : DEFAULT_AVAILABILITY_MINUTES,
                         }));
                       }}
-                      InputProps={{
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                              h
-                            </Typography>
-                          </InputAdornment>
-                        ),
-                      }}
                       sx={{ background: "#ffffff" }}
-                    />
+                    >
+                      {availabilityOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}h
+                        </MenuItem>
+                      ))}
+                    </TextField>
                   );
                 })}
               </Box>
@@ -630,24 +607,6 @@ export function CalendarView() {
           </Stack>
         </Paper>
       </Box>
-      <Dialog open={calendarOpen} onClose={() => setCalendarOpen(false)}>
-        <DialogTitle>週を選択</DialogTitle>
-        <DialogContent>
-          <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ja}>
-            <DateCalendar
-              value={selectedDate}
-              onChange={(value) => {
-                if (!value) return;
-                setSelectedDate(value);
-              }}
-              showDaysOutsideCurrentMonth
-            />
-          </LocalizationProvider>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCalendarOpen(false)}>閉じる</Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }

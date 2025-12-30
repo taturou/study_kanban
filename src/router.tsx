@@ -1,7 +1,7 @@
 import { createRootRoute, createRoute, createRouter, Outlet } from "@tanstack/react-router";
 import { AppShell } from "./app/AppShell";
 import { KanbanView } from "./app/KanbanView";
-import { CalendarView } from "./app/CalendarView";
+import { PlanView } from "./app/PlanView";
 import { DashboardView } from "./app/DashboardView";
 import { HelpPage } from "./app/HelpPage";
 
@@ -19,10 +19,10 @@ const indexRoute = createRoute({
   component: KanbanView,
 });
 
-const calendarRoute = createRoute({
+const planRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/calendar",
-  component: CalendarView,
+  path: "/plan",
+  component: PlanView,
 });
 
 const dashboardRoute = createRoute({
@@ -37,7 +37,7 @@ const helpRoute = createRoute({
   component: HelpPage,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, calendarRoute, dashboardRoute, helpRoute]);
+const routeTree = rootRoute.addChildren([indexRoute, planRoute, dashboardRoute, helpRoute]);
 
 export const router = createRouter({ routeTree });
 

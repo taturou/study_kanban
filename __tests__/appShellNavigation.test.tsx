@@ -19,20 +19,20 @@ test("メニュー操作で SettingsPanel を開く", async () => {
   expect(await screen.findByText("設定")).toBeInTheDocument();
 });
 
-test("日付表示クリックでカレンダーへ遷移する", async () => {
+test("スプリント表示クリックで週選択ダイアログを開く", async () => {
   render(<RouterProvider router={router} />);
   const user = userEvent.setup();
 
-  await user.click(screen.getByRole("button", { name: "日付ビューへ" }));
-  expect(await screen.findByText("カレンダー")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "スプリント選択" }));
+  expect(await screen.findByText("週を選択")).toBeInTheDocument();
 });
 
-test("Dashboard ボタンでダッシュボードへ遷移する", async () => {
+test("ダッシュボード ボタンでダッシュボードへ遷移する", async () => {
   render(<RouterProvider router={router} />);
   const user = userEvent.setup();
 
-  await user.click(screen.getByRole("button", { name: "Dashboard" }));
-  expect(await screen.findByText("週次ダッシュボード")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "ダッシュボード" }));
+  expect(await screen.findByText("週次リソース調整")).toBeInTheDocument();
 });
 
 test("sync status クリックで同期状態ダイアログを開く", async () => {
