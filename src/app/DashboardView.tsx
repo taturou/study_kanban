@@ -7,7 +7,6 @@ import { computeRemainingMinutes } from "../time/timeCalc";
 
 type DashboardViewProps = {
   tasks?: Task[];
-  subjects?: string[];
   sprintRange?: { start: Date; end: Date };
   now?: Date;
 };
@@ -35,9 +34,8 @@ const readTodayFromSearch = (search: string) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
-export function DashboardView({ tasks, subjects, sprintRange, now }: DashboardViewProps) {
+export function DashboardView({ tasks, sprintRange, now }: DashboardViewProps) {
   const storeTasks = useKanbanStore((state) => state.sprintTasks);
-  const storeSubjects = useKanbanStore((state) => state.subjects);
   const storeSprintRange = useKanbanStore((state) => state.sprintRange);
   const storeStatusLabels = useKanbanStore((state) => state.statusLabels);
   const range = sprintRange ?? storeSprintRange ?? computeSprintRange(new Date());
