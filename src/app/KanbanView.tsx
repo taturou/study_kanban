@@ -12,11 +12,13 @@ export function KanbanView() {
   const pomodoroVisible = useKanbanStore((state) => state.pomodoroVisible);
   const setPomodoroVisible = useKanbanStore((state) => state.setPomodoroVisible);
   const overlayKey = useKanbanStore((state) => `${state.pomodoroVisible}-${state.pomodoro.state}`);
+  const disableAutoTick = import.meta.env.MODE === "test" || import.meta.env.VITEST;
 
   useEffect(() => {
+    if (disableAutoTick) return;
     const timer = window.setInterval(() => tickTimers(), 1000);
     return () => window.clearInterval(timer);
-  }, [tickTimers]);
+  }, [tickTimers, disableAutoTick]);
 
   useEffect(() => {
     if (pomodoro.state === "running") {
