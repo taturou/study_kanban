@@ -126,8 +126,9 @@ export function PlanView() {
   useEffect(() => {
     if (!currentSprintDate) return;
     const normalized = new Date(currentSprintDate);
-    const isSameDay = toIsoDate(normalized) === toIsoDate(selectedDate);
-    if (!isSameDay) {
+    const selectedWeek = startOfWeek(selectedDate, { weekStartsOn: 1 });
+    const currentWeek = startOfWeek(normalized, { weekStartsOn: 1 });
+    if (toIsoDate(selectedWeek) !== toIsoDate(currentWeek)) {
       setSelectedDate(normalized);
     }
   }, [currentSprintDate, selectedDate]);

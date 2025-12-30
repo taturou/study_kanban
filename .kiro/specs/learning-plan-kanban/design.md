@@ -8,7 +8,7 @@
 | 正式名称 | 略称 | 種別 | 説明 |
 | --- | --- | --- | --- |
 | カンバンボード | KanbanBoard | UI（View/Board） | 教科×ステータスの固定グリッドを表示するボード View。 |
-| カレンダービュー | CalendarView | UI（View） | 月曜始まりカレンダーと予定/学習時間表示の View。 |
+| プランビュー | PlanView | UI（View） | 月曜始まりカレンダーと予定/学習時間表示の View。 |
 | 閲覧専用ビュー | ReadOnlyView | UI（View） | 閲覧専用モードの View。 |
 | アラートバー | AlertToast | UI（Toast） | 同期/PT/過負荷などの非モーダル通知を画面右下のトーストで表示する UI 要素。 |
 | ナビゲーション | Navigation | UI | View 切替のメニュー/タブ。 |
@@ -45,7 +45,7 @@ graph TB
     KanbanBoard[KanbanBoard]
     TaskDialog[TaskDialog]
     Dashboard[Dashboard]
-    CalendarView[CalendarView]
+    PlanView[PlanView]
     ReadOnlyView[ReadOnlyView]
     HelpPage[HelpPage]
   end
@@ -71,7 +71,7 @@ graph TB
   KanbanBoard --> TaskStore
   TaskDialog --> TaskStore
   Dashboard --> TaskStore
-	  CalendarView --> TaskStore
+	  PlanView --> TaskStore
 	  TaskStore --> StatusPolicy
 	  TaskStore --> TimeCalc
 	  TaskStore --> Burndown
@@ -96,7 +96,7 @@ graph TB
 |-------|------------------|-----------------|-------|
 | Frontend | React 18 + Vite | SPA/PWA UI 実行基盤 | Vite で高速 dev/build、PWA プラグイン想定 |
 | State | Zustand | グローバル状態とローカルキャッシュ | ミドル状態を hooks で提供 |
-| Routing | TanStack Router | 画面遷移（カンバン/カレンダー/ヘルプ/閲覧専用） | 型安全ルーティング |
+| Routing | TanStack Router | 画面遷移（カンバン/プラン/ヘルプ/閲覧専用） | 型安全ルーティング |
 | UI | MUI + dnd-kit | コンポーネントと DnD | アクセシビリティ対応前提 |
 | i18n | i18next + react-i18next | UI 文字列管理（将来の多言語対応） | `lang` は `ja-JP` 固定、言語切替 UI は提供しない |
 | Data Store | IndexedDB | オフライン永続（状態＋同期状態） | StorageAdapter で抽象化 |
@@ -160,7 +160,7 @@ flowchart TD
   Main[Main View]
   Kanban[KanbanBoard]
   TaskDialog[TaskDialog Modal]
-  Calendar[CalendarView]
+  Plan[PlanView]
   Dashboard[Dashboard]
   Burndown[Burndown Chart]
   Settings[SettingsPanel]
@@ -170,7 +170,7 @@ flowchart TD
   AppShell --> Main
   AppShell --> AlertToast
   Main --> Kanban
-  Main --> Calendar
+  Main --> Plan
   Main --> Dashboard
   Main --> Settings
   Kanban --> TaskDialog
@@ -182,9 +182,10 @@ flowchart TD
 #### KanbanView
 
 - `Menu Button` をクリックすると SettingsPanel を表示する。
-- `YYYY/MM/DD - MM/DD` のスプリント期間表示をクリックすると Calendar View を表示する。
-- スプリント期間表示はカレンダーで選択した週に連動して更新する。
-- `Kanban` と `Dashboard` はトグルで、表示している方をグレーアウトする
+- `YYYY/MM/DD - MM/DD` のスプリント期間表示は週選択ダイアログを開き、前週/翌週ボタンでも切り替える。
+- スプリント期間表示は週選択ダイアログで選択した週に連動して更新する。
+- `プラン` ボタンで PlanView を表示する。
+- `カンバン` と `ダッシュボード` はトグルで、表示している方をグレーアウトする
 - `sync status` は Google Drive との同期状態をアイコンで示す
 - `avator` は Google アカウントのアバターを表示
 - `Num of Today/Due tasks` は本日実施予定のタスク数と完了したタスクを視覚的に表示する（過去・未来のスプリントを開いている場合は何も表示しない）
@@ -192,9 +193,9 @@ flowchart TD
 - 🍅 ボタンをクリックするとポモドーロタイマーが始まる
 
 ```ditaa
-+---------------------------------------------------------------------------------------------+
-| AppBar: [Menu Button] [Logo] [YYYY/MM/DD - MM/DD] [Kanban | Dashboard] [sync status] [avatar] |
-+---------------------------------------------------------------------------------------------+
++-----------------------------------------------------------------------------------------------+
+| AppBar: [Menu Button] [Logo] [◀][YYYY/MM/DD - MM/DD][▶] [プラン][カンバン|ダッシュボード] [sync][avatar] |
++-----------------------------------------------------------------------------------------------+
 | Kanban Header: Num of Today/Done Tasks | Estimate/Done Time                           [🍅] |
 +---------+-------------+-------------+---------------+-------------+------------+------------+
 |         | Backlog     |    Today    |  InPro        |  OnHold     |   Done     | Won't fix  |
@@ -229,7 +230,7 @@ flowchart TD
 
 ```ditaa
 +---------------------------------------------------------------------------------------------+
-| AppBar: [Menu Button] [Logo] [YYYY/MM/DD - MM/DD] [Kanban | Dashboard] [sync status] [avatar] |
+| AppBar: [Menu Button] [Logo] [◀][YYYY/MM/DD - MM/DD][▶] [プラン][カンバン|ダッシュボード] [sync][avatar] |
 +---------------------------------------------------------------------------------------------+
 | Kanban Header: Num of Today/Done Tasks | Estimate/Done Time                           [🍅] |
 |                                                                     +---------------------+ |
@@ -262,7 +263,7 @@ flowchart TD
 
 ```ditaa
 +---------------------------------------------------------------------------------------------+
-| AppBar: [Menu Button] [Logo] [YYYY/MM/DD - MM/DD] [Kanban | Dashboard] [sync status] [avatar] |
+| AppBar: [Menu Button] [Logo] [◀][YYYY/MM/DD - MM/DD][▶] [プラン][カンバン|ダッシュボード] [sync][avatar] |
 +---------------------------------------------------------------------------------------------+
 | Kanban Header: Num of Today/Done tasks | Estimate/Done tasks                          [🍅] |
 +---------+-------------+-------------+---------------+-------------+------------+------------+
@@ -294,7 +295,7 @@ flowchart TD
 
 ```ditaa
 +---------------------------------------------------------------------------------------------+
-| AppBar: [Menu Button] [Logo] [YYYY/MM/DD - MM/DD] [Kanban | Dashboard] [sync status] [avatar] |
+| AppBar: [Menu Button] [Logo] [◀][YYYY/MM/DD - MM/DD][▶] [プラン][カンバン|ダッシュボード] [sync][avatar] |
 +---------------------------------------------------------------------------------------------+
 | Kanban Header: Num of Today/Done Tasks | Estimate/Done Time                           [🍅] |
 +---------+-------------+-------------+---------------+-------------+------------+------------+
@@ -393,13 +394,13 @@ flowchart TD
 +--------------------------+
 ```
 
-#### CalendarView
+#### PlanView
 
 ```ditaa
-+---------------------------------------------------------------------------------------------+
-| AppBar: [Menu Button] [Logo] [YYYY/MM/DD - MM/DD] [Kanban | Dashboard] [sync status] [avatar] |
-+---------------------------------------------------------------------------------------------+
-| Calendar                                                                                    |
++-----------------------------------------------------------------------------------------------+
+| AppBar: [Menu Button] [Logo] [◀][YYYY/MM/DD - MM/DD][▶] [プラン][カンバン|ダッシュボード] [sync][avatar] |
++-----------------------------------------------------------------------------------------------+
+| Plan                                                                                           |
 | +-----------------------------------------------------------------------------------------+ |
 | | DateCalendar (Mon start, week highlight, hover highlight)                                | |
 | +-----------------------------------------------------------------------------------------+ |
@@ -409,26 +410,26 @@ flowchart TD
 | | - Added Today                                                                            | |
 | | - Actual                                                                                | |
 | +-----------------------------------------------------------------------------------------+ |
-| | Availability (minutes)                                                                   | |
+| | Availability (0.5h〜15.0h Select)                                                        | |
 | +-----------------------------------------------------------------------------------------+ |
 | | Events: Title input + Add, list with empty state + offline error                          | |
 | +-----------------------------------------------------------------------------------------+ |
-+---------------------------------------------------------------------------------------------+
++-----------------------------------------------------------------------------------------------+
 ```
 
-- CalendarView の上部に週次ヘッダーを置き、週範囲と合計可能/計画/実績時間を集約表示する。
-- CalendarView は画面幅に応じて 1〜3 列のグリッドに切り替え、横幅に余裕がある場合は左列に月カレンダーを表示する。
+- PlanView の上部は合計可能/計画/実績のサマリのみを表示し、週選択は AppBar 側で行う。
+- PlanView は画面幅に応じて 1〜3 列のグリッドに切り替え、横幅に余裕がある場合は左列に月カレンダーを表示する。
 - main panel と side panel は画面高に合わせて伸長し、縦方向の余白を最小化する。
-- 日別の学習可能時間は週 7 日分を入力し、計画/実績の比較は日別棒グラフで表示する。
+- 日別の学習可能時間は 0.5〜15.0 の 0.5h 単位で選択し、計画/実績の比較は日別棒グラフで表示する。
 - `seed=massive` を URL クエリに指定した場合は、学習可能時間/タスク/予定を固定データで初期化し、ナビゲーション時にクエリを保持する。
 
 #### DashboardView
 
 ```ditaa
-+---------------------------------------------------------------------------------------------+
-| AppBar: [Menu Button] [Logo] [YYYY/MM/DD - MM/DD] [Kanban | Dashboard] [sync status] [avatar] |
-+---------------------------------------------------------------------------------------------+
-| Weekly Dashboard                                                                            |
++-----------------------------------------------------------------------------------------------+
+| AppBar: [Menu Button] [Logo] [◀][YYYY/MM/DD - MM/DD][▶] [プラン][カンバン|ダッシュボード] [sync][avatar] |
++-----------------------------------------------------------------------------------------------+
+| Dashboard                                                                                    |
 | +-----------------------------------------------------------------------------------------+ |
 | | Status Summary by Subject (Backlog/Today/InPro/OnHold/Done/WontFix)                       | |
 | +-----------------------------------------------------------------------------------------+ |
@@ -445,6 +446,7 @@ flowchart TD
 - アクションテーブルは「提案理由」「影響（今週の負荷減/来週の負荷増）」を明示し、推奨日へ移動するボタンは日付入りラベルにする。
 - 提案なしのタスクは Backlog へ戻す操作のみを提供し、無理な日付指定操作は提供しない。
 - InPro タスクはアクションテーブルから除外し、除外理由を注記する。
+- Dashboard は `today` クエリ指定がある場合、基準日を指定日に上書きする。
 
 ```ditaa
 +------------------------------------------------------------------------------------------------------+
@@ -592,25 +594,25 @@ flowchart TD
 | 4.2 | 今日期日 Backlog 強調 | KanbanBoard | TimeCalc | - |
 | 4.3 | 期日超過フラグ/リスト | Dashboard | TimeCalc | - |
 | 4.4 | バーンダウンチャート | Dashboard | Burndown | - |
-| 4.5 | 月曜始まりカレンダー選択 | CalendarView | Router | カレンダーフロー |
-| 4.6 | Calendar 予定取得し表示（学習可能時間は自動反映しない） | CalendarView | CalendarAdapter, Availability | カレンダーフロー |
-| 4.7 | LPK カレンダー更新を Google Calendar に反映 | CalendarView | CalendarAdapter | カレンダーフロー |
-| 4.8 | 特定日ビューで3種のタスク一覧 | CalendarView | TaskStore | - |
+| 4.5 | 月曜始まりカレンダー選択 | PlanView | Router | カレンダーフロー |
+| 4.6 | Calendar 予定取得し表示（学習可能時間は自動反映しない） | PlanView | CalendarAdapter, Availability | カレンダーフロー |
+| 4.7 | LPK カレンダー更新を Google Calendar に反映 | PlanView | CalendarAdapter | カレンダーフロー |
+| 4.8 | 特定日ビューで3種のタスク一覧 | PlanView | TaskStore | - |
 | 4.9 | 曜日ごとの作業可能時間デフォルト | Availability | SettingsStore | - |
 | 4.10 | 特定日上書き | Availability | TaskStore | - |
 | 4.11 | 予定を表示して学習可能時間調整の参考にする（自動反映なし） | Availability | CalendarAdapter | カレンダーフロー |
 | 4.12 | 当日の予定と、手入力の学習可能時間に基づく残り学習可能時間ゲージ表示 | KanbanBoard | Availability, TimeCalc | - |
 | 4.13 | 教科別完了数/時間の週次サマリ | Dashboard | Burndown, TimeCalc | - |
-| 4.14 | 当日追加タスクのみ表示 | CalendarView | TaskStore | - |
+| 4.14 | 当日追加タスクのみ表示 | PlanView | TaskStore | - |
 | 4.15 | ヘルプページ提供（SettingsPanel から起動） | HelpPage, SettingsPanel | Router | - |
-| 4.16 | 予定/実績時間グラフ表示 | CalendarView | TimeCalc | - |
+| 4.16 | 予定/実績時間グラフ表示 | PlanView | TimeCalc | - |
 | 4.17 | バーンダウン日次残工数を記録しスナップショットで再現 | Burndown, TaskStore | StorageAdapter | - |
-| 4.18 | 選択週のハイライトと日付ビュー反映 | CalendarView | - | - |
-| 4.19 | 日付ビューの4セクションと空状態 | CalendarView | TaskStore | - |
+| 4.18 | 選択週のハイライトと日付ビュー反映 | PlanView | - | - |
+| 4.19 | 日付ビューの4セクションと空状態 | PlanView | TaskStore | - |
 | 4.20 | 学習可能時間の日別上書き保持 | Availability | TaskStore | - |
-| 4.21 | 予定タイトル必須で選択日基準の登録 | CalendarView | CalendarAdapter | カレンダーフロー |
-| 4.22 | オフライン予定追加の拒否とエラー表示 | CalendarView | CalendarAdapter | カレンダーフロー |
-| 4.23 | 予定一覧と空状態表示 | CalendarView | CalendarAdapter | - |
+| 4.21 | 予定タイトル必須で選択日基準の登録 | PlanView | CalendarAdapter | カレンダーフロー |
+| 4.22 | オフライン予定追加の拒否とエラー表示 | PlanView | CalendarAdapter | カレンダーフロー |
+| 4.23 | 予定一覧と空状態表示 | PlanView | CalendarAdapter | - |
 | 4.24 | 教科別ステータス集計の表示順 | Dashboard | TaskStore | - |
 | 4.25 | 週次サマリの完了件数/実績時間表示 | Dashboard | Burndown, TimeCalc | - |
 | 4.26 | バーンダウン一覧の日付昇順表示 | Dashboard | Burndown | - |
@@ -649,7 +651,7 @@ flowchart TD
 | TaskDialog | UI | 作成/編集/消去と入力制御 | 1.8,2.x | TaskStore (P0) | Service |
 | Dashboard | UI | 週次集計・バーンダウン | 4.1,4.3,4.4,4.13,4.24-4.26 | Burndown (P0) | State |
 | SettingsPanel | UI | ステータス表示名を設定し、バージョン/アップデート状態、PT デフォルト時間、手動同期、ヘルプ導線を提供 | 1.5,5.8,5.9,5.14,3.13,5.6,4.15 | TaskStore (P0), UpdateManager (P1), SyncEngine (P1) | State |
-| CalendarView | UI | 月曜始まりカレンダーと予定/学習時間表示 | 4.5-4.23 | CalendarAdapter (P0), Availability (P0) | State |
+| PlanView | UI | 月曜始まりカレンダーと予定/学習時間表示 | 4.5-4.23 | CalendarAdapter (P0), Availability (P0) | State |
 | HelpPage | UI | 操作説明 | 4.15 | - | - |
 | AlertToast | UI | 非モーダル通知（トースト: 同期/PT/過負荷） | 3.11,3.13,3.15,3.16,4.6,5.6,5.8 | SyncEngine (P0), TimeCalc (P0) | State |
 | TaskStore | State | タスク/教科/スプリント状態と IndexedDB 永続 | 全般 | StorageAdapter (P0), SyncEngine (P0) | State |
@@ -677,7 +679,7 @@ flowchart TD
   - `mode=readonly` または `sharedFolderId` が指定されている場合（学習者が発行した招待 URL 由来）、`dataFolderId = sharedFolderId` として **readonly で固定**して開く（招待 URL 経由では編集に昇格しない）。
   - 指定が無い場合は、ユーザー自身の Google Drive 上で `/LPK/` フォルダ（アプリ専用ディレクトリ）を解決し、読み書き可能なら editable とする。読み取りのみの場合は readonly とする。
   - `dataFolderId` の権限確認は Drive の capability（例: `canEdit`）で判定し、読み取り専用権限の場合は常に readonly とする。
-- 伝播: viewMode をコンテキストまたは props で各画面（KanbanBoard/TaskDialog/CalendarView/Dashboard/SettingsPanel/Availability 等）へ渡し、編集操作をガードする。CalendarView での予定追加/更新、Availability の学習可能時間上書き、SettingsPanel のラベル/更新操作も無効化する。一方で、閲覧者の UI 操作としての「スプリント選択（`UiSettings.currentSprintId` の更新）」は許可する（Drive への書き込みは行わない）。
+- 伝播: viewMode をコンテキストまたは props で各画面（KanbanBoard/TaskDialog/PlanView/Dashboard/SettingsPanel/Availability 等）へ渡し、編集操作をガードする。PlanView での予定追加/更新、Availability の学習可能時間上書き、SettingsPanel のラベル/更新操作も無効化する。一方で、閲覧者の UI 操作としての「スプリント選択（`UiSettings.currentSprintId` の更新）」は許可する（Drive への書き込みは行わない）。
 - 永続化: viewMode は一時的なアクセスモードであり、settings/sprint には保存しない。
 
 #### KanbanBoard
@@ -768,7 +770,7 @@ interface TaskDialogService {
 - Integration: グラフは日次サマリをキャッシュし、表示時に再計算を避ける。
 - Risks: スプリント境界跨ぎの集計漏れ→日付判定ユーティリティを共通化。
 
-#### CalendarView
+#### PlanView
 | Field | Detail |
 |-------|--------|
 | Intent | 月曜始まりカレンダーと学習可能時間表示、予定双方向同期 |

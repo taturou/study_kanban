@@ -111,16 +111,18 @@
 24. When 学習者が Dashboard を閲覧するとき, the LPK shall 教科別ステータス集計を教科ごとに1行で表示し、Backlog/Today/InPro/OnHold/Done/WontFix の順で件数を示す。
 25. When 週次サマリを表示するとき, the LPK shall 教科ごとに完了件数と実績時間（分）を一覧表示し、該当がない場合は 0 を表示する。
 26. When バーンダウンを表示するとき, the LPK shall スプリント期間の日付ごとに残タスク件数と残予定時間を一覧で表示し、日付昇順に並べる。
-27. The LPK shall CalendarView の週次ヘッダーに週範囲と合計可能/計画/実績時間を表示する。
-28. The LPK shall CalendarView を画面幅に応じて 1〜3 列でレイアウトし、横幅に余裕がある場合は左列に月カレンダーを表示する。
-29. The LPK shall CalendarView の main panel と side panel を画面高に合わせて伸長し、縦方向の余白を最小化する。
+27. The LPK shall AppBar に週範囲を表示し、前週/翌週の移動ボタンと週選択ダイアログでスプリントを切り替えられるようにする。クリックで PlanView は開かない。
+28. The LPK shall PlanView を画面幅に応じて 1〜3 列でレイアウトし、横幅に余裕がある場合は左列に月カレンダーを表示する。
+29. The LPK shall PlanView の main panel と side panel を画面高に合わせて伸長し、縦方向の余白を最小化する。
 30. When `seed=massive` を URL クエリに指定する, the LPK shall 学習可能時間・タスク・予定を UI パターン網羅用の固定データで初期化し、ナビゲーション時もクエリを保持する。
-31. The LPK shall Dashboard で週次リソース調整 HUD を表示し、今週/来週の残作業・可用枠・収支を対比表示する。
-32. The LPK shall Dashboard の日別負荷ストリップで、残作業と可用枠を日別に並べて表示する。
-33. When 推定枠が含まれる, the LPK shall HUD と日別負荷ストリップに推定枠の警告バッジ/ハッチングを表示する。
-34. The LPK shall Dashboard のアクションテーブルで、提案理由と影響（今週の負荷減/来週の負荷増）を明示する。
-35. When 提案がないタスクを表示する, the LPK shall Backlog への戻しのみを提供し、無理な日付指定操作を提供しない。
-36. The LPK shall Dashboard のアクションテーブルに InPro タスクを含めず、除外理由を注記する。
+31. The LPK shall PlanView で学習可能時間を 0.5〜15.0 の 0.5h 単位で選択できる UI を提供する。
+32. The LPK shall Dashboard で週次リソース調整 HUD を表示し、今週/来週の残作業・可用枠・収支を対比表示する。
+33. The LPK shall Dashboard の日別負荷ストリップで、残作業と可用枠を日別に並べて表示する。
+34. When 推定枠が含まれる, the LPK shall HUD と日別負荷ストリップに推定枠の警告バッジ/ハッチングを表示する。
+35. The LPK shall Dashboard のアクションテーブルで、提案理由と影響（今週の負荷減/来週の負荷増）を明示する。
+36. When 提案がないタスクを表示する, the LPK shall Backlog への戻しのみを提供し、無理な日付指定操作を提供しない。
+37. The LPK shall Dashboard のアクションテーブルに InPro タスクを含めず、除外理由を注記する。
+38. When `today` を URL クエリに指定する, the LPK shall Dashboard の基準日を指定日に上書きする。
 
 ### Requirement 5: アプリ基盤・デプロイ・同期
 **Objective:** 学習者として、マルチデバイスで途切れず使えるように、PWA・クラウド同期・ブラウザ対応を備えた基盤が欲しい。
