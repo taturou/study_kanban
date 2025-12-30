@@ -26,6 +26,14 @@ const addDays = (date: Date, amount: number) => {
   return next;
 };
 const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+const readTodayFromSearch = (search: string) => {
+  const raw = new URLSearchParams(search).get("today");
+  if (!raw) return null;
+  const normalized = raw.replace(/\//g, "-");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return null;
+  const parsed = new Date(`${normalized}T00:00:00.000Z`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
 
 export function DashboardView({ tasks, subjects, sprintRange, now }: DashboardViewProps) {
   const storeTasks = useKanbanStore((state) => state.sprintTasks);
@@ -33,7 +41,8 @@ export function DashboardView({ tasks, subjects, sprintRange, now }: DashboardVi
   const storeSprintRange = useKanbanStore((state) => state.sprintRange);
   const storeStatusLabels = useKanbanStore((state) => state.statusLabels);
   const range = sprintRange ?? storeSprintRange ?? computeSprintRange(new Date());
-  const referenceDate = startOfDay(now ?? new Date());
+  const urlToday = typeof window !== "undefined" ? readTodayFromSearch(window.location.search) : null;
+  const referenceDate = startOfDay(now ?? urlToday ?? new Date());
   const statusLabelMap = useMemo(
     () => ({
       ...storeStatusLabels,

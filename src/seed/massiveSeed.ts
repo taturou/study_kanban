@@ -95,7 +95,7 @@ const MASSIVE_TASK_DEFINITIONS: TaskSeedDefinition[] = [
     key: "thu-today",
     subjectIndex: 3,
     status: "Today",
-    estimateMinutes: 120,
+    estimateMinutes: 60,
     dueOffset: 3,
   },
   {
@@ -103,7 +103,7 @@ const MASSIVE_TASK_DEFINITIONS: TaskSeedDefinition[] = [
     subjectIndex: 4,
     status: "Backlog",
     estimateMinutes: 60,
-    dueOffset: 4,
+    dueOffset: 6,
   },
   {
     key: "sat-wontfix",
@@ -129,11 +129,11 @@ const MASSIVE_TASK_DEFINITIONS: TaskSeedDefinition[] = [
     subjectIndex: 2,
     status: "Done",
     estimateMinutes: 180,
-    dueOffset: 6,
-    updatedOffset: 6,
+    dueOffset: 4,
+    updatedOffset: 4,
     actuals: [
-      { offset: 6, minutes: 150 },
-      { offset: 6, minutes: 150 },
+      { offset: 4, minutes: 165 },
+      { offset: 4, minutes: 165 },
     ],
   },
   {
@@ -141,14 +141,14 @@ const MASSIVE_TASK_DEFINITIONS: TaskSeedDefinition[] = [
     subjectIndex: 3,
     status: "Today",
     estimateMinutes: 60,
-    dueOffset: 6,
+    dueOffset: 4,
   },
   {
     key: "sun-backlog",
     subjectIndex: 4,
     status: "Backlog",
     estimateMinutes: 90,
-    dueOffset: 6,
+    dueOffset: 4,
   },
 ];
 
@@ -256,5 +256,10 @@ export function buildMassiveAvailabilityOverrides(baseDate: Date, defaultMinutes
     const minutes = Math.round((defaultMinutes + delta) / 30) * 30;
     overrides[iso] = clamp(minutes);
   }
+  overrides["2025-12-22"] = 420;
+  overrides["2025-12-23"] = 150;
+  overrides["2025-12-24"] = 90;
+  overrides["2025-12-25"] = 240;
+  overrides["2025-12-26"] = 360;
   return overrides;
 }
