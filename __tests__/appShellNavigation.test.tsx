@@ -15,7 +15,7 @@ test("メニュー操作で SettingsPanel を開く", async () => {
   render(<RouterProvider router={router} />);
   const user = userEvent.setup();
 
-  await user.click(screen.getByRole("button", { name: "Menu" }));
+  await user.click(screen.getByRole("button", { name: "メニュー" }));
   expect(await screen.findByText("設定")).toBeInTheDocument();
 });
 
@@ -39,7 +39,7 @@ test("sync status クリックで同期状態ダイアログを開く", async ()
   render(<RouterProvider router={router} />);
   const user = userEvent.setup();
 
-  await user.click(screen.getByRole("button", { name: /Sync/ }));
+  await user.click(screen.getByRole("button", { name: "同期状態" }));
   expect(await screen.findByText("同期状態")).toBeInTheDocument();
 });
 

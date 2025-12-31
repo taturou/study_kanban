@@ -8,6 +8,6 @@ import { initI18n } from "../src/i18n";
 test("AppShell はアプリタイトルとヘッダー要素を表示する", async () => {
   initI18n(true);
   render(<RouterProvider router={router} />);
-  expect(await screen.findByText("学習計画カンバン")).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: "スプリント選択" })).toBeInTheDocument();
   expect(await screen.findByText("残り学習可能時間")).toBeInTheDocument();
 });

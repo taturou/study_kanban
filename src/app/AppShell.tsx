@@ -1,11 +1,9 @@
 import {
   AppBar,
   Toolbar,
-  Typography,
   Box,
   Button,
   Avatar,
-  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -21,6 +19,12 @@ import { ja } from "date-fns/locale";
 import { startOfWeek } from "date-fns";
 import CloudDoneIcon from "@mui/icons-material/CloudDone";
 import CloudOffIcon from "@mui/icons-material/CloudOff";
+import ViewWeekIcon from "@mui/icons-material/ViewWeek";
+import GridViewIcon from "@mui/icons-material/GridView";
+import DashboardIcon from "@mui/icons-material/Dashboard";
+import MenuIcon from "@mui/icons-material/Menu";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
@@ -40,7 +44,6 @@ export function AppShell({ children }: AppShellProps) {
   const navigate = useNavigate();
   const currentPath = useRouterState({ select: (state) => state.location.pathname });
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
-  const syncLabel = useMemo(() => (isOnline ? "Sync Online" : "Sync Offline"), [isOnline]);
   const syncIcon = isOnline ? <CloudDoneIcon /> : <CloudOffIcon />;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
@@ -75,64 +78,88 @@ export function AppShell({ children }: AppShellProps) {
       <AppBar position="sticky" sx={{ background: "#0b1222" }}>
         <Toolbar sx={{ gap: 2 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
-            <Button variant="outlined" color="inherit" size="small" onClick={() => setSettingsOpen(true)}>
-              Menu
-            </Button>
-            <Typography variant="h6">{t("appTitle")}</Typography>
+            <IconButton color="inherit" size="small" aria-label="メニュー" onClick={() => setSettingsOpen(true)}>
+              <MenuIcon />
+            </IconButton>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.5,
+                px: 1.25,
+                py: 0.25,
+                borderRadius: 999,
+                background: "rgba(148, 163, 184, 0.2)",
+              }}
+            >
+              <IconButton
+                size="small"
+                color="inherit"
+                aria-label="前のスプリント"
+                onClick={() => adjustSprintByWeeks(-1, currentSprintDate, setCurrentSprintDate)}
+              >
+                <ChevronLeftIcon fontSize="small" />
+              </IconButton>
+              <Button
+                size="small"
+                variant="text"
+                color="inherit"
+                aria-label="スプリント選択"
+                onClick={() => setSprintPickerOpen(true)}
+                sx={{ whiteSpace: "nowrap", minWidth: "auto" }}
+              >
+                {sprintDisplayLabel}
+              </Button>
+              <IconButton
+                size="small"
+                color="inherit"
+                aria-label="次のスプリント"
+                onClick={() => adjustSprintByWeeks(1, currentSprintDate, setCurrentSprintDate)}
+              >
+                <ChevronRightIcon fontSize="small" />
+              </IconButton>
+            </Box>
           </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1, justifyContent: "center" }}>
-            <Button
-              size="small"
-              variant="outlined"
-              color="inherit"
-              onClick={() => adjustSprintByWeeks(-1, currentSprintDate, setCurrentSprintDate)}
-            >
-              ◀
-            </Button>
-            <Button
-              size="small"
-              variant="text"
-              color="inherit"
-              aria-label="スプリント選択"
-              onClick={() => setSprintPickerOpen(true)}
-            >
-              {sprintDisplayLabel}
-            </Button>
-            <Button
-              size="small"
-              variant="outlined"
-              color="inherit"
-              onClick={() => adjustSprintByWeeks(1, currentSprintDate, setCurrentSprintDate)}
-            >
-              ▶
-            </Button>
+          <Box sx={{ flex: 2, display: "flex", justifyContent: "center" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <IconButton
+                color="inherit"
+                size="small"
+                aria-label="プラン"
+                onClick={() => navigate({ to: "/plan", search: (prev) => prev })}
+                sx={{ background: isPlan ? "rgba(148, 163, 184, 0.2)" : "transparent" }}
+              >
+                <ViewWeekIcon fontSize="small" />
+              </IconButton>
+              <IconButton
+                color="inherit"
+                size="small"
+                aria-label="カンバン"
+                onClick={() => navigate({ to: "/", search: (prev) => prev })}
+                sx={{ background: isKanban ? "rgba(148, 163, 184, 0.2)" : "transparent" }}
+              >
+                <GridViewIcon fontSize="small" />
+              </IconButton>
+              <IconButton
+                color="inherit"
+                size="small"
+                aria-label="ダッシュボード"
+                onClick={() => navigate({ to: "/dashboard", search: (prev) => prev })}
+                sx={{ background: isDashboard ? "rgba(148, 163, 184, 0.2)" : "transparent" }}
+              >
+                <DashboardIcon fontSize="small" />
+              </IconButton>
+            </Box>
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1, justifyContent: "flex-end" }}>
-            <Button
+            <IconButton
               color="inherit"
               size="small"
-              variant={isPlan ? "outlined" : "text"}
-              onClick={() => navigate({ to: "/plan", search: (prev) => prev })}
+              aria-label="同期状態"
+              onClick={() => setSyncOpen(true)}
             >
-              プラン
-            </Button>
-            <Button
-              color="inherit"
-              size="small"
-              variant={isKanban ? "outlined" : "text"}
-              onClick={() => navigate({ to: "/", search: (prev) => prev })}
-            >
-              カンバン
-            </Button>
-            <Button
-              color="inherit"
-              size="small"
-              variant={isDashboard ? "outlined" : "text"}
-              onClick={() => navigate({ to: "/dashboard", search: (prev) => prev })}
-            >
-              ダッシュボード
-            </Button>
-            <Chip icon={syncIcon} label={syncLabel} size="small" onClick={() => setSyncOpen(true)} />
+              {syncIcon}
+            </IconButton>
             <IconButton
               color="inherit"
               size="small"
