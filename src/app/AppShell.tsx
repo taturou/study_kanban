@@ -25,8 +25,7 @@ import DashboardIcon from "@mui/icons-material/Dashboard";
 import MenuIcon from "@mui/icons-material/Menu";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import { useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useEffect, useState } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useKanbanStore } from "../store/kanbanStore";
 import { KanbanHeader } from "./KanbanHeader";
@@ -37,7 +36,6 @@ type AppShellProps = {
 };
 
 export function AppShell({ children }: AppShellProps) {
-  const { t } = useTranslation("common");
   const sprintLabel = useKanbanStore((state) => state.sprintLabel);
   const currentSprintDate = useKanbanStore((state) => state.currentSprintDate);
   const setCurrentSprintDate = useKanbanStore((state) => state.setCurrentSprintDate);
